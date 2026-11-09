@@ -169,9 +169,10 @@ weight of all sixteen rules, so a consumer can recompute the score from the issu
 CLI: `glyphsift check <file|-> [--fail-under <ppm>]` prints the canonical report and exits 0, or 4
 when the score is below the threshold (the report is still printed), 1 on an I/O or UTF-8 error or an
 input over 4 MiB, 2 on a usage error. Python: `glyphsift.validate(text) -> str`,
-`glyphsift.score_ppm(text) -> int` (`ValueError` over the limit). WASM: `validate(text) -> string`,
-`score_ppm(text) -> number`, `report_spec()`, `clusters`, `clusters_json`, `issue_kinds` (all throw
-on over-limit input and never trap). Scores are integers in parts per million, never floats, so the
+`glyphsift.score_ppm(text) -> int` and `glyphsift.clusters(text) -> list[str]` (all three raise
+`ValueError` over the limit). WASM: `validate(text) -> string`, `score_ppm(text) -> number`,
+`report_spec()`, `clusters`, `clusters_json`, `issue_kinds` (all throw on over-limit input and never
+trap). Scores are integers in parts per million, never floats, so the
 canonical JSON stays bit-identical across runtimes.
 
 ## 6. Score and canonical JSON

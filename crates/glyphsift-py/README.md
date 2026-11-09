@@ -17,7 +17,7 @@ ppm = glyphsift.score_ppm(text)          # integer score in parts per million, 1
 glyphsift.clusters(text)                 # UAX #29 extended grapheme clusters, as a list of str
 ```
 
-`validate` and `score_ppm` raise `ValueError` for input over 4 MiB. Limitations: structural checks only,
+`validate`, `score_ppm` and `clusters` raise `ValueError` for input over 4 MiB, with the same message. Limitations: structural checks only,
 Devanagari only, nothing published yet; see the repository README.
 
 ## Build
