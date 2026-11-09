@@ -7,6 +7,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# WASM_OUT is removed with rm -rf below, so it must be a relative path inside the repository: refuse
+# (exit 2) a value that is set but empty, absolute, a Windows drive path ('C:...'), containing a
+# backslash, or with a '..' segment. Unset means dist/wasm.
+OUT=${WASM_OUT-dist/wasm}
+case "$OUT" in
+  ""|/*|[A-Za-z]:*|*\\*|..|../*|*/..|*/../*) echo "error: WASM_OUT must be a non-empty relative path with forward slashes only, no drive letter and no '..' segments (got '$OUT')" >&2; exit 2 ;;
+esac
+
 PINNED=$(sed -n 's/^wasm-bindgen = "=\(.*\)"/\1/p' crates/glyphsift-wasm/Cargo.toml)
 # ~/.cargo/bin is where `cargo install` puts the CLI; it is not always on PATH.
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -30,7 +38,6 @@ RAW=target/wasm32-unknown-unknown/wasm/glyphsift_wasm.wasm
 # extension, mutable globals, saturating float-to-int), identical in every engine.
 WASM_FEATURES="--enable-bulk-memory-opt --enable-sign-ext --enable-mutable-globals --enable-nontrapping-float-to-int"
 
-OUT=${WASM_OUT:-dist/wasm}
 rm -rf "./$OUT"
 for target in web nodejs; do
   wasm-bindgen --target "$target" --out-dir "$OUT/$target" --out-name glyphsift "$RAW"

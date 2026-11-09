@@ -16,3 +16,8 @@
 *.ttf binary
 *.zip binary
 *.gz binary
+
+# Determinism samples and their expected reports are compared byte for byte (some deliberately contain
+# CRLF, bare CR and a BOM); git must never normalise them.
+tests/determinism/samples/* -text
+tests/determinism/expected/* -text

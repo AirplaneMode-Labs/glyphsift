@@ -5,6 +5,7 @@
 #   - wasm-bindgen CLI, at the exact version pinned in crates/glyphsift-wasm/Cargo.toml
 #   - binaryen (wasm-opt), at BINARYEN_VERSION
 # Bumping either version means adding the new tarballs' digests to expected_digest below.
+# Platforms: Linux x86_64, macOS arm64/x86_64, Windows x86_64 (Git Bash; configured, not yet executed).
 # Used by CI; also fine locally. Installs under $INSTALL_ROOT (default ~/.local/glyphsift-tools)
 # and, when run in GitHub Actions, adds the bin directories to PATH for later steps. Otherwise it
 # prints the PATH line to use.
@@ -20,6 +21,7 @@ case "$(uname -s)-$(uname -m)" in
   Linux-x86_64)  WBG_TARGET=x86_64-unknown-linux-musl; BIN_TARGET=x86_64-linux ;;
   Darwin-arm64)  WBG_TARGET=aarch64-apple-darwin;      BIN_TARGET=arm64-macos ;;
   Darwin-x86_64) WBG_TARGET=x86_64-apple-darwin;       BIN_TARGET=x86_64-macos ;;
+  MINGW64_NT*-x86_64|MSYS_NT*-x86_64|CYGWIN_NT*-x86_64) WBG_TARGET=x86_64-pc-windows-msvc; BIN_TARGET=x86_64-windows ;;
   *) echo "error: unsupported platform $(uname -s)-$(uname -m)" >&2; exit 1 ;;
 esac
 
@@ -41,6 +43,8 @@ expected_digest() {
     binaryen-version_133-x86_64-linux)              echo 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489 ;;
     binaryen-version_133-arm64-macos)               echo ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8 ;;
     binaryen-version_133-x86_64-macos)              echo 13a9b90be775c6389ce3d1f879cb8627bea56708ba8c122983941d53a8199b95 ;;
+    wasm-bindgen-0.2.129-x86_64-pc-windows-msvc)    echo 79e348c169d0c10c0b287647f1e753d0985353ca96800bc29be8f4261baf13e6 ;;
+    binaryen-version_133-x86_64-windows)            echo 17a2cbeac6b5693c5fbafab3838d3c65fd9c1eb38b05f5baec6c657e8c84995b ;;
     *) echo "error: no pinned SHA-256 for $1 (new version or platform): add it to expected_digest in $0" >&2; return 1 ;;
   esac
 }
@@ -62,17 +66,20 @@ check() {
   echo "verified $2 ($got)"
 }
 
-mkdir -p "$ROOT"
-
 WBG_NAME="wasm-bindgen-${WBG_VERSION}-${WBG_TARGET}"
 WBG_URL="https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WBG_VERSION}/${WBG_NAME}.tar.gz"
+BIN_NAME="binaryen-version_${BINARYEN_VERSION}-${BIN_TARGET}"
+BIN_URL="https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/${BIN_NAME}.tar.gz"
+# Fail closed before any download: both assets need a pinned digest, so an unknown version or platform
+# exits 1 with no network call and nothing installed.
+expected_digest "$WBG_NAME" >/dev/null || exit 1
+expected_digest "$BIN_NAME" >/dev/null || exit 1
+mkdir -p "$ROOT"
 download "$WBG_URL" wbg.tar.gz
 check "$TMP/wbg.tar.gz" "$WBG_NAME"
 rm -rf "$ROOT/wasm-bindgen"; mkdir -p "$ROOT/wasm-bindgen"
 tar -xzf "$TMP/wbg.tar.gz" -C "$ROOT/wasm-bindgen" --strip-components=1
 
-BIN_NAME="binaryen-version_${BINARYEN_VERSION}-${BIN_TARGET}"
-BIN_URL="https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/${BIN_NAME}.tar.gz"
 download "$BIN_URL" bin.tar.gz
 check "$TMP/bin.tar.gz" "$BIN_NAME"
 rm -rf "$ROOT/binaryen"; mkdir -p "$ROOT/binaryen"
@@ -80,8 +87,14 @@ tar -xzf "$TMP/bin.tar.gz" -C "$ROOT/binaryen" --strip-components=1
 
 echo "installed wasm-bindgen ${WBG_VERSION} and binaryen ${BINARYEN_VERSION} under $ROOT"
 if [ -n "${GITHUB_PATH:-}" ]; then
-  echo "$ROOT/wasm-bindgen" >> "$GITHUB_PATH"
-  echo "$ROOT/binaryen/bin" >> "$GITHUB_PATH"
+  # On Windows runners (Git Bash) GITHUB_PATH needs native paths; cygpath exists only there.
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$ROOT/wasm-bindgen" >> "$GITHUB_PATH"
+    cygpath -w "$ROOT/binaryen/bin" >> "$GITHUB_PATH"
+  else
+    echo "$ROOT/wasm-bindgen" >> "$GITHUB_PATH"
+    echo "$ROOT/binaryen/bin" >> "$GITHUB_PATH"
+  fi
 else
   echo "add to PATH:  export PATH=\"$ROOT/wasm-bindgen:$ROOT/binaryen/bin:\$PATH\""
 fi

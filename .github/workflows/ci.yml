@@ -44,22 +44,68 @@ jobs:
           python-version: "3.12"
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      # Default members: core + cli. Includes the tests-first case table checks.
+      # Default members: core + cli. The CLI turns on the core's `corrupt` feature, so this runs the
+      # 93-case table, the fuzz test, the score and corruption tests, and the bench and check tests
+      # (which compare the committed docs/score-vs-noise.{csv,svg} with a fresh run).
       - run: cargo test
-      - name: Ignored Sprint 2 harness must still compile (not run)
-        run: cargo test -p glyphsift-core --test devanagari --no-run
+      - name: WASM binding unit tests (native target)
+        run: cargo test -p glyphsift-wasm
       - run: cargo check -p glyphsift-core --target wasm32-unknown-unknown
       - run: cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
       - run: cargo check -p glyphsift-py
-      - name: Licence sweep (copyleft must not appear)
+      - name: The committed benchmark CSV still satisfies the monotonicity criterion
+        run: cargo run -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
+      - name: Licence sweep and dependency features
         run: |
           if cargo tree --workspace -e normal -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'; then
             echo "copyleft licence found in the dependency tree" >&2; exit 1; fi
           if cargo tree --workspace -f '{p} {f}' | grep preserve_order; then
             echo "serde_json preserve_order must stay off" >&2; exit 1; fi
+          if cargo tree -p glyphsift-wasm -e features -f '{p} {f}' | grep -w corrupt; then
+            echo "the corrupt feature must not reach the WASM build" >&2; exit 1; fi
+          if grep -rnE 'f32|f64|HashMap|HashSet' crates/glyphsift-core/src; then
+            echo "glyphsift-core must use no floating point and no hash collections" >&2; exit 1; fi
+
+  # The determinism gate: the samples in tests/determinism must give byte-identical reports on native,
+  # Python and WASM, and the WASM build must survive the fuzz set, a 1 MiB input and a 5,000-mark run
+  # without a trap (tests/wasm/run_wasm_safety.mjs). Passing on all three operating systems also means
+  # they agree.
+  # Windows: configured, not yet executed. scripts/install-wasm-tools.sh has a Windows branch with
+  # pinned digests, but nothing has run on a Windows runner until the repository is pushed.
+  determinism:
+    name: determinism (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      PYTHON: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
+        run: scripts/install-wasm-tools.sh
+      - name: Determinism gate (native, Python, WASM) and WASM safety script
+        run: scripts/determinism.sh
 
   # Builds the GitHub Pages demo with the same commands .github/workflows/pages.yml runs, so a demo
-  # that fails to build fails CI.
+  # that fails to build fails CI. scripts/build-demo.sh first runs scripts/check-demo-sources.sh
+  # (no innerHTML, outerHTML or insertAdjacentHTML in demo/*.js).
   demo:
     name: demo build (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -80,3 +126,31 @@ jobs:
       - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
         run: scripts/install-wasm-tools.sh
       - run: scripts/build-demo.sh
+
+  # Dependency policy (deny.toml). cargo-deny is a pinned release binary checked against a SHA-256 kept
+  # in this file, not the EmbarkStudios Docker action. Linux only. The advisories leg may fail without
+  # blocking: a new advisory is information, a licence, ban or source violation is not.
+  deny:
+    name: cargo-deny (${{ matrix.checks }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        checks: [advisories, "bans licenses sources"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+      - name: cargo-deny 0.20.2 (digest-pinned binary)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/cargo-deny.tgz" https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  $RUNNER_TEMP/cargo-deny.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/cargo-deny.tgz" --strip-components=1 -C "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/cargo-deny" --all-features check ${{ matrix.checks }}

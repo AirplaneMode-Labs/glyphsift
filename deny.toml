@@ -1,30 +1,38 @@
-# cargo-deny configuration. Run `cargo deny check` when cargo-deny is installed; the fallback sweep is
-# `cargo tree -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'` (must print nothing).
+# cargo-deny policy, run by the `deny` job in .github/workflows/ci.yml (cargo-deny 0.20.2, a
+# digest-pinned binary; no Docker action) and locally with `cargo deny --all-features check`.
+# Licence policy: permissive licences only, never GPL, AGPL, LGPL or SSPL (see CONTRIBUTING.md).
+# The licence of this repository is Apache-2.0 and does not change.
+
+[graph]
+all-features = true
+
+[advisories]
+# The advisories leg runs with continue-on-error in CI: a new advisory is visible but does not block
+# a merge by itself. A yanked crate is a hard error.
+yanked = "deny"
 
 [licenses]
+# cargo-deny rejects every licence that is not listed, so GPL-*, LGPL-*, AGPL-* and SSPL-* are denied
+# by omission; this list is the policy.
 allow = [
-    "Apache-2.0",
-    "MIT",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-3.0",
-    "Zlib",
-    "MPL-2.0",
+  "Apache-2.0",
+  "MIT",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "MPL-2.0",
+  # Added from `cargo tree -f '{p} {l}'`; permissive: target-lexicon, reached through pyo3-build-config.
+  "Apache-2.0 WITH LLVM-exception",
 ]
-# Explicitly denied families (cargo-deny >= 0.16 rejects every licence not in `allow`, so the
-# denial is implied; the list is kept here as the stated policy): GPL-*, LGPL-*, AGPL-*, SSPL-*.
-# Copyleft licences are never acceptable in this workspace (see CONTRIBUTING.md).
-exceptions = []
+confidence-threshold = 0.9
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
 
-[advisories]
-yanked = "deny"
-unmaintained = "workspace"
-
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
