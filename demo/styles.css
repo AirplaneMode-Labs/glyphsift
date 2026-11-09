@@ -233,3 +233,71 @@ a {
     columns: 1;
   }
 }
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.score-value {
+  font-size: 2.6rem;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+meter {
+  width: 220px;
+  height: 14px;
+}
+td.num,
+td.idx,
+td.line-score {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+td.line-text {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  min-width: 12ch;
+  word-break: break-word;
+}
+tr.flagged td.line-score {
+  color: var(--bad);
+  font-weight: 600;
+}
+tr.flagged {
+  background: var(--warn-bg);
+}
+.issue-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+.issue-list .kind {
+  color: var(--accent);
+}
+.issue-list .more {
+  color: var(--muted);
+  list-style: none;
+  margin-left: -18px;
+}
+.cluster-text {
+  font-size: 1rem;
+}
+.kinds li.fired {
+  font-weight: 650;
+}
+details > summary {
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+td.rules {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}

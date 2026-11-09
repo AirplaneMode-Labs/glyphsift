@@ -3,7 +3,10 @@
 #   1. scripts/build-wasm.sh  -> dist/wasm/web/{glyphsift.js,glyphsift_bg.wasm}
 #   2. copy demo/{index.html,app.js,styles.css,samples.js} and the two web-target files into demo/dist/
 #   3. write demo/dist/build.json {id, sha}: id = first 16 hex of sha256(glyphsift.js ++ glyphsift_bg.wasm),
-#      sha = $GITHUB_SHA or "local"
+#      sha = $GITHUB_SHA when it is a full 40-hex commit id, otherwise "local" (the page shows the
+#      first 12 characters of a commit, or "local")
+# Before building it runs scripts/check-demo-sources.sh: no innerHTML, outerHTML or
+# insertAdjacentHTML in demo/*.js, no inline script, style or event handler in demo/index.html.
 # demo/dist/ is a build product and is git-ignored; nothing here is committed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -12,6 +15,7 @@ cd "$(dirname "$0")/.."
 [ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
 [ -d /opt/homebrew/bin ] && export PATH="/opt/homebrew/bin:$PATH"
 
+scripts/check-demo-sources.sh
 scripts/build-wasm.sh
 
 WEB=dist/wasm/web
@@ -30,7 +34,9 @@ sha256_of_stream() {
   else sha256sum | cut -d' ' -f1; fi
 }
 ID=$(cat "$OUT/pkg/glyphsift.js" "$OUT/pkg/glyphsift_bg.wasm" | sha256_of_stream | cut -c1-16)
-SHA=${GITHUB_SHA:-local}
+# A malformed GITHUB_SHA never reaches build.json: only a full lowercase 40-hex commit id is kept.
+SHA=local
+if [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then SHA=$GITHUB_SHA; fi
 printf '{"id":"%s","sha":"%s"}\n' "$ID" "$SHA" > "$OUT/build.json"
 
 echo "demo assembled in $OUT (module id $ID, sha $SHA)"

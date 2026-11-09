@@ -10,7 +10,7 @@
     <meta name="referrer" content="no-referrer" />
     <meta
       name="description"
-      content="glyphsift demo: UAX #29 grapheme clusters of pasted Devanagari text, computed in WebAssembly in this tab. The validator is not implemented yet."
+      content="glyphsift demo: a Devanagari text-quality score, per-line issues and the sixteen rules, computed in WebAssembly in this tab. Nothing is uploaded."
     />
     <title>glyphsift demo</title>
     <link rel="icon" href="data:," />
@@ -20,8 +20,9 @@
     <header>
       <h1>glyphsift demo</h1>
       <p class="lede">
-        Everything runs in this tab. Nothing is uploaded; the only network requests are for this
-        page's own files.
+        Is this extracted Devanagari text clean? The score, the per-line issues and the report are
+        computed in WebAssembly in this tab. Nothing is uploaded; the only network requests are for
+        this page's own files.
       </p>
       <p class="status" id="build-line">Built from main at <code>…</code> by .github/workflows/pages.yml</p>
     </header>
@@ -39,19 +40,19 @@
       <section id="not-yet" class="box box-warn">
         <h2>What this demo does not do yet</h2>
         <ul>
+          <li>No per-line heatmap: each line shows its score as a number, not as a coloured strip (planned for the v0.1 demo).</li>
+          <li>Devanagari only: Tamil and Bengali come later, and text in any other script is treated as plain text, so a Latin line scores clean.</li>
           <li>
-            <code>validate()</code> is not implemented (Sprint 2); the page shows the Unimplemented error
-            verbatim below instead of a report.
-          </li>
-          <li>No scores, no per-line heatmap and no OCR-corruption benchmark (Sprint 2 and Sprint 3).</li>
-          <li>
-            Grapheme clustering is the only real output today; the sixteen rule names are listed, not
-            checked.
+            Structural checks only: it cannot see visually plausible OCR confusions (<code>ब</code> for
+            <code>व</code>), a well-formed but wrong word, or legacy-font text that was read back as Latin letters.
           </li>
           <li>
-            No service worker: offline after the first load is best effort (Chrome's HTTP cache), not
-            guaranteed.
+            The rule weights come from how badly each defect breaks rendering or reading; they are not
+            calibrated on real documents, and the benchmark behind them uses synthetic text only.
           </li>
+          <li>No file drag-and-drop: paste text instead. Input is limited to 1 MiB of UTF-8.</li>
+          <li>No service worker: offline after the first load is best effort (Chrome's HTTP cache), not guaranteed.</li>
+          <li>Nothing is published yet: no npm package or Python wheel.</li>
         </ul>
       </section>
 
@@ -66,53 +67,99 @@
         <div class="samples" id="samples">
           <button type="button" data-sample="clean">Clean</button>
           <button type="button" data-sample="ocr">OCR-corrupted</button>
-          <button type="button" data-sample="legacy">Legacy-font gibberish</button>
+          <button type="button" data-sample="legacy">Legacy font read as Latin</button>
+          <button type="button" data-sample="residue">Legacy font residue</button>
+          <button type="button" data-sample="adversarial">Adversarial</button>
         </div>
-        <label for="text" class="visually-hidden">Text to split into grapheme clusters</label>
-        <textarea id="text" rows="4" spellcheck="false" lang="hi" dir="auto" placeholder="नमस्ते।"></textarea>
+        <label for="text" class="visually-hidden">Text to validate</label>
+        <textarea id="text" rows="6" spellcheck="false" lang="hi" dir="auto" placeholder="नमस्ते।"></textarea>
+        <p class="hint"><span id="byte-count">0 of 1,048,576 bytes</span></p>
+        <p class="notice" id="sample-notice" hidden></p>
+        <p class="notice" id="input-note" role="status" hidden></p>
       </section>
 
-      <section id="clusters">
-        <h2>Grapheme clusters <span class="count" id="cluster-count"></span></h2>
-        <p class="notice" id="sample-notice" hidden>
-          glyphsift does not detect these problems yet; the table only shows how the text splits into
-          grapheme clusters (validator: Sprint 2).
-        </p>
+      <section id="score">
+        <h2>Document score</h2>
+        <div class="score-row">
+          <span class="score-value" id="score-value" aria-live="polite">—</span>
+          <meter id="score-meter" min="0" max="1000000" value="0" aria-label="Document score from 0 to 1"></meter>
+        </div>
+        <p class="hint" id="score-detail"></p>
         <p class="hint">
-          UAX #29 extended grapheme clusters from <code>clusters_json()</code>, with byte offsets into
-          the UTF-8 input. The same segmentation the Sprint 2 validator will judge.
+          Each flagged cluster costs the largest weight among its issues; the score is
+          1 − penalty × 1000 ÷ clusters, in parts per million, shown with four decimals (truncated, never
+          rounded) by integer arithmetic. 1.0000 is clean; empty text scores 1.0000.
         </p>
+      </section>
+
+      <section id="lines">
+        <h2>Lines <span class="count" id="line-count"></span></h2>
+        <p class="hint">
+          One row per line (LF, CRLF or a bare CR ends a line). The score is the same formula applied
+          to that line alone. Invisible or private-use code points are shown as <code>⟨U+XXXX⟩</code>.
+        </p>
+        <p class="hint" id="lines-note" hidden></p>
         <div class="table-wrap">
-          <table id="cluster-table">
+          <table id="line-table">
             <thead>
               <tr>
-                <th scope="col">#</th>
-                <th scope="col">Cluster</th>
-                <th scope="col">Code points</th>
-                <th scope="col">Bytes</th>
+                <th scope="col">Line</th>
+                <th scope="col">Text</th>
+                <th scope="col">Clusters</th>
+                <th scope="col">Flagged</th>
+                <th scope="col">Score</th>
+                <th scope="col">Issues</th>
               </tr>
             </thead>
-            <tbody id="cluster-rows"></tbody>
+            <tbody id="line-rows"></tbody>
           </table>
         </div>
       </section>
 
-      <section id="validate">
-        <h2>validate() result (Sprint 1): not implemented</h2>
-        <p class="hint">
-          <code>validate()</code> is called on every change inside <code>try</code>/<code>catch</code>; the
-          message it throws is shown unchanged, followed by what the CLI prints for the same input.
-        </p>
-        <pre id="validate-out"></pre>
-      </section>
-
       <section id="rules">
-        <h2>Rules the validator will report</h2>
+        <h2>The sixteen rules</h2>
         <p class="hint">
-          From <code>issue_kinds()</code>: the stable wire names of the Devanagari rules. Each is marked
-          as not yet checked because no rule runs in Sprint 1.
+          The stable wire names from <code>issue_kinds()</code>, each with its weight from
+          <code>weights/devanagari.toml</code> and how many times it fired on this text.
         </p>
         <ul id="issue-kinds" class="kinds"></ul>
+      </section>
+
+      <section id="clusters">
+        <details>
+          <summary>Grapheme clusters <span class="count" id="cluster-count"></span></summary>
+          <p class="hint">
+            UAX #29 extended grapheme clusters the validator judged, with byte offsets into the UTF-8
+            input. Flagged clusters name the rules that fired.
+          </p>
+          <p class="hint" id="clusters-note" hidden></p>
+          <div class="table-wrap">
+            <table id="cluster-table">
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Cluster</th>
+                  <th scope="col">Code points</th>
+                  <th scope="col">Bytes</th>
+                  <th scope="col">Rules</th>
+                </tr>
+              </thead>
+              <tbody id="cluster-rows"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section id="json">
+        <details>
+          <summary>Canonical JSON report</summary>
+          <p class="hint">
+            Exactly what <code>validate()</code> returned, which is byte for byte what
+            <code>glyphsift check -</code> prints for the same text.
+          </p>
+          <p class="hint" id="json-note" hidden></p>
+          <pre id="json-out"></pre>
+        </details>
       </section>
 
       <section id="about-build">
@@ -120,10 +167,10 @@
         <dl class="kv">
           <dt>Report spec</dt>
           <dd><code id="report-spec">…</code></dd>
-          <dt>Crate version</dt>
-          <dd><code id="crate-version">…</code></dd>
           <dt>Module id</dt>
           <dd><code id="module-id">…</code> <span class="hint">(first 16 hex of sha256 over glyphsift.js + glyphsift_bg.wasm)</span></dd>
+          <dt>validate() calls</dt>
+          <dd><code id="call-count">0</code> <span class="hint">(a refused input is not counted: the validator is not run for it)</span></dd>
         </dl>
       </section>
     </main>
