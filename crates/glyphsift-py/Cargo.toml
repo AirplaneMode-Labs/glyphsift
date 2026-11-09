@@ -1,0 +1,22 @@
+[package]
+name = "glyphsift-py"
+description = "Python bindings for glyphsift (PyO3, built with maturin)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+# Published as a wheel by maturin, not as a crate.
+publish = false
+rust-version.workspace = true
+
+[lib]
+name = "glyphsift"
+crate-type = ["cdylib"]
+
+[dependencies]
+glyphsift-core.workspace = true
+# abi3: one wheel per platform that works on every CPython >= 3.9.
+pyo3 = { version = "0.30.1", features = ["abi3-py39"] }

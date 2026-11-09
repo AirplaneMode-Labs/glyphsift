@@ -1,0 +1,23 @@
+[package]
+name = "glyphsift-wasm"
+description = "Browser/Node WASM bindings for glyphsift (wasm-bindgen)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+# Published as an npm package later, not as a crate.
+publish = false
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+glyphsift-core.workspace = true
+# Pinned exactly: the wasm-bindgen CLI that post-processes the .wasm must be the same version.
+# `scripts/build-wasm.sh` checks this line against the installed CLI.
+wasm-bindgen = "=0.2.129"

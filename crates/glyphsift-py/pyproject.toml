@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "glyphsift"
+description = "Deterministic Devanagari grapheme-cluster validator for extracted Indic text"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+readme = "README.md"
+keywords = ["devanagari", "unicode", "grapheme", "data-quality", "ocr"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Text Processing :: Linguistic",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/AirplaneMode-Labs/glyphsift"
+Repository = "https://github.com/AirplaneMode-Labs/glyphsift"
+Documentation = "https://github.com/AirplaneMode-Labs/glyphsift/tree/main/docs"
+
+[tool.maturin]
+module-name = "glyphsift"
+features = ["pyo3/extension-module"]
