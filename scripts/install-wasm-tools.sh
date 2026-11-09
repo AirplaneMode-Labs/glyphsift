@@ -26,8 +26,9 @@ esac
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-# download <url> <name>: release tarballs only, from the two GitHub release hosts below.
-download() { curl -fsSL --retry 3 --proto '=https' --tlsv1.2 -o "$TMP/$2" "$1"; }
+# download <url> <name>: release tarballs only, from the two GitHub release hosts below. Retries cover
+# the 5xx answers GitHub's release CDN returns during incidents (seen 9 Nov 2026), bounded to ten minutes.
+download() { curl -fsSL --retry 8 --retry-delay 5 --retry-all-errors --retry-max-time 600 --proto '=https' --tlsv1.2 -o "$TMP/$2" "$1"; }
 
 # expected_digest <asset-name>: the SHA-256 of that release tarball, pinned here (recorded 2026-11-09
 # from the published release files). An asset without a row is an error: add its digest, do not
