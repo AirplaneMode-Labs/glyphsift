@@ -1,0 +1,38 @@
+# build output
+/target/
+**/*.rs.bk
+/dist/
+/pkg/
+demo/dist/
+
+# node
+node_modules/
+
+# python
+.venv/
+__pycache__/
+*.egg-info/
+*.so
+*.pyd
+*.whl
+
+# bench: generated corpora and results are produced locally, never committed
+/bench/data/
+/bench/results/
+
+# browser test tooling
+playwright-report/
+test-results/
+coverage/
+
+# partial downloads, key material, local environment
+*.part
+*.part.json
+*.secret
+.env*
+
+.DS_Store
+
+# browser test caches and local scratch
+.playwright/
+.scratch/

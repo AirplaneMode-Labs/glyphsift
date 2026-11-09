@@ -1,0 +1,30 @@
+# cargo-deny configuration. Run `cargo deny check` when cargo-deny is installed; the fallback sweep is
+# `cargo tree -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'` (must print nothing).
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+]
+# Explicitly denied families (cargo-deny >= 0.16 rejects every licence not in `allow`, so the
+# denial is implied; the list is kept here as the stated policy): GPL-*, LGPL-*, AGPL-*, SSPL-*.
+# Copyleft licences are never acceptable in this workspace (see CONTRIBUTING.md).
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+yanked = "deny"
+unmaintained = "workspace"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
