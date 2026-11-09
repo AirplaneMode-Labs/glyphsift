@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+<title id="t">Document score versus synthetic OCR noise</title>
+<desc id="d">Line chart of the document score against the noise level p, for p = 0 to 0.4. The mixed family&apos;s mean over the seeds falls from 1.0000 at p = 0 to 0.9324 at p = 0.4. The 12 triggering families each fall as p rises. The 7 none-directly families end between 1.0000 and 1.0000 at p = 0.4. The data is in docs/score-vs-noise.csv.</desc>
+<rect x="0" y="0" width="960" height="540" fill="#fcfcfb"/>
+<rect x="1" y="1" width="958" height="538" fill="none" stroke="#e1e0d9" stroke-width="1"/>
+<text x="40" y="40" font-size="18" font-weight="600" fill="#0b0b0b">Document score versus synthetic OCR noise</text>
+<text x="40" y="62" font-size="12" fill="#52514e">Synthetic Hindi and Marathi corpus, seeds 1 to 3. A score of 1 is clean; each step corrupts a larger share of eligible sites.</text>
+<rect x="40" y="88" width="24" height="12" fill="#dde8f5"/>
+<line x1="40" y1="94" x2="64" y2="94" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
+<text x="72" y="98" font-size="12" fill="#52514e">Mixed: mean of seeds, band is min to max</text>
+<line x1="360" y1="94" x2="384" y2="94" stroke="#898781" stroke-width="1"/>
+<text x="392" y="98" font-size="12" fill="#52514e">12 triggering families (seed mean)</text>
+<line x1="640" y1="94" x2="664" y2="94" stroke="#898781" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="672" y="98" font-size="12" fill="#52514e">7 none-directly families</text>
+<text x="40" y="116" font-size="12" fill="#52514e">Score (1 = clean); the axis starts at 0.6</text>
+<line x1="100" y1="440" x2="880" y2="440" stroke="#c3c2b7" stroke-width="1"/>
+<text x="92" y="444" font-size="12" text-anchor="end" fill="#52514e">0.6</text>
+<line x1="100" y1="362" x2="880" y2="362" stroke="#e1e0d9" stroke-width="1"/>
+<text x="92" y="366" font-size="12" text-anchor="end" fill="#52514e">0.7</text>
+<line x1="100" y1="285" x2="880" y2="285" stroke="#e1e0d9" stroke-width="1"/>
+<text x="92" y="289" font-size="12" text-anchor="end" fill="#52514e">0.8</text>
+<line x1="100" y1="207" x2="880" y2="207" stroke="#e1e0d9" stroke-width="1"/>
+<text x="92" y="211" font-size="12" text-anchor="end" fill="#52514e">0.9</text>
+<line x1="100" y1="130" x2="880" y2="130" stroke="#e1e0d9" stroke-width="1"/>
+<text x="92" y="134" font-size="12" text-anchor="end" fill="#52514e">1</text>
+<text x="100" y="462" font-size="12" text-anchor="middle" fill="#52514e">0</text>
+<text x="230" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.01</text>
+<text x="360" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.02</text>
+<text x="490" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.05</text>
+<text x="620" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.1</text>
+<text x="750" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.2</text>
+<text x="880" y="462" font-size="12" text-anchor="middle" fill="#52514e">0.4</text>
+<text x="490" y="492" font-size="12" text-anchor="middle" fill="#52514e">Noise level p: share of eligible sites corrupted (steps are equally spaced, not to scale)</text>
+<polygon points="100,130 230,131 360,132 490,136 620,142 750,153 880,181 880,183 750,157 620,143 490,137 360,132 230,131 100,130" fill="#dde8f5"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,130" fill="none" stroke="#898781" stroke-width="1" stroke-dasharray="4 3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,132 360,134 490,140 620,150 750,172 880,215" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,133 360,134 490,142 620,155 750,180 880,224" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,131 360,131 490,133 620,136 750,143 880,156" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,135 360,138 490,150 620,167 750,204 880,274" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,130 750,130 880,131" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,130 620,131 750,132 880,133" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,131 360,133 490,137 620,144 750,160 880,191" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,130 360,130 490,131 620,132 750,134 880,138" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,132 360,135 490,143 620,156 750,183 880,235" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,131 360,133 490,136 620,141 750,154 880,174" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,133 360,135 490,145 620,159 750,189 880,245" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,139 360,145 490,167 620,202 750,260 880,354" fill="none" stroke="#898781" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="100,130 230,131 360,132 490,137 620,143 750,156 880,182" fill="none" stroke="#2a78d6" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="100" cy="130" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="230" cy="131" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="360" cy="132" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="490" cy="137" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="620" cy="143" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="750" cy="156" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="880" cy="182" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="880" y="374" font-size="12" text-anchor="end" fill="#52514e">control_leak 0.7107</text>
+<text x="892" y="186" font-size="12" font-weight="600" fill="#0b0b0b">0.9324</text>
+<text x="40" y="524" font-size="11" fill="#52514e">Source: docs/score-vs-noise.csv. Weights: crates/glyphsift-core/weights/devanagari.toml. Command: see the README.</text>
+</svg>
