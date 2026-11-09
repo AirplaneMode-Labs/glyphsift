@@ -1,0 +1,17 @@
+# source: docs/devanagari-rules.md sections 4 and 6; one integer penalty per rule in 1..=1000, set from how badly the cluster breaks rendering or reading and never tuned on benchmark output
+control_character = 1000 # source: docs/devanagari-rules.md section 4; a stray C0, C1 or bidi control, or a BOM mid-text, can reorder or truncate text downstream, so the cluster is unusable
+unexpected_code_point = 1000 # source: docs/devanagari-rules.md section 4; U+FFFD, private-use and unassigned code points are legacy-font or decoding residue that no reader or tokenizer can use
+mixed_script_in_cluster = 1000 # source: docs/devanagari-rules.md section 4; a base from another script carrying a Devanagari mark (or the reverse) is a character in neither script, the usual OCR confusable-block error
+dependent_vowel_without_base = 1000 # source: Unicode Standard chapter 12 (Devanagari); a dependent vowel sign has no glyph of its own and renders on a dotted circle when no consonant precedes it
+stray_combining_mark = 1000 # source: Unicode Standard chapter 12 (Devanagari); a nukta, bindu, visarga or Vedic sign with no base has nothing to modify and renders on a dotted circle
+virama_without_consonant = 800 # source: Unicode Standard chapter 12 (Devanagari); a virama only has meaning after a consonant, elsewhere it is a floating sign that changes no letter
+double_matra = 800 # source: Unicode Standard chapter 12 (Devanagari); a syllable has one dependent vowel, so a second sign is a malformed syllable though the consonant itself survives
+vowel_sign_on_independent_vowel = 800 # source: Unicode Standard chapter 12 (Devanagari); an independent vowel is already a vowel, so a sign on it is a legacy-keyboard spelling or an OCR split
+nukta_on_non_consonant = 600 # source: Unicode Standard chapter 12 (Devanagari); a nukta only forms new consonants, on any other base it is ignored by shapers but breaks normalisation and matching
+double_nukta = 600 # source: Unicode Standard chapter 12 (Devanagari); a second nukta is redundant, and U+0958..U+095F plus a nukta shows up as a normalisation mismatch in search
+virama_after_matra = 600 # source: Unicode Standard chapter 12 (Devanagari); a virama after the vowel sign cannot join a conjunct, the typical legacy-font ordering artefact
+nukta_after_matra = 400 # source: Unicode Standard chapter 12 (Devanagari); nukta belongs directly after its consonant, a late nukta renders acceptably in most fonts but is mis-ordered
+sign_before_matra = 400 # source: Unicode Standard chapter 12 (Devanagari); anusvara and visarga follow the vowel sign, the swapped order renders acceptably but is mis-ordered
+multiple_anusvara_like = 400 # source: Unicode Standard chapter 12 (Devanagari); two nasalisation signs on one syllable stack visibly but the text is still readable
+visarga_before_anusvara = 400 # source: Unicode Standard chapter 12 (Devanagari); the accepted order is anusvara then visarga, the reverse is mis-ordered but legible
+zwj_zwnj_misplaced = 200 # source: Unicode Standard chapter 12.1; ZWJ and ZWNJ are invisible and only matter after a virama, elsewhere they are ignored by shapers and cost only matching

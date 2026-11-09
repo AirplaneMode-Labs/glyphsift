@@ -28,6 +28,9 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2.0.21"
 unicode-segmentation = "1.13.3"
+# General_Category lookups (unassigned code points, other-script letters, Indic combining marks).
+# no_std, Apache-2.0, no dependencies; Unicode 16.0 tables, compiled in, so native, Python and WASM agree.
+unicode-general-category = "1.1.0"
 clap = { version = "4.6.7", features = ["derive"] }
 toml = "1.1.8"
 

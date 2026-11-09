@@ -11,11 +11,22 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+# The seeded OCR-corruption generator (`glyphsift corrupt`, `glyphsift bench`). Off by default so the
+# WASM and Python builds do not carry it; the CLI turns it on.
+corrupt = []
+
+[[test]]
+name = "corrupt"
+required-features = ["corrupt"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 unicode-segmentation.workspace = true
+unicode-general-category.workspace = true
 
 [dev-dependencies]
 toml.workspace = true

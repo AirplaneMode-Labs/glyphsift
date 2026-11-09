@@ -7,10 +7,12 @@
 //! order, and no floating-point values appear, so the bytes are identical on native, Python and
 //! WASM builds.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// Spec discriminator carried by every report (major.minor; patch never changes the wire format).
-pub const REPORT_SPEC: &str = "glyphsift.report/0.1";
+pub const REPORT_SPEC: &str = "glyphsift.report/0.2";
 
 /// Everything `validate` says about one piece of text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +29,12 @@ pub struct Report {
     pub issues: Vec<Issue>,
     /// Aggregates, so a caller need not walk the vectors.
     pub summary: Summary,
+    /// One record per line of the input (split after LF, CRLF or a bare CR), in order. Empty for
+    /// empty input; a final line without a terminator is included; a trailing terminator does not
+    /// start another line.
+    pub lines: Vec<LineSummary>,
+    /// The document-level score, 0 to 1 as an integer in parts per million.
+    pub score: Score,
 }
 
 /// One extended grapheme cluster of the input.
@@ -63,6 +71,40 @@ pub struct Summary {
     pub issue_count: usize,
     /// Clusters with at least one issue.
     pub flagged_clusters: usize,
+    /// Issues per rule, only for rules that fired, serialised in `IssueKind` declaration order.
+    pub by_kind: BTreeMap<IssueKind, usize>,
+}
+
+/// One line of the input: the clusters from the one after the previous line's terminator up to and
+/// including this line's own terminator cluster (LF, CRLF or a bare CR).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LineSummary {
+    /// Zero-based line number.
+    pub index: usize,
+    /// Byte offset of the line's first byte.
+    pub start: usize,
+    /// Byte offset one past the line's last byte (its terminator included).
+    pub end: usize,
+    /// Index of the line's first cluster in [`Report::clusters`].
+    pub cluster_start: usize,
+    /// Index one past the line's last cluster.
+    pub cluster_end: usize,
+    /// Clusters of this line with at least one issue.
+    pub flagged_clusters: usize,
+    /// The score of this line alone (same formula as the document score).
+    pub score_ppm: u32,
+}
+
+/// The score and what produced it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Score {
+    /// `1_000_000 - floor(penalty * 1000 / cluster_count)`, saturating at 0; `1_000_000` for empty
+    /// input. Divide by 10^6 for the 0 to 1 figure; the API never uses floating point.
+    pub ppm: u32,
+    /// Sum, over flagged clusters, of the largest weight among that cluster's issues.
+    pub penalty: u64,
+    /// The weight of every rule that produced `penalty` (`weights/devanagari.toml`).
+    pub weights: BTreeMap<IssueKind, u32>,
 }
 
 /// The Devanagari rules. Each variant is one rule; the names are the stable wire format
@@ -188,6 +230,11 @@ mod tests {
 
     #[test]
     fn report_serialises_compactly_in_field_order() {
+        let mut by_kind = BTreeMap::new();
+        by_kind.insert(IssueKind::DependentVowelWithoutBase, 1);
+        let mut weights = BTreeMap::new();
+        weights.insert(IssueKind::DependentVowelWithoutBase, 1000);
+        weights.insert(IssueKind::ControlCharacter, 1000);
         let report = Report {
             spec: REPORT_SPEC.to_owned(),
             script: "devanagari".to_owned(),
@@ -208,15 +255,35 @@ mod tests {
                 cluster_count: 1,
                 issue_count: 1,
                 flagged_clusters: 1,
+                by_kind,
+            },
+            lines: vec![LineSummary {
+                index: 0,
+                start: 0,
+                end: 3,
+                cluster_start: 0,
+                cluster_end: 1,
+                flagged_clusters: 1,
+                score_ppm: 0,
+            }],
+            score: Score {
+                ppm: 0,
+                penalty: 1000,
+                weights,
             },
         };
         let json = serde_json::to_string(&report).unwrap();
         assert_eq!(
             json,
-            "{\"spec\":\"glyphsift.report/0.1\",\"script\":\"devanagari\",\"code_points\":1,\
+            "{\"spec\":\"glyphsift.report/0.2\",\"script\":\"devanagari\",\"code_points\":1,\
              \"clusters\":[{\"index\":0,\"text\":\"ि\",\"start\":0,\"end\":3,\"code_points\":[\"U+093F\"]}],\
              \"issues\":[{\"kind\":\"dependent_vowel_without_base\",\"cluster\":0,\"code_point\":\"U+093F\"}],\
-             \"summary\":{\"cluster_count\":1,\"issue_count\":1,\"flagged_clusters\":1}}"
+             \"summary\":{\"cluster_count\":1,\"issue_count\":1,\"flagged_clusters\":1,\
+             \"by_kind\":{\"dependent_vowel_without_base\":1}},\
+             \"lines\":[{\"index\":0,\"start\":0,\"end\":3,\"cluster_start\":0,\"cluster_end\":1,\
+             \"flagged_clusters\":1,\"score_ppm\":0}],\
+             \"score\":{\"ppm\":0,\"penalty\":1000,\
+             \"weights\":{\"dependent_vowel_without_base\":1000,\"control_character\":1000}}}"
         );
         let back: Report = serde_json::from_str(&json).unwrap();
         assert_eq!(back, report);

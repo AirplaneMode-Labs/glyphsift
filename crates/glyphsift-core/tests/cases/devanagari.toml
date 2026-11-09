@@ -1,4 +1,4 @@
-# Tests-first case table for the Devanagari grapheme-cluster validator (lands in Sprint 2).
+# Tests-first case table for the Devanagari grapheme-cluster validator (written before the validator).
 #
 # Each case gives the input, the expected UAX #29 extended grapheme clusters (unicode-segmentation
 # 1.13.x, Unicode 15.1 GB9c conjunct rule included) and the expected issues as {kind, cluster}.
@@ -6,9 +6,8 @@
 # least once. Inputs are synthetic; invisible marks are written as \uXXXX escapes so the file can be
 # read without a Devanagari-aware editor.
 #
-# Harness: tests/devanagari.rs. The non-ignored tests check that this table parses, covers every
-# kind and that the expected clusters are what the segmenter produces; the #[ignore]d test runs the
-# validator over every case.
+# Harness: tests/devanagari.rs. Its tests check that this table parses, covers every kind and that the
+# expected clusters are what the segmenter produces, and run the validator over every case.
 
 # ---------------------------------------------------------------------------------------------
 # Valid text: no issues
@@ -563,3 +562,117 @@ issues = [
   { kind = "virama_after_matra", cluster = 0 },
 ]
 note = "issues are reported in cluster order, then in code-point order within the cluster"
+
+# ---------------------------------------------------------------------------------------------
+# Sprint 2 additions (D3-01), written before the validator: line endings, byte order mark,
+# the edges of the grammar the first 77 cases left open, and a long run that must stay linear.
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "crlf_line_ending"
+input = "क\r\nख"
+clusters = ["क", "\r\n", "ख"]
+issues = []
+note = "CR LF is one cluster (UAX #29 GB3) made of two allowed controls; it is never flagged"
+
+[[case]]
+name = "lone_cr"
+input = "क\rख"
+clusters = ["क", "\r", "ख"]
+issues = []
+note = "a bare CR (old Mac line ending) is an allowed control"
+
+[[case]]
+name = "bom_at_offset_zero"
+input = "\U0000FEFFनमस्ते"
+clusters = ["\U0000FEFF", "न", "म", "स्ते"]
+issues = []
+note = "a byte order mark at byte offset 0 is how UTF-8 files from some editors begin; valid there"
+
+[[case]]
+name = "bom_after_bom"
+input = "\U0000FEFF\U0000FEFFक"
+clusters = ["\U0000FEFF", "\U0000FEFF", "क"]
+issues = [{ kind = "control_character", cluster = 1 }]
+note = "only the BOM at offset 0 is exempt; a second one is mid-text (compare bom_mid_text)"
+
+[[case]]
+name = "visarga_after_matra"
+input = "दुःख"
+clusters = ["दुः", "ख"]
+issues = []
+
+[[case]]
+name = "chandrabindu_after_matra"
+input = "कहाँ"
+clusters = ["क", "हाँ"]
+issues = []
+
+[[case]]
+name = "nukta_conjunct"
+input = "ज़्र"
+clusters = ["ज़्र"]
+issues = []
+note = "a nukta may sit between a consonant and its virama"
+
+[[case]]
+name = "virama_after_anusvara"
+input = "कं्"
+clusters = ["कं्"]
+issues = [{ kind = "virama_without_consonant", cluster = 0 }]
+note = "a virama needs a consonant (or consonant plus nukta) directly before it; a bindu is neither"
+
+[[case]]
+name = "anusvara_on_digit"
+input = "१ं"
+clusters = ["१ं"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+note = "a digit is not a base for combining marks (nukta on a digit has its own kind)"
+
+[[case]]
+name = "anusvara_after_dead_consonant"
+input = "क्ं"
+clusters = ["क्ं"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+note = "a dead consonant (consonant plus virama) cannot carry an anusvara"
+
+[[case]]
+name = "nukta_after_virama"
+input = "क़्"
+clusters = ["क़्"]
+issues = [{ kind = "nukta_on_non_consonant", cluster = 0 }]
+note = "the virama is a sign, not a consonant, so a nukta directly after it has nothing to modify"
+
+[[case]]
+name = "unassigned_code_point"
+input = "क\U00000378ख"
+clusters = ["क", "\U00000378", "ख"]
+issues = [{ kind = "unexpected_code_point", cluster = 1 }]
+note = "U+0378 is unassigned in every Unicode version to date"
+
+[[case]]
+name = "noncharacter"
+input = "क\U0000FFFFख"
+clusters = ["क", "\U0000FFFF", "ख"]
+issues = [{ kind = "unexpected_code_point", cluster = 1 }]
+
+[[case]]
+name = "devanagari_extended_cantillation"
+input = "क\U0000A8E1"
+clusters = ["क\U0000A8E1"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "docs/devanagari-rules.md section 7: Vedic cantillation marks in Devanagari Extended are unexpected for now"
+
+[[case]]
+name = "bidi_isolate"
+input = "क\U00002066ख"
+clusters = ["क", "\U00002066", "ख"]
+issues = [{ kind = "control_character", cluster = 1 }]
+
+[[case]]
+name = "marks_2000_matra_run"
+input = "क"
+repeat = { unit = "ा", count = 2000 }
+cluster_count = 1
+issues = [{ kind = "double_matra", cluster = 0, count = 1999 }]
+note = "one consonant followed by 2,000 matras: the first attaches, the other 1,999 are double_matra; must stay linear"
