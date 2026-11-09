@@ -101,6 +101,9 @@ jobs:
       - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
         run: scripts/install-wasm-tools.sh
       - name: Determinism gate (native, Python, WASM) and WASM safety script
+        # Python on Windows defaults stdout to cp1252, which cannot print Devanagari; UTF-8 mode fixes it.
+        env:
+          PYTHONUTF8: '1'
         run: scripts/determinism.sh
 
   # Builds the GitHub Pages demo with the same commands .github/workflows/pages.yml runs, so a demo
