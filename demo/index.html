@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      name="description"
+      content="glyphsift demo: UAX #29 grapheme clusters of pasted Devanagari text, computed in WebAssembly in this tab. The validator is not implemented yet."
+    />
+    <title>glyphsift demo</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>glyphsift demo</h1>
+      <p class="lede">
+        Everything runs in this tab. Nothing is uploaded; the only network requests are for this
+        page's own files.
+      </p>
+      <p class="status" id="build-line">Built from main at <code>…</code> by .github/workflows/pages.yml</p>
+    </header>
+
+    <main>
+      <section id="requirements" class="box">
+        <h2>Browser requirements</h2>
+        <ul id="requirements-list">
+          <li data-req="wasm"><span class="mark">…</span> WebAssembly</li>
+          <li data-req="modules"><span class="mark">…</span> ES modules</li>
+        </ul>
+        <p>No storage, no network: this page keeps nothing and sends nothing after it has loaded.</p>
+      </section>
+
+      <section id="not-yet" class="box box-warn">
+        <h2>What this demo does not do yet</h2>
+        <ul>
+          <li>
+            <code>validate()</code> is not implemented (Sprint 2); the page shows the Unimplemented error
+            verbatim below instead of a report.
+          </li>
+          <li>No scores, no per-line heatmap and no OCR-corruption benchmark (Sprint 2 and Sprint 3).</li>
+          <li>
+            Grapheme clustering is the only real output today; the sixteen rule names are listed, not
+            checked.
+          </li>
+          <li>
+            No service worker: offline after the first load is best effort (Chrome's HTTP cache), not
+            guaranteed.
+          </li>
+        </ul>
+      </section>
+
+      <section id="load-error" class="box box-warn" hidden>
+        <h2>The WASM module could not load</h2>
+        <p id="load-error-text"></p>
+      </section>
+
+      <section id="input">
+        <h2>Text</h2>
+        <p>Paste Devanagari or Hindi text, or load a synthetic sample. Samples are made up; none is a real document.</p>
+        <div class="samples" id="samples">
+          <button type="button" data-sample="clean">Clean</button>
+          <button type="button" data-sample="ocr">OCR-corrupted</button>
+          <button type="button" data-sample="legacy">Legacy-font gibberish</button>
+        </div>
+        <label for="text" class="visually-hidden">Text to split into grapheme clusters</label>
+        <textarea id="text" rows="4" spellcheck="false" lang="hi" dir="auto" placeholder="नमस्ते।"></textarea>
+      </section>
+
+      <section id="clusters">
+        <h2>Grapheme clusters <span class="count" id="cluster-count"></span></h2>
+        <p class="notice" id="sample-notice" hidden>
+          glyphsift does not detect these problems yet; the table only shows how the text splits into
+          grapheme clusters (validator: Sprint 2).
+        </p>
+        <p class="hint">
+          UAX #29 extended grapheme clusters from <code>clusters_json()</code>, with byte offsets into
+          the UTF-8 input. The same segmentation the Sprint 2 validator will judge.
+        </p>
+        <div class="table-wrap">
+          <table id="cluster-table">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Cluster</th>
+                <th scope="col">Code points</th>
+                <th scope="col">Bytes</th>
+              </tr>
+            </thead>
+            <tbody id="cluster-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="validate">
+        <h2>validate() result (Sprint 1): not implemented</h2>
+        <p class="hint">
+          <code>validate()</code> is called on every change inside <code>try</code>/<code>catch</code>; the
+          message it throws is shown unchanged, followed by what the CLI prints for the same input.
+        </p>
+        <pre id="validate-out"></pre>
+      </section>
+
+      <section id="rules">
+        <h2>Rules the validator will report</h2>
+        <p class="hint">
+          From <code>issue_kinds()</code>: the stable wire names of the Devanagari rules. Each is marked
+          as not yet checked because no rule runs in Sprint 1.
+        </p>
+        <ul id="issue-kinds" class="kinds"></ul>
+      </section>
+
+      <section id="about-build">
+        <h2>Module</h2>
+        <dl class="kv">
+          <dt>Report spec</dt>
+          <dd><code id="report-spec">…</code></dd>
+          <dt>Crate version</dt>
+          <dd><code id="crate-version">…</code></dd>
+          <dt>Module id</dt>
+          <dd><code id="module-id">…</code> <span class="hint">(first 16 hex of sha256 over glyphsift.js + glyphsift_bg.wasm)</span></dd>
+        </dl>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/AirplaneMode-Labs/glyphsift" rel="noopener">glyphsift on GitHub</a>
+        · <a href="https://airplanemode-labs.github.io/site/" rel="noopener">Airplane Mode Labs</a>
+        · Apache-2.0
+      </p>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
