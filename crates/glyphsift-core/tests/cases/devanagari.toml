@@ -1,0 +1,565 @@
+# Tests-first case table for the Devanagari grapheme-cluster validator (lands in Sprint 2).
+#
+# Each case gives the input, the expected UAX #29 extended grapheme clusters (unicode-segmentation
+# 1.13.x, Unicode 15.1 GB9c conjunct rule included) and the expected issues as {kind, cluster}.
+# Rule definitions and code-point tables: docs/devanagari-rules.md. Every IssueKind name appears at
+# least once. Inputs are synthetic; invisible marks are written as \uXXXX escapes so the file can be
+# read without a Devanagari-aware editor.
+#
+# Harness: tests/devanagari.rs. The non-ignored tests check that this table parses, covers every
+# kind and that the expected clusters are what the segmenter produces; the #[ignore]d test runs the
+# validator over every case.
+
+# ---------------------------------------------------------------------------------------------
+# Valid text: no issues
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "empty"
+input = ""
+clusters = []
+issues = []
+
+[[case]]
+name = "latin_only"
+input = "hello world"
+clusters = ["h", "e", "l", "l", "o", " ", "w", "o", "r", "l", "d"]
+issues = []
+note = "Latin letters with no Devanagari marks are standalone clusters; nothing to flag at cluster level"
+
+[[case]]
+name = "namaste_danda"
+input = "नमस्ते।"
+clusters = ["न", "म", "स्ते", "।"]
+issues = []
+note = "danda U+0964 is its own cluster; the conjunct s+virama+t+e is one cluster (GB9c)"
+
+[[case]]
+name = "ksha_conjunct"
+input = "क्ष"
+clusters = ["क्ष"]
+issues = []
+
+[[case]]
+name = "ksha_dead"
+input = "क्ष्"
+clusters = ["क्ष्"]
+issues = []
+note = "a trailing virama (dead consonant, as in jagat) is valid"
+
+[[case]]
+name = "zwj_after_virama_end"
+input = "क्‍"
+clusters = ["क्‍"]
+issues = []
+note = "ZWJ directly after virama requests the half form; valid even at the end"
+
+[[case]]
+name = "eyelash_reph"
+input = "र्‍य"
+clusters = ["र्‍य"]
+issues = []
+note = "ra + virama + ZWJ is the Marathi eyelash reph; valid"
+
+[[case]]
+name = "zwnj_after_virama"
+input = "क्‌ष"
+clusters = ["क्‌", "ष"]
+issues = []
+note = "ZWNJ after virama blocks the conjunct; UAX #29 then breaks before the next consonant"
+
+[[case]]
+name = "ttha_conjunct"
+input = "ट्ठ"
+clusters = ["ट्ठ"]
+issues = []
+
+[[case]]
+name = "nukta_consonant"
+input = "क़"
+clusters = ["क़"]
+issues = []
+
+[[case]]
+name = "nukta_consonant_matra"
+input = "क़ा"
+clusters = ["क़ा"]
+issues = []
+note = "nukta directly after its consonant, then the matra: the correct order"
+
+[[case]]
+name = "precomposed_nukta_qa"
+input = "क़"
+clusters = ["क़"]
+issues = []
+note = "U+0958 is a composition exclusion but a legal code point; treated as consonant with nukta"
+
+[[case]]
+name = "anusvara_then_visarga"
+input = "कंः"
+clusters = ["कंः"]
+issues = []
+note = "anusvara before visarga is the accepted order"
+
+[[case]]
+name = "bharat"
+input = "भारत"
+clusters = ["भा", "र", "त"]
+issues = []
+
+[[case]]
+name = "chandrabindu"
+input = "हँ"
+clusters = ["हँ"]
+issues = []
+
+[[case]]
+name = "independent_vowel_anusvara"
+input = "अं"
+clusters = ["अं"]
+issues = []
+
+[[case]]
+name = "independent_vowel_visarga"
+input = "अः"
+clusters = ["अः"]
+issues = []
+
+[[case]]
+name = "vedic_udatta_on_vowel"
+input = "अ॑"
+clusters = ["अ॑"]
+issues = []
+note = "Vedic tone marks U+0951..U+0954 may follow any syllable"
+
+[[case]]
+name = "digits_danda"
+input = "१२३।"
+clusters = ["१", "२", "३", "।"]
+issues = []
+
+[[case]]
+name = "double_danda"
+input = "॥"
+clusters = ["॥"]
+issues = []
+
+[[case]]
+name = "om"
+input = "ॐ"
+clusters = ["ॐ"]
+issues = []
+
+[[case]]
+name = "avagraha"
+input = "कोऽपि"
+clusters = ["को", "ऽ", "पि"]
+issues = []
+
+[[case]]
+name = "vocalic_r_matra"
+input = "कृ"
+clusters = ["कृ"]
+issues = []
+
+[[case]]
+name = "candra_e_matra"
+input = "कॅ"
+clusters = ["कॅ"]
+issues = []
+
+[[case]]
+name = "reph_conjunct"
+input = "कर्म"
+clusters = ["क", "र्म"]
+issues = []
+
+[[case]]
+name = "marathi_candra_a"
+input = "ॲप"
+clusters = ["ॲ", "प"]
+issues = []
+note = "U+0972 is an atomic independent vowel; no vowel_sign_on_independent_vowel here"
+
+[[case]]
+name = "tabs_newlines"
+input = "क\nख\tग"
+clusters = ["क", "\n", "ख", "\t", "ग"]
+issues = []
+note = "TAB, LF and CR are the only controls that are not flagged"
+
+[[case]]
+name = "emoji_devanagari_paragraph"
+input = "नमस्ते \U0001F64F दुनिया।"
+clusters = ["न", "म", "स्ते", " ", "\U0001F64F", " ", "दु", "नि", "या", "।"]
+issues = []
+note = "an emoji between words is a standalone cluster, not a mixed-script cluster"
+
+# ---------------------------------------------------------------------------------------------
+# dependent_vowel_without_base
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "matra_alone_i"
+input = "ि"
+clusters = ["ि"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+note = "the architect's U+093F-alone case"
+
+[[case]]
+name = "matra_after_space"
+input = "क ा"
+clusters = ["क", " ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 1 }]
+note = "a spacing matra attaches to the preceding space under UAX #29; the space is not a base"
+
+[[case]]
+name = "matra_at_start_of_word"
+input = "ोम"
+clusters = ["ो", "म"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+
+[[case]]
+name = "dead_consonant_matra"
+input = "क्ा"
+clusters = ["क्ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+note = "after virama a consonant is expected; a matra on a dead consonant has no vowel slot"
+
+[[case]]
+name = "matra_after_zwj_dead"
+input = "क्‍ा"
+clusters = ["क्‍ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+
+[[case]]
+name = "virama_zwnj_matra"
+input = "क्‌ा"
+clusters = ["क्‌ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+
+[[case]]
+name = "matra_on_digit"
+input = "१ा"
+clusters = ["१ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+
+[[case]]
+name = "danda_with_matra"
+input = "।ा"
+clusters = ["।ा"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 0 }]
+
+[[case]]
+name = "matra_after_space_in_sentence"
+input = "नमस्ते िदुनिया"
+clusters = ["न", "म", "स्ते", " ि", "दु", "नि", "या"]
+issues = [{ kind = "dependent_vowel_without_base", cluster = 3 }]
+note = "a typical OCR artefact: the short-i matra separated from its consonant by a space"
+
+# ---------------------------------------------------------------------------------------------
+# stray_combining_mark
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "anusvara_alone"
+input = "ं"
+clusters = ["ं"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+
+[[case]]
+name = "visarga_after_space"
+input = "क ः"
+clusters = ["क", " ः"]
+issues = [{ kind = "stray_combining_mark", cluster = 1 }]
+
+[[case]]
+name = "chandrabindu_alone"
+input = "ँ"
+clusters = ["ँ"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+
+[[case]]
+name = "nukta_alone"
+input = "़"
+clusters = ["़"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+note = "a nukta with no base at all is stray; a nukta on the wrong base is nukta_on_non_consonant"
+
+[[case]]
+name = "vedic_sign_alone"
+input = "॑"
+clusters = ["॑"]
+issues = [{ kind = "stray_combining_mark", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# double_matra
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "double_matra_aa"
+input = "काा"
+clusters = ["काा"]
+issues = [{ kind = "double_matra", cluster = 0 }]
+
+[[case]]
+name = "double_matra_i_e"
+input = "किे"
+clusters = ["किे"]
+issues = [{ kind = "double_matra", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# double_nukta
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "double_nukta"
+input = "क़़"
+clusters = ["क़़"]
+issues = [{ kind = "double_nukta", cluster = 0 }]
+
+[[case]]
+name = "nukta_on_precomposed"
+input = "क़़"
+clusters = ["क़़"]
+issues = [{ kind = "double_nukta", cluster = 0 }]
+note = "U+0958 already carries a nukta; NFC would decompose it to U+0915 U+093C and the second nukta doubles it"
+
+# ---------------------------------------------------------------------------------------------
+# nukta_after_matra / nukta_on_non_consonant
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "nukta_after_matra"
+input = "का़"
+clusters = ["का़"]
+issues = [{ kind = "nukta_after_matra", cluster = 0 }]
+note = "the architect's ka-aa-nukta case: valid ka-nukta-aa, invalid ka-aa-nukta"
+
+[[case]]
+name = "nukta_on_vowel"
+input = "अ़"
+clusters = ["अ़"]
+issues = [{ kind = "nukta_on_non_consonant", cluster = 0 }]
+
+[[case]]
+name = "nukta_on_digit"
+input = "१़"
+clusters = ["१़"]
+issues = [{ kind = "nukta_on_non_consonant", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# virama_without_consonant / virama_after_matra
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "virama_alone"
+input = "्"
+clusters = ["्"]
+issues = [{ kind = "virama_without_consonant", cluster = 0 }]
+
+[[case]]
+name = "virama_on_vowel"
+input = "अ्"
+clusters = ["अ्"]
+issues = [{ kind = "virama_without_consonant", cluster = 0 }]
+
+[[case]]
+name = "vowel_virama_consonant"
+input = "अ्क"
+clusters = ["अ्", "क"]
+issues = [{ kind = "virama_without_consonant", cluster = 0 }]
+note = "an independent vowel is not InCB=Consonant, so GB9c does not join the following ka"
+
+[[case]]
+name = "double_virama"
+input = "क््"
+clusters = ["क््"]
+issues = [{ kind = "virama_without_consonant", cluster = 0 }]
+note = "the second virama has no consonant directly before it"
+
+[[case]]
+name = "virama_after_matra"
+input = "कि्"
+clusters = ["कि्"]
+issues = [{ kind = "virama_after_matra", cluster = 0 }]
+
+[[case]]
+name = "virama_after_matra_then_consonant"
+input = "का्त"
+clusters = ["का्", "त"]
+issues = [{ kind = "virama_after_matra", cluster = 0 }]
+note = "the matra breaks the InCB chain, so UAX #29 does not join ta; a legacy-font artefact"
+
+# ---------------------------------------------------------------------------------------------
+# sign_before_matra / multiple_anusvara_like / visarga_before_anusvara
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "sign_before_matra_anusvara"
+input = "कंा"
+clusters = ["कंा"]
+issues = [{ kind = "sign_before_matra", cluster = 0 }]
+
+[[case]]
+name = "sign_before_matra_visarga"
+input = "कःि"
+clusters = ["कःि"]
+issues = [{ kind = "sign_before_matra", cluster = 0 }]
+
+[[case]]
+name = "double_anusvara"
+input = "कंं"
+clusters = ["कंं"]
+issues = [{ kind = "multiple_anusvara_like", cluster = 0 }]
+
+[[case]]
+name = "chandrabindu_anusvara"
+input = "कँं"
+clusters = ["कँं"]
+issues = [{ kind = "multiple_anusvara_like", cluster = 0 }]
+note = "the architect's ka-chandrabindu-anusvara case"
+
+[[case]]
+name = "visarga_before_anusvara"
+input = "कःं"
+clusters = ["कःं"]
+issues = [{ kind = "visarga_before_anusvara", cluster = 0 }]
+note = "ka-anusvara-visarga is valid (see anusvara_then_visarga); the reverse order is flagged"
+
+# ---------------------------------------------------------------------------------------------
+# vowel_sign_on_independent_vowel
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "matra_on_independent_a"
+input = "अा"
+clusters = ["अा"]
+issues = [{ kind = "vowel_sign_on_independent_vowel", cluster = 0 }]
+note = "the legacy-keyboard spelling of aa; U+0906 is the correct letter"
+
+[[case]]
+name = "matra_on_independent_i"
+input = "इी"
+clusters = ["इी"]
+issues = [{ kind = "vowel_sign_on_independent_vowel", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# zwj_zwnj_misplaced
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "zwj_between_consonants"
+input = "क‍क"
+clusters = ["क‍", "क"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "the architect's ka-ZWJ-ka case: ZWJ without a virama before it"
+
+[[case]]
+name = "zwnj_at_start"
+input = "‌क"
+clusters = ["‌", "क"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+
+[[case]]
+name = "zwj_after_matra"
+input = "का‍"
+clusters = ["का‍"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# mixed_script_in_cluster
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "latin_base_devanagari_matra"
+input = "Aा"
+clusters = ["Aा"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "the architect's A + U+093E case: one issue, not also dependent_vowel_without_base"
+
+[[case]]
+name = "latin_base_anusvara"
+input = "eं"
+clusters = ["eं"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+
+[[case]]
+name = "bengali_mark_on_devanagari"
+input = "कা"
+clusters = ["कা"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "a Bengali aa-matra on a Devanagari consonant: the usual confusable-block OCR mistake"
+
+[[case]]
+name = "tamil_base_devanagari_virama"
+input = "க्"
+clusters = ["க्"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# unexpected_code_point
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "replacement_char"
+input = "क�ख"
+clusters = ["क", "�", "ख"]
+issues = [{ kind = "unexpected_code_point", cluster = 1 }]
+note = "U+FFFD is what a decoder emits for a broken byte sequence"
+
+[[case]]
+name = "private_use"
+input = ""
+clusters = [""]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+
+[[case]]
+name = "private_use_legacy_font"
+input = "क"
+clusters = ["क", ""]
+issues = [{ kind = "unexpected_code_point", cluster = 1 }]
+note = "legacy-font glyph codes converted to Unicode without a mapping land in the PUA"
+
+# ---------------------------------------------------------------------------------------------
+# control_character
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "control_bell"
+input = "क\u0007ख"
+clusters = ["क", "\u0007", "ख"]
+issues = [{ kind = "control_character", cluster = 1 }]
+
+[[case]]
+name = "bidi_control"
+input = "क‮ख"
+clusters = ["क", "‮", "ख"]
+issues = [{ kind = "control_character", cluster = 1 }]
+note = "RIGHT-TO-LEFT OVERRIDE inside Devanagari text is never legitimate"
+
+[[case]]
+name = "bom_mid_text"
+input = "क﻿ख"
+clusters = ["क", "﻿", "ख"]
+issues = [{ kind = "control_character", cluster = 1 }]
+
+[[case]]
+name = "nul"
+input = "\u0000"
+clusters = ["\u0000"]
+issues = [{ kind = "control_character", cluster = 0 }]
+
+# ---------------------------------------------------------------------------------------------
+# More than one issue in one cluster
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "two_issues_one_cluster"
+input = "काा्"
+clusters = ["काा्"]
+issues = [
+  { kind = "double_matra", cluster = 0 },
+  { kind = "virama_after_matra", cluster = 0 },
+]
+note = "issues are reported in cluster order, then in code-point order within the cluster"
