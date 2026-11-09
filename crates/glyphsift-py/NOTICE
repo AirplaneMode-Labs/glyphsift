@@ -1,0 +1,11 @@
+Airplane Mode Labs glyphsift
+Copyright 2026 Tushar (jtushar53@gmail.com)
+
+This product includes software developed at Airplane Mode Labs (https://github.com/AirplaneMode-Labs).
+
+Third-party notices
+-------------------
+Segmentation data and rules follow Unicode Standard Annex #29 (Unicode Text Segmentation),
+Copyright Unicode, Inc., used under the Unicode License v3 (Unicode-3.0) through the
+unicode-segmentation crate (MIT OR Apache-2.0). No Unicode data files are redistributed in this
+repository.
