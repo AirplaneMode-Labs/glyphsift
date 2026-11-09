@@ -221,12 +221,13 @@ the browser: not measured.
 - **No normalisation.** Input is judged as given, so `U+0958` plus a nukta is a double nukta even
   though NFC would give the same bytes as `क़`. Devanagari Extended cantillation marks are flagged as
   unexpected (docs/devanagari-rules.md section 7).
-- **Input limit.** `validate` refuses input over 4 MiB (the report holds one record per cluster); the
-  demo accepts at most 1 MiB. Over a 1 MiB input the report is large (the WASM safety script runs one).
+- **Input limit.** `validate` (CLI, Python and WASM) and `clusters` (Python and WASM) refuse input
+  over 4 MiB with the same "too large" error (the report holds one record per cluster); the demo
+  accepts at most 1 MiB. Over a 1 MiB input the report is large (the WASM safety script runs one).
 - **No heatmap, no drag-and-drop, no service worker** in the demo; see its "What this demo does not do
   yet" box. Nothing is published: no crate, wheel or npm package, no tag.
-- **Windows.** The determinism job and the installer's Windows branch are configured, not yet executed:
-  nothing has run on a Windows runner until the repository is pushed. The 8 GB Windows no-GPU column above
+- **Windows.** The determinism gate (native, Python and WASM) first passed on a hosted Windows runner on
+  9 Nov 2026 ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936)). That is not the target laptop: the 8 GB Windows no-GPU column above still
   reads "not measured".
 - **Native-speaker review wanted.** The case table encodes the author's reading of the Unicode Standard
   chapter 12 and common OCR and legacy-font failure modes; the corpus is invented by the author.

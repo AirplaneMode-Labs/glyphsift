@@ -148,6 +148,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- README limitations: `clusters` is named next to `validate` under the 4 MiB input limit (BUG-T2-S2-16),
+  and the Windows line records the first green Windows determinism run (9 Nov 2026).
 - `scripts/install-wasm-tools.sh` is fully re-synced from pagetriage's final copy: `mkdir -p "$ROOT"` now runs
   after both digest lookups, so an unknown tool version exits 1 without leaving the install directory behind;
   it differs from pagetriage's only on the four lines that name the repository (BUG-T2-S2-10, T3-S2-R1-01, S1-065)

@@ -5,7 +5,7 @@
 #   - wasm-bindgen CLI, at the exact version pinned in crates/glyphsift-wasm/Cargo.toml
 #   - binaryen (wasm-opt), at BINARYEN_VERSION
 # Bumping either version means adding the new tarballs' digests to expected_digest below.
-# Platforms: Linux x86_64, macOS arm64/x86_64, Windows x86_64 (Git Bash; configured, not yet executed).
+# Platforms: Linux x86_64, macOS arm64/x86_64, Windows x86_64 (Git Bash).
 # Used by CI; also fine locally. Installs under $INSTALL_ROOT (default ~/.local/glyphsift-tools)
 # and, when run in GitHub Actions, adds the bin directories to PATH for later steps. Otherwise it
 # prints the PATH line to use.

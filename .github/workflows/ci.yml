@@ -70,8 +70,8 @@ jobs:
   # Python and WASM, and the WASM build must survive the fuzz set, a 1 MiB input and a 5,000-mark run
   # without a trap (tests/wasm/run_wasm_safety.mjs). Passing on all three operating systems also means
   # they agree.
-  # Windows: configured, not yet executed. scripts/install-wasm-tools.sh has a Windows branch with
-  # pinned digests, but nothing has run on a Windows runner until the repository is pushed.
+  # Windows uses the Windows branch of scripts/install-wasm-tools.sh (pinned digests); first green
+  # Windows run on 9 Nov 2026.
   determinism:
     name: determinism (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

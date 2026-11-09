@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The determinism gate: the samples in tests/determinism/samples must produce byte-identical reports
 # on native, Python and WASM, each compared against the checked-in bytes in tests/determinism/expected
-# (which the native CLI printed). CI runs this on Linux, macOS and Windows (Windows configured, not
-# yet executed), so passing on all also means the OSes agree.
+# (which the native CLI printed). CI runs this on Linux, macOS and Windows, so passing on all also
+# means the OSes agree.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
