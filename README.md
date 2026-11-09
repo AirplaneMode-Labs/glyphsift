@@ -25,6 +25,21 @@ What exists today:
 - the design for the corruption generator that produces the Sprint 2 score-versus-noise chart:
   [docs/corruption-generator.md](docs/corruption-generator.md).
 
+## Demo
+
+Live demo: <https://airplanemode-labs.github.io/glyphsift/>. Built from `main` by
+`.github/workflows/pages.yml` on every push; it shows only what works today and has a box titled
+"What this demo does not do yet". It runs entirely in the browser: no upload, no analytics, no
+third-party scripts or fonts.
+
+What it shows: a textarea for pasted Devanagari or Hindi text with three synthetic samples (clean,
+OCR-corrupted, legacy-font gibberish), the UAX #29 grapheme clusters the WASM build computes
+(`clusters_json()`: cluster text, code points, byte range), the `Unimplemented` error that
+`validate()` throws in Sprint 1 shown verbatim next to the CLI's `{"error":"unimplemented","since":"Sprint 2"}`,
+the sixteen rule names from `issue_kinds()` each marked "not yet checked", `report_spec()` and
+`version()`. The defect-named samples say plainly that glyphsift does not detect those problems yet.
+Sources in `demo/`; `scripts/build-demo.sh` assembles `demo/dist/` (git-ignored).
+
 ## Install
 
 Nothing is published. From a clone:
@@ -32,6 +47,8 @@ Nothing is published. From a clone:
 ```sh
 cargo build --release            # core + CLI -> target/release/glyphsift
 scripts/build-wasm.sh            # dist/wasm/{web,nodejs}; needs wasm-bindgen 0.2.129 and wasm-opt
+scripts/install-wasm-tools.sh    # installs both from digest-pinned release binaries (default ~/.local/glyphsift-tools)
+scripts/build-demo.sh            # demo/dist/: the GitHub Pages demo (runs build-wasm.sh first)
 uvx maturin build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels   # cp39-abi3 wheel
 ```
 
@@ -49,8 +66,8 @@ Exit codes: 0 report written, 2 input error (unreadable file or invalid UTF-8), 
 Python (after `maturin develop`): `glyphsift.validate(text)` returns the JSON string and raises
 `NotImplementedError` in Sprint 1; `glyphsift.clusters(text)` works today.
 
-Browser/Node (after `scripts/build-wasm.sh`): `validate(text)` throws until Sprint 2; `clusters(text)`
-and `version()` work today.
+Browser/Node (after `scripts/build-wasm.sh`): `validate(text)` throws until Sprint 2; `clusters(text)`,
+`clusters_json(text)`, `issue_kinds()`, `report_spec()` and `version()` work today.
 
 ## How it works
 
@@ -128,6 +145,7 @@ cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
 cargo check -p glyphsift-py                    # needs a python3 on PATH for the PyO3 build script
 cargo tree --workspace -e normal -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'   # must print nothing
 cargo tree --workspace -f '{p} {f}' | grep preserve_order                       # must print nothing
+scripts/build-demo.sh                          # the Pages demo; CI's `demo` job runs the same command
 ```
 
 Tests come before implementation: add a case to `tests/cases/devanagari.toml` first, then make it

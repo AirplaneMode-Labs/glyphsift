@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- GitHub Pages demo at <https://airplanemode-labs.github.io/glyphsift/> (`demo/`, assembled by
+  `scripts/build-demo.sh`, deployed by `.github/workflows/pages.yml`, built again by the CI `demo`
+  job): grapheme clusters of pasted Devanagari with code points and byte ranges, three synthetic
+  samples, the `validate()` Unimplemented error shown verbatim, the sixteen rule names marked "not
+  yet checked", and a "What this demo does not do yet" box.
+- WASM exports `clusters_json()`, `issue_kinds()` and `report_spec()` next to `validate()`,
+  `clusters()` and `version()`; the wasm crate now uses the workspace `serde_json` (no
+  `preserve_order`) instead of a hand-rolled array serialiser.
+- `scripts/install-wasm-tools.sh`: installs wasm-bindgen 0.2.129 and binaryen 133 from official
+  release tarballs, comparing each against a SHA-256 digest pinned in the script.
+- `persist-credentials: false` on every `actions/checkout` in CI.
 - Cargo workspace (resolver 3) with `glyphsift-core`, `glyphsift-cli`, `glyphsift-py` (PyO3 0.30,
   abi3-py39, maturin) and `glyphsift-wasm` (wasm-bindgen 0.2.129); rust-toolchain 1.98, edition 2024.
 - Report types `Report`, `Cluster`, `Issue`, `IssueKind` (sixteen Devanagari rules) with the
