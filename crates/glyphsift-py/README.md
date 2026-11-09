@@ -7,12 +7,18 @@ documentation, benchmarks, limitations and security notes live in the repository
 Package names use the placeholder scope `@airplanemode` / crate names `glyphsift` until the
 handles are reserved; nothing is published yet.
 
-## Status
+## Use
 
-Skeleton; the validator lands in Sprint 2 (23 Nov to 6 Dec 2026). Today:
+```python
+import glyphsift
 
-- `glyphsift.clusters(text)` returns UAX #29 extended grapheme clusters with byte offsets (real);
-- `glyphsift.validate(text)` raises `NotImplementedError` until Sprint 2.
+report_json = glyphsift.validate(text)   # canonical JSON, byte-identical to the CLI and the WASM build
+ppm = glyphsift.score_ppm(text)          # integer score in parts per million, 1000000 is clean
+glyphsift.clusters(text)                 # UAX #29 extended grapheme clusters, as a list of str
+```
+
+`validate` and `score_ppm` raise `ValueError` for input over 4 MiB. Limitations: structural checks only,
+Devanagari only, nothing published yet; see the repository README.
 
 ## Build
 
