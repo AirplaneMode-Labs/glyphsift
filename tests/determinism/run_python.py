@@ -11,6 +11,11 @@ import sys
 
 import glyphsift
 
+# Windows consoles default to cp1252, which cannot print Devanagari. `python -I` ignores
+# PYTHONUTF8, so set UTF-8 here.
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 BASE = pathlib.Path(__file__).resolve().parent
 SAMPLES = sorted((BASE / "samples").glob("*.txt"))
 MAX_INPUT_BYTES = 4 * 1024 * 1024
