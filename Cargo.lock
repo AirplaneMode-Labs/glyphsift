@@ -149,6 +149,8 @@ name = "glyphsift-wasm"
 version = "0.1.0"
 dependencies = [
  "glyphsift-core",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
 ]
 
