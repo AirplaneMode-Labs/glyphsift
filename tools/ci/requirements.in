@@ -1,0 +1,18 @@
+# Python tools the glyphsift CI jobs and scripts/package-python.sh install (S1-079). Exact versions only;
+# the hashed lock next to this file is generated from it and is what CI installs:
+#
+#   uvx --from uv==0.13.1 uv pip compile --universal --python-version 3.10 --generate-hashes \
+#       tools/ci/requirements.in -o tools/ci/requirements.txt
+#
+# Install (CI, and locally in a fresh venv):
+#
+#   python -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
+#
+# uv        0.13.1  the uv the Sprint 3 evidence was produced with (venv and pip install steps)
+# maturin   1.16.0  builds the wheel and the sdist (the version scripts/package-python.sh pinned)
+# mypy      2.4.1   type-checks the wheel's stubs with --strict
+# ziglang   0.16.0  maturin --zig: the C compiler for the manylinux_2_17 wheel built on ubuntu
+uv==0.13.1
+maturin==1.16.0
+mypy==2.4.1
+ziglang==0.16.0

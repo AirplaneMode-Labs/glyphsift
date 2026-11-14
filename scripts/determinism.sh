@@ -10,11 +10,11 @@ PYTHON=${PYTHON:-python3}
 VENV=${VENV:-.venv}
 
 echo "== native"
-cargo build -q -p glyphsift-cli --release
+cargo build --locked -q -p glyphsift-cli --release
 fail=0
 for sample in tests/determinism/samples/*.txt; do
   stem=$(basename "$sample" .txt)
-  if cargo run -q -p glyphsift-cli --release -- check "$sample" | cmp -s - "tests/determinism/expected/$stem.json"; then
+  if cargo run --locked -q -p glyphsift-cli --release -- check "$sample" | cmp -s - "tests/determinism/expected/$stem.json"; then
     echo "ok   $stem: native CLI matches the expected report"
   else
     echo "FAIL $stem: native CLI output differs from tests/determinism/expected/$stem.json" >&2
@@ -32,11 +32,14 @@ esac
 if [ ! -x "$VBIN/maturin" ] && [ ! -x "$VBIN/maturin.exe" ]; then
   "$PYTHON" -m venv "$VENV"
   if [ -d "$VENV/Scripts" ]; then VBIN="$VENV/Scripts"; else VBIN="$VENV/bin"; fi
-  "$VBIN/pip" install --quiet maturin
+  # Version-pinned, not hash-pinned (the one known gap here): this venv builds a test-only extension
+  # (maturin develop) that is never shipped, in a job that publishes nothing. The shipped wheels use
+  # tools/ci/requirements.txt (hashed). Keep this version equal to the one in tools/ci/requirements.in.
+  "$VBIN/pip" install --quiet maturin==1.16.0
 fi
 export VIRTUAL_ENV="$PWD/$VENV"
 export PATH="$PWD/$VBIN:$PATH"
-maturin develop --release --quiet --manifest-path crates/glyphsift-py/Cargo.toml
+maturin develop --release --locked --quiet --manifest-path crates/glyphsift-py/Cargo.toml
 python -I tests/determinism/run_python.py
 
 echo "== wasm"

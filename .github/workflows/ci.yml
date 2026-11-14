@@ -43,26 +43,26 @@ jobs:
         with:
           python-version: "3.12"
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Default members: core + cli. The CLI turns on the core's `corrupt` feature, so this runs the
       # 154-case table, the fuzz test, the score and corruption tests, and the bench and check tests
       # (which compare the committed docs/score-vs-noise.{csv,svg} with a fresh run, and check the CLI's
       # version, help and exit codes, the README's CLI section and the licence copies in every crate).
-      - run: cargo test
+      - run: cargo test --locked
       - name: WASM binding unit tests (native target)
-        run: cargo test -p glyphsift-wasm
-      - run: cargo check -p glyphsift-core --target wasm32-unknown-unknown
-      - run: cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
-      - run: cargo check -p glyphsift-py
+        run: cargo test --locked -p glyphsift-wasm
+      - run: cargo check --locked -p glyphsift-core --target wasm32-unknown-unknown
+      - run: cargo check --locked -p glyphsift-wasm --target wasm32-unknown-unknown
+      - run: cargo check --locked -p glyphsift-py
       - name: The committed benchmark CSV still satisfies the monotonicity criterion
-        run: cargo run -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
+        run: cargo run --locked -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
       - name: Licence sweep and dependency features
         run: |
-          if cargo tree --workspace -e normal -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'; then
+          if cargo tree --locked --workspace -e normal -f '{p} {l}' | grep -Ei 'GPL|AGPL|LGPL|SSPL'; then
             echo "copyleft licence found in the dependency tree" >&2; exit 1; fi
-          if cargo tree --workspace -f '{p} {f}' | grep preserve_order; then
+          if cargo tree --locked --workspace -f '{p} {f}' | grep preserve_order; then
             echo "serde_json preserve_order must stay off" >&2; exit 1; fi
-          if cargo tree -p glyphsift-wasm -e features -f '{p} {f}' | grep -w corrupt; then
+          if cargo tree --locked -p glyphsift-wasm -e features -f '{p} {f}' | grep -w corrupt; then
             echo "the corrupt feature must not reach the WASM build" >&2; exit 1; fi
           if grep -rnE 'f32|f64|HashMap|HashSet' crates/glyphsift-core/src; then
             echo "glyphsift-core must use no floating point and no hash collections" >&2; exit 1; fi
@@ -131,9 +131,12 @@ jobs:
   # Packaging dry runs: the npm tarball and the Python wheel are built from this commit, installed into
   # fresh environments (npm: an empty directory and an empty cache, scripts off, offline; Python: a
   # python3 venv with pip and a uv venv, offline, no deps), each followed by a real call; the wheel's
-  # stubs are checked with mypy --strict; the release-manifest tool is tested. Nothing is published,
-  # tagged or signed from CI. Linux only (the wheel built here is a Linux wheel, which the macOS arm64
-  # wheel proven locally is not). Configured, not yet run.
+  # stubs are checked with mypy --strict; the script tests run (release-manifest tool, the lockfile and
+  # requirements hashes, the CI policy, package-npm.sh with its default scratch folder). Nothing is
+  # published, tagged or signed from CI. Linux only (the wheels job below builds the per-platform
+  # wheels). Every tool this job installs is pinned by hash (S1-079): uv, maturin and mypy from
+  # tools/ci/requirements.txt with `pip install --require-hashes --only-binary=:all:`. Known gap: the pip
+  # that setup-python ships is not pinned. Configured, not yet run in CI.
   packaging:
     name: packaging dry runs (wheel, npm tarball, release manifest)
     runs-on: ubuntu-latest
@@ -154,17 +157,24 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-      - name: uv (pip, pinned; provides uv and uvx for the wheel build and the stubs check)
-        run: python -m pip install uv==0.13.1
+      - name: Hashed tool install (uv, maturin, mypy, ziglang) into a venv
+        run: |
+          python -m venv "$RUNNER_TEMP/tools-venv"
+          "$RUNNER_TEMP/tools-venv/bin/python" -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
+          "$RUNNER_TEMP/tools-venv/bin/maturin" --version
+          "$RUNNER_TEMP/tools-venv/bin/mypy" --version
+          "$RUNNER_TEMP/tools-venv/bin/uv" --version
       - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
         run: scripts/install-wasm-tools.sh
       - run: scripts/build-wasm.sh
       - name: npm tarball installs offline into an empty directory and runs under Node
         run: scripts/package-npm.sh
-      - name: Python wheel installs into a venv from pip and from uv, runs, and passes mypy --strict
+      - name: Python wheel installs into a venv from pip and from uv, runs, and passes mypy --strict (tools from the hashed venv)
+        env:
+          GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
         run: scripts/package-python.sh
-      - name: Release manifest tool
-        run: tests/scripts/release-manifest.sh
+      - name: Script tests (release manifest tool, lockfile and requirements hashes, CI policy, package-npm.sh default scratch)
+        run: tests/scripts/run-all.sh
       - name: CLI installs with builder paths remapped and holds none (cargo install --path)
         run: |
           . scripts/remap-paths.sh
@@ -173,8 +183,9 @@ jobs:
           python3 -I scripts/check-no-builder-paths.py "$RUNNER_TEMP/cli/bin/glyphsift"
 
   # The built demo and the installed npm package, driven in the runner's own Chrome (Playwright with
-  # channel "chrome"; no browser is downloaded). Linux only and not a required check. Configured, not
-  # yet run.
+  # channel "chrome"; no browser is downloaded). Playwright 1.65.0 comes from the committed
+  # tools/playwright/package-lock.json with `npm ci --ignore-scripts`, so every package is pinned by
+  # integrity hash (S1-079). Linux only and not a required check. Configured, not yet run in CI.
   demo-browser:
     name: demo and npm package in Chrome (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -194,24 +205,95 @@ jobs:
           node-version: "22"
       - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
         run: scripts/install-wasm-tools.sh
-      - run: cargo build --release -p glyphsift-cli
+      - run: cargo build --release --locked -p glyphsift-cli
       - run: scripts/build-demo.sh
-      - name: Playwright 1.65.0 in a scratch directory (not a dependency of this repository)
-        run: |
-          mkdir -p "$RUNNER_TEMP/pw"
-          cd "$RUNNER_TEMP/pw"
-          npm init -y > /dev/null
-          npm i playwright@1.65.0 --ignore-scripts --no-audit --no-fund
+      - name: Playwright 1.65.0 from the committed lockfile (npm ci, lifecycle scripts off)
+        run: npm ci --prefix tools/playwright --ignore-scripts --no-audit --no-fund
       - name: Demo checks (heatmap, files, refusals, zero requests, source grep)
         env:
-          PLAYWRIGHT_DIR: ${{ runner.temp }}/pw
+          PLAYWRIGHT_DIR: tools/playwright
         run: node tests/demo/check_demo.mjs --cli target/release/glyphsift
       - name: npm package in the browser (bundler-free, from a fresh install)
         env:
-          PLAYWRIGHT_DIR: ${{ runner.temp }}/pw
+          PLAYWRIGHT_DIR: tools/playwright
         run: |
           scripts/build-wasm.sh
           scripts/package-npm.sh
+
+  # Wheels and the sdist, one build per platform, published nowhere. The jobs install their tools by hash
+  # (tools/ci/requirements.txt, `pip install --require-hashes --no-deps --only-binary=:all:`), build with
+  # --locked, install the wheel into a fresh venv with --no-index, make one real call (the score of a clean
+  # Hindi word is 1000000 ppm) and keep the files as a workflow artifact for 7 days. maturin sdist compiles nothing
+  # and has no --locked flag (checked locally with maturin 1.16.0), so that step is followed by a check that
+  # Cargo.lock did not change. A workflow artifact is
+  # not a release: there is no registry, release or Pages step and no secret. Linux builds the
+  # manylinux_2_17 wheel through zig (the ziglang package from the hashed requirements) and the sdist.
+  # Not a required check. Configured, not yet run: only CI after the owner's push proves the manylinux
+  # and win_amd64 wheels and the sdist (docs/release.md, "CI-only proofs").
+  wheels:
+    name: wheel and sdist (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      TOOLS_BIN: ${{ matrix.os == 'windows-latest' && 'tools-venv/Scripts' || 'tools-venv/bin' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Hashed tool install (uv, maturin, mypy, ziglang) into a venv
+        run: |
+          python -m venv tools-venv
+          "$TOOLS_BIN/python" -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
+          "$TOOLS_BIN/maturin" --version
+      - name: Empty the wheel output folder
+        run: rm -rf target/wheels
+      - name: Build the manylinux_2_17 wheel through zig (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export PATH="$PWD/$TOOLS_BIN:$PATH"
+          . scripts/remap-paths.sh
+          maturin build --release --locked --zig --compatibility manylinux_2_17 -m crates/glyphsift-py/Cargo.toml
+      - name: Build the sdist (ubuntu) and check that Cargo.lock did not change
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export PATH="$PWD/$TOOLS_BIN:$PATH"
+          maturin sdist -m crates/glyphsift-py/Cargo.toml
+          git diff --exit-code -- Cargo.lock
+      - name: Build the wheel (windows, macos)
+        if: matrix.os != 'ubuntu-latest'
+        run: |
+          export PATH="$PWD/$TOOLS_BIN:$PATH"
+          . scripts/remap-paths.sh
+          maturin build --release --locked -m crates/glyphsift-py/Cargo.toml
+      - name: Builder-path gate on the wheel (no home, checkout or temp path inside)
+        run: python -I scripts/check-no-builder-paths.py target/wheels/*.whl
+      - name: Install the wheel into a fresh venv with no index and make a real call
+        run: |
+          ls -l target/wheels
+          python -m venv smoke-venv
+          if [ -d smoke-venv/Scripts ]; then SMOKE=smoke-venv/Scripts; else SMOKE=smoke-venv/bin; fi
+          "$SMOKE/python" -m pip install --no-index --no-deps target/wheels/glyphsift-*.whl
+          "$SMOKE/python" -I -c 'import glyphsift, json; ppm = json.loads(glyphsift.validate("\u0928\u092e\u0938\u094d\u0924\u0947\u0964"))["score"]["ppm"]; print("ppm", ppm); assert ppm == 1000000'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: glyphsift-wheels-${{ matrix.os }}
+          path: |
+            target/wheels/*.whl
+            target/wheels/*.tar.gz
+          retention-days: 7
+          if-no-files-found: error
 
   # Dependency policy (deny.toml). cargo-deny is a pinned release binary checked against a SHA-256 kept
   # in this file, not the EmbarkStudios Docker action. Linux only. The advisories leg may fail without

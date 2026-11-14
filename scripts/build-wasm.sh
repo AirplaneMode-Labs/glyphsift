@@ -33,7 +33,7 @@ command -v wasm-opt >/dev/null || { echo "error: wasm-opt not found (brew instal
 # Builder paths (home, cargo, rustup, checkout) are remapped so they do not end up in the .wasm panic strings.
 # shellcheck source=scripts/remap-paths.sh
 . scripts/remap-paths.sh
-cargo build --profile wasm --target wasm32-unknown-unknown -p glyphsift-wasm
+cargo build --locked --profile wasm --target wasm32-unknown-unknown -p glyphsift-wasm
 RAW=target/wasm32-unknown-unknown/wasm/glyphsift_wasm.wasm
 
 # Post-link features rustc emits for wasm32-unknown-unknown; the profile strips the target_features

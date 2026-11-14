@@ -1,0 +1,10 @@
+{
+  "name": "glyphsift-ci-playwright",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Playwright 1.65.0 for tests/demo/check_demo.mjs and tests/npm/check_browser.mjs. Not a dependency of glyphsift: CI and the owner install it with `npm ci --ignore-scripts` from the committed package-lock.json, so every package is pinned by integrity hash. Chrome is the installed one (channel: chrome); no browser is downloaded.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "playwright": "1.65.0"
+  }
+}
