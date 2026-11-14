@@ -3,7 +3,7 @@
 // validate(), and must give the same report as `glyphsift check`, with 0 console errors, 0 page
 // errors and same-origin requests only. Runs in installed Chrome (channel "chrome").
 //
-//   PLAYWRIGHT_DIR=<dir with playwright@1.65.0 installed> \
+//   PLAYWRIGHT_DIR=<tools/playwright after `npm ci --prefix tools/playwright --ignore-scripts`, or any dir with playwright@1.65.0> \
 //     node tests/npm/check_browser.mjs --dir <fresh install dir> --cli target/release/glyphsift
 //
 // <dir> must contain node_modules/@airplanemode/glyphsift (from `npm i <tgz>`); this script copies
@@ -30,7 +30,7 @@ if (!dir || !cli) {
 }
 const pwDir = process.env.PLAYWRIGHT_DIR;
 if (!pwDir) {
-  console.error("PLAYWRIGHT_DIR must name a directory where `npm i playwright@1.65.0` was run");
+  console.error("PLAYWRIGHT_DIR must name a directory with playwright@1.65.0 installed (tools/playwright after `npm ci --prefix tools/playwright --ignore-scripts`)");
   process.exit(2);
 }
 const { chromium } = createRequire(pathToFileURL(join(resolve(pwDir), "x.js")))("playwright");

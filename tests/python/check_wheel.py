@@ -49,6 +49,12 @@ def main(argv: list[str]) -> int:
         check(any(n.endswith("/py.typed") for n in names), "py.typed is in the wheel")
         check(di + "licenses/LICENSE" in names, "LICENSE is in the wheel")
         check(di + "licenses/NOTICE" in names, "NOTICE is in the wheel")
+        if di + "licenses/NOTICE" in names:
+            nt = z.read(di + "licenses/NOTICE").decode("utf-8")
+            check("Permission is hereby granted" in nt, "the wheel NOTICE carries the MIT text (TD-28)")
+            check("zmij 1.0.23" in nt and "David Tolnay" in nt, "the wheel NOTICE carries the zmij block")
+            check("memchr 2.8.3" in nt and "Andrew Gallant" in nt, "the wheel NOTICE carries the memchr block")
+            check("does not bundle those texts" not in nt, "the wheel NOTICE no longer says the texts are not bundled")
         check(any(n.endswith(".abi3.so") or n.endswith(".pyd") for n in names), "the compiled extension is in the wheel")
         big = [(i.filename, i.file_size) for i in infos if i.file_size > MAX_FILE]
         check(not big, f"no file over 5 MB {big if big else ''}")
@@ -69,6 +75,7 @@ def main(argv: list[str]) -> int:
     check(HONEST in meta, "the packaged METADATA description contains the honest 'Not published yet ...' sentence")
     check("release candidate, not tagged" in meta, "the packaged README says 'release candidate, not tagged'")
     check("Linux and Windows wheels are not built yet" in meta, "the packaged README says Linux and Windows wheels are not built yet")
+    check("built only by CI after the owner's push" in meta, "the packaged README says where those wheels and the sdist come from (built only by CI after the owner's push)")
     # The README records the tag that was installed and proven (macOS arm64); a wheel built elsewhere (CI on
     # Linux) has another tag, and the README must not claim that one was proven.
     check("macosx_11_0_arm64" in meta, "the packaged README records the platform tag proven (macosx_11_0_arm64)")

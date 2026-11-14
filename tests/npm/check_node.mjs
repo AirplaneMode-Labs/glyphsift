@@ -118,6 +118,11 @@ stage("package.json", () => {
   const licence = readFileSync(join(pkgDir, "LICENSE"), "utf8");
   check(licence.includes("Apache License") && licence.includes("Version 2.0"), "LICENSE is the Apache 2.0 text");
   check(readFileSync(join(pkgDir, "NOTICE"), "utf8") === readFileSync(join(root, "NOTICE"), "utf8"), "NOTICE equals the repository NOTICE");
+  const noticeText = readFileSync(join(pkgDir, "NOTICE"), "utf8");
+  check(noticeText.includes("Permission is hereby granted"), "the packaged NOTICE carries the MIT text (TD-28)");
+  check(noticeText.includes("zmij 1.0.23") && noticeText.includes("David Tolnay"), "the packaged NOTICE carries the zmij block");
+  check(noticeText.includes("memchr 2.8.3") && noticeText.includes("Andrew Gallant"), "the packaged NOTICE carries the memchr block");
+  check(!noticeText.includes("does not bundle those texts"), "the packaged NOTICE no longer says the texts are not bundled");
 });
 
 // ---- exactly one package in the fresh install ---------------------------------------------------
