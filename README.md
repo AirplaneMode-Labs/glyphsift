@@ -9,51 +9,145 @@ Part of [Airplane Mode Labs](https://github.com/AirplaneMode-Labs), an open-core
 browser-native AI infrastructure lab. Package names use the placeholder scope `@airplanemode` /
 crate and package names `glyphsift` until the handles are reserved; nothing is published yet.
 
-Status (Sprint 2): the validator, the score, the CLI, the WASM and Python bindings and the
-score-versus-noise benchmark work and are tested on this repository's synthetic text only. Not
-released: no tag, no package.
+## Status
+
+Sprint 3: glyphsift **0.1.0 is a release candidate, not tagged**. The validator, the score, the CLI, the
+WASM and Python bindings, the score-versus-noise benchmark and the demo (with a per-cluster heatmap and
+local-file input) work and are tested on this repository's synthetic text only. A Python wheel and an
+npm tarball were built and installed from local files on macOS arm64; nothing is published, tagged or
+signed. What is open before a tag is in [docs/release.md](docs/release.md): CI read on three operating
+systems after the push, the 8 GB laptop benchmark, signed artifacts, the tag, publishing and the
+write-up.
 
 ## Install
 
-Nothing is published. From a clone:
+Not published yet: the npm scope @airplanemode and the PyPI and crates.io names are not reserved. The commands below were proven from locally built artifacts on macOS arm64 (an npm pack tarball installed offline into a fresh empty directory, a wheel installed into a fresh venv); publishing to the registries is the owner's step.
+
+From a clone of this repository (Rust 1.98 comes from `rust-toolchain.toml`):
 
 ```sh
-cargo build --release            # core + CLI -> target/release/glyphsift
+# Command line: installs the `glyphsift` binary (0.1.0) under <dir>/bin. The RUSTFLAGS prefix keeps your home
+# and checkout paths out of the binary (optional; scripts/remap-paths.sh sets the same flags for the build scripts)
+RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/glyphsift" cargo install --path crates/glyphsift-cli --locked --root <dir>
+
+# Python wheel (abi3, CPython >= 3.9): built, then installed into a fresh venv, offline
+# (scripts/package-python.sh does this with the tool versions pinned and the builder paths remapped)
+. scripts/remap-paths.sh && uvx maturin@1.16.0 build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels
+python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
+uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
+
+# npm package @airplanemode/glyphsift (WASM, Node and browser): packed, then installed offline into an empty directory
 scripts/install-wasm-tools.sh    # wasm-bindgen 0.2.129 and binaryen from digest-pinned release binaries (default ~/.local/glyphsift-tools)
-scripts/build-wasm.sh            # dist/wasm/{web,nodejs}; needs wasm-bindgen 0.2.129 and wasm-opt
-scripts/build-demo.sh            # demo/dist/: the GitHub Pages demo (runs build-wasm.sh first)
-uvx maturin build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels   # cp39-abi3 wheel
+scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.0.tgz
+mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.0.tgz --ignore-scripts --offline --no-audit --no-fund
+
+# The demo: demo/dist/ (runs build-wasm.sh first)
+scripts/build-demo.sh
+```
+
+What was proven, and where: the wheel is `glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
+`macosx_11_0_arm64`, and it installed with `python3 -m venv` plus `pip install --no-index --no-deps` and with
+`uv venv` plus `uv pip install --offline --no-index --no-deps`, each followed by a `python -I` call that printed
+750000 for `score_ppm('कखग\ufffd')` (`evidence/sprint-3/D3/install-wheel-r2.log`). **Linux and Windows wheels are not built yet**
+(a Sprint 4 carry-over), and there is no source distribution. The npm tarball installed offline from an empty
+cache with install scripts off; `npm ls` showed exactly that one package, and a Node call and a bundler-free
+page in installed Chrome gave the report `glyphsift check` prints (`evidence/sprint-3/D3/npm-install-r2.log`). The CLI
+installed with `cargo install --path` and ran with every documented exit code
+(`evidence/sprint-3/D3/cli-install-r2.log`). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
+no source map, no install script and no file over 5 MB. The source packages `cargo package --list` would upload
+do include each crate's `tests/` (`glyphsift-core` ships `tests/cases/devanagari.toml`, invented strings, and `tests/*.rs`;
+`glyphsift-cli` ships `tests/*.rs`) so the crates can be tested from the registry; that is intended. Third-party crates
+and the compiled Unicode tables that ship inside the wheel, the WASM and the CLI are listed with their licences in
+[NOTICE](NOTICE). Builder paths (home, cargo, rustup and checkout directories) are remapped out of the Rust builds with
+`--remap-path-prefix` (`scripts/remap-paths.sh`) and `scripts/package-python.sh` and `scripts/package-npm.sh` fail if
+any packed file contains `/Users/`, `/home/` or the scratch-directory prefix (`scripts/check-no-builder-paths.py`).
+
+### After the owner publishes
+
+Once the handles are reserved and the artifacts are published, these will work; they have not been run:
+
+```sh
+pip install glyphsift
+npm i @airplanemode/glyphsift
+cargo install glyphsift-cli
 ```
 
 ## Quick start
 
+### CLI
+
 ```sh
-echo 'नमस्ते।' | cargo run -q -p glyphsift-cli -- check -
+echo 'नमस्ते।' | glyphsift check -
 # {"spec":"glyphsift.report/0.2","script":"devanagari","code_points":7,"clusters":[...],"issues":[],
 #  "summary":{...},"lines":[{"index":0,...,"score_ppm":1000000}],"score":{"ppm":1000000,"penalty":0,...}}
 
-printf 'कखग\xef\xbf\xbd' | cargo run -q -p glyphsift-cli -- check - --fail-under 800000 > /dev/null; echo $?
+printf 'कखग\xef\xbf\xbd' | glyphsift check - --fail-under 800000 > /dev/null; echo $?
 # score 750000 is below 800000: the report is printed, the exit code is 4
 ```
 
-`glyphsift check FILE|-` prints the canonical JSON report. Exit codes: 0 report printed and the
-score is not under `--fail-under`; 1 I/O error, invalid UTF-8 or input over 4 MiB; 2 usage error;
-4 score below `--fail-under` (a threshold in parts per million, 0 to 1000000).
+(From a clone, `cargo run -q -p glyphsift-cli -- check -` runs the same thing without installing.)
 
-Python (after `maturin develop`): `glyphsift.validate(text)` returns the same JSON string,
-`glyphsift.score_ppm(text)` the integer score, `glyphsift.clusters(text)` the grapheme clusters.
+- `glyphsift check FILE|- [--fail-under PPM]` validates UTF-8 text from a file or standard input (up to 4 MiB)
+  and prints the canonical JSON report. `--fail-under` is a threshold in parts per million, 0 to 1000000.
+- `glyphsift corrupt --family <name>|mixed --p <decimal> --seed <u64> [--sites <path>]` applies a seeded
+  OCR-noise family to clean text on standard input (`--list-families` prints the 19 names and `mixed`).
+- `glyphsift bench --corpus <path> --seeds 1,2,3 --csv <path> --svg <path>` runs the score-versus-noise
+  benchmark and writes the CSV and the chart; `glyphsift bench --verify <csv>` re-checks an existing CSV.
+- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.0) exit 0.
 
-Browser or Node (after `scripts/build-wasm.sh`): `validate(text)`, `score_ppm(text)`,
-`report_spec()`, `clusters(text)`, `clusters_json(text)`, `issue_kinds()`; nothing else is exported.
-All three runtimes return byte-identical reports.
+Exit codes, the same for every command:
 
-The corruption generator and the benchmark, both in the CLI:
+| Code | Meaning |
+|---|---|
+| 0 | Success: `check` printed the report and the score is not under `--fail-under`; `corrupt` wrote its output; `bench` met the criterion (or `--verify` passed) |
+| 1 | I/O error, invalid UTF-8, input over 4 MiB, or a failed `bench` criterion (`bench --verify` on a CSV that violates it) |
+| 2 | Usage error: missing or bad arguments, an unknown command or family |
+| 4 | `check --fail-under`: the score is below the threshold (the report is still printed) |
+
+There is no exit code 3. Installing the CLI from the crates.io registry works only after the owner publishes
+(see "After the owner publishes" above); until then the proven command is
+`cargo install --path crates/glyphsift-cli --locked --root <dir>` (prefix it with the `RUSTFLAGS=...` shown under Install to
+keep builder paths out of the binary).
+
+The corruption generator and the benchmark:
 
 ```sh
 glyphsift corrupt --family matra_detach --p 0.05 --seed 7 < bench/corpus/clean.txt > out.txt
 glyphsift corrupt --list-families
 glyphsift bench --corpus bench/corpus/clean.txt --seeds 1,2,3 --csv docs/score-vs-noise.csv --svg docs/score-vs-noise.svg
 ```
+
+### Python
+
+```python
+import json, glyphsift
+
+report = json.loads(glyphsift.validate("नमस्ते।"))   # the same bytes as `glyphsift check`
+print(report["score"]["ppm"])                         # 1000000 is clean
+print(glyphsift.score_ppm("कखग\ufffd"))               # 750000
+print(glyphsift.clusters("नमस्ते।"))                  # ['न', 'म', 'स्ते', '।']
+```
+
+`validate`, `score_ppm` and `clusters` raise `ValueError` over 4 MiB. The wheel ships type stubs (`glyphsift.pyi`,
+`py.typed`); `mypy --strict` passes on a script that uses them.
+
+### Node and the browser
+
+```js
+const { validate, score_ppm } = require("@airplanemode/glyphsift");   // Node: no init() needed
+console.log(JSON.parse(validate("नमस्ते।")).score.ppm);               // 1000000
+```
+
+```html
+<script type="module">   <!-- browser, no bundler -->
+  import init, { validate } from "./node_modules/@airplanemode/glyphsift/web/glyphsift.js";
+  await init();
+  console.log(JSON.parse(validate("नमस्ते।")).score.ppm);
+</script>
+```
+
+Exports: `validate(text)`, `score_ppm(text)`, `report_spec()`, `clusters(text)`, `clusters_json(text)`,
+`issue_kinds()`; nothing else. For valid Unicode text, all three runtimes return byte-identical reports.
 
 ## How it works
 
@@ -64,9 +158,12 @@ glyphsift bench --corpus bench/corpus/clean.txt --seeds 1,2,3 --csv docs/score-v
    alternatives for independent vowels and standalone signs, and checked by sixteen rules, each
    a small predicate with a stable name (`dependent_vowel_without_base`, `double_matra`,
    `virama_after_matra`, `zwj_zwnj_misplaced`, `mixed_script_in_cluster`, `control_character`, ...).
+   Two rules look at the cluster's first code point: a joiner (ZWJ, ZWNJ) is flagged only in a
+   Devanagari-based cluster or when it starts a cluster, so emoji sequences and Persian words are left
+   alone, and invisible tag characters and non-Indic combining marks on a Devanagari letter are flagged.
    The code-point tables, the grammar and every rule are in
    [docs/devanagari-rules.md](docs/devanagari-rules.md); the executable form is the case table
-   `crates/glyphsift-core/tests/cases/devanagari.toml` (93 cases, written before the code).
+   `crates/glyphsift-core/tests/cases/devanagari.toml` (154 cases, written before the code).
 3. Each flagged cluster costs the **largest** weight among its issues. Weights are integers from 1
    to 1000, one per rule, in [crates/glyphsift-core/weights/devanagari.toml](crates/glyphsift-core/weights/devanagari.toml),
    every line with a `# source:` comment. The document score is an integer in parts per million:
@@ -79,7 +176,7 @@ glyphsift bench --corpus bench/corpus/clean.txt --seeds 1,2,3 --csv docs/score-v
    line (`lines[i].score_ppm`; LF, CRLF or a bare CR ends a line). Shown with four decimals by integer
    formatting, truncated: 704762 is 0.7047.
 4. The report (`glyphsift.report/0.2`) is serialised as compact JSON with fields in declaration order
-   and no floating point, so native, Python and WASM builds emit byte-identical output.
+   and no floating point, so for valid Unicode text native, Python and WASM builds emit byte-identical output.
 
 Determinism is enforced: `clippy.toml` forbids hash-based collections and the platform `libm`, a test
 scans `glyphsift-core/src` for floating-point types and hash collections, and the core reads no
@@ -87,24 +184,38 @@ clock, environment or file.
 
 ## Contracts
 
-glyphsift consumes no runtime/spec contract yet. From Sprint 3 its WASM build will emit
-`airplanemode.event/0.1` events through the runtime `EventSink` for timings only; the text being
-scored never leaves the process. Its own wire format is the report, `glyphsift.report/0.2`
-(docs/devanagari-rules.md section 5).
+glyphsift consumes no runtime/spec contract yet and emits no events: the text being scored never leaves the
+process. Emitting `airplanemode.event/0.1` timings is not implemented. Its own wire format is the report,
+`glyphsift.report/0.2` (docs/devanagari-rules.md section 5), which Sprint 3 left unchanged: no rule was added or
+removed and no weight changed, so reports from 0.2 consumers keep their shape.
 
 ## Demo
 
 Live demo: <https://airplanemode-labs.github.io/glyphsift/>. Built from `main` by
 `.github/workflows/pages.yml` on every push, with a box titled "What this demo does not do yet". It
-runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts.
+runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The live page shows the
+Sprint 3 state only after the owner pushes and the workflow runs; until then it shows Sprint 2.)
 
-It shows the real report for pasted text or one of five synthetic samples (clean, OCR-corrupted,
-legacy font read as Latin, legacy font residue, adversarial): the document score with four decimals, a
-per-line table with each line's score and issues, the sixteen rules with their weights and how often
-each fired, the grapheme clusters, and the canonical JSON, which is byte for byte what
-`glyphsift check -` prints for the same text. Pasted input over 1 MiB of UTF-8 is refused before the
-WASM module is called; every report-derived string is rendered with `textContent`. Sources in
-`demo/`; `scripts/build-demo.sh` assembles `demo/dist/` (git-ignored). Verification: see Develop.
+It shows the real report for pasted text, a local `.txt` file or one of five synthetic samples (clean,
+OCR-corrupted, legacy font read as Latin, legacy font residue, adversarial):
+
+- the document score with four decimals;
+- **a heatmap**: one row per line with a strip shaded by the sum of the weights of that line's issues, then every
+  grapheme cluster of the line shaded by the sum of the weights of the rules that fired on it (buckets: clean 0,
+  low 1 to 399, mid 400 to 799, high 800 and above; underline style and weight repeat the bucket so colour is not
+  the only cue; hover a cluster for its rules; capped at 20,000 clusters with a note);
+- the sixteen rules with their weights and how often each fired, a per-line table, the clusters, and the canonical
+  JSON, which is byte for byte what `glyphsift check -` prints for the same text.
+
+**Local files**: drop a `.txt` file on the drop zone or choose one with the file picker. The file is read in the
+tab with `File.arrayBuffer()` after its size is checked (over 1 MiB is refused unread, with "This file is over 1 MiB"),
+decoded with a fatal UTF-8 decoder (invalid bytes are refused with "This file is not valid UTF-8 text"), and the
+decoded text is validated exactly, so the report equals `glyphsift check FILE`, BOM and CRLF included. Nothing is
+uploaded and no request is made. Pasted input over 1 MiB is refused before the WASM module is called. Every
+report-derived, file-derived and pasted string is rendered with `textContent`, every attribute is set with
+`setAttribute` from a fixed set of values, and no element carries a style attribute. Sources in `demo/`;
+`scripts/build-demo.sh` assembles `demo/dist/` (git-ignored). Verification: see Develop; the run that checked
+all of this is `evidence/sprint-3/D3/green-D3-07.log`, with screenshots `evidence/sprint-3/D3/shots/`.
 
 ## Benchmarks
 
@@ -130,51 +241,62 @@ result. The command exits 1 on any violation of this criterion:
 "Triggering" means the family's "rules it should trigger" column in the corruption doc names rules
 (twelve families); the other seven are "none directly" and are reported, not gated. All four parts
 hold on the committed `docs/score-vs-noise.csv` (420 rows), and `glyphsift bench --verify
-docs/score-vs-noise.csv` re-checks them without regenerating. Evidence: `evidence/sprint-2/D3/bench-run-1.log`
-(first run), `evidence/sprint-2/D3/bench-determinism.log` (two further runs, SHA-256 of the CSV and SVG logged twice,
-equal to each other and to the committed files), `evidence/sprint-2/D3/pre-bench-hashes.log` (SHA-256 of the
-weights file and the corpus, taken before the first run). Numbers below are from `docs/score-vs-noise.csv`
-and are scores, 1.0000 being clean; figures are rounded half-up to four decimals from `docs/score-vs-noise.csv`
-(score_ppm divided by 1,000,000).
+docs/score-vs-noise.csv` re-checks them without regenerating.
 
-| Mixed family | p=0 | p=0.01 | p=0.02 | p=0.05 | p=0.1 | p=0.2 | p=0.4 |
-|---|---|---|---|---|---|---|---|
-| mean of seeds 1 to 3 | 1.0000 | 0.9985 | 0.9969 | 0.9916 | 0.9837 | 0.9671 | 0.9324 |
-| minimum | 1.0000 | 0.9983 | 0.9968 | 0.9910 | 0.9826 | 0.9646 | 0.9310 |
-| maximum | 1.0000 | 0.9987 | 0.9970 | 0.9925 | 0.9849 | 0.9699 | 0.9347 |
+**Regenerated in Sprint 3.** Restricting the joiner rule to Devanagari bases (BUG-T2-S2-07) changed 35 rows of the
+CSV: the 18 `joiner_inject` rows and the 17 `mixed` rows with p above 0. A joiner injected after a space or other
+non-Devanagari cluster is no longer flagged, so those sites cost nothing, and the benchmark's `joiner_inject` sites
+declare no expected rule there (recall is still 1.000000). No other row changed, and the weights file and the
+corpus did not (their SHA-256 are in the log). The committed CSV was `d20efc20...`; the regenerated one is
+`cac89041...` and the SVG changed with it. Two fresh runs are byte-identical, the criterion holds, and the tables
+below were regenerated from the new CSV. Evidence: `evidence/sprint-3/D3/bench-s3.log` (hashes before the run, two runs
+with SHA-256 of the CSV and SVG, the comparison with the committed files, `--verify`). The Sprint 2 run, on the old
+rules, is `evidence/sprint-2/D3/bench-determinism.log`. Numbers below are from `docs/score-vs-noise.csv` and are
+scores, 1.0000 being clean; figures are rounded half-up to four decimals (score_ppm divided by 1,000,000).
+
+| Mixed family | p=0 | p=0.01 | p=0.02 | p=0.05 | p=0.1 | p=0.2 | p=0.4 | 8 GB Windows no-GPU laptop |
+|---|---|---|---|---|---|---|---|---|
+| mean of seeds 1 to 3 | 1.0000 | 0.9985 | 0.9970 | 0.9917 | 0.9840 | 0.9675 | 0.9334 | not measured |
+| minimum | 1.0000 | 0.9983 | 0.9969 | 0.9911 | 0.9828 | 0.9651 | 0.9321 | not measured |
+| maximum | 1.0000 | 0.9988 | 0.9971 | 0.9927 | 0.9852 | 0.9705 | 0.9359 | not measured |
 
 The twelve triggering families, mean of seeds 1 to 3:
 
-| Family | p=0.05 | p=0.4 |
-|---|---|---|
-| `matra_double` | 0.9865 | 0.8906 |
-| `matra_detach` | 0.9846 | 0.8788 |
-| `nukta_spurious` | 0.9959 | 0.9669 |
-| `virama_insert` | 0.9748 | 0.8143 |
-| `bindu_swap` | 0.9999 | 0.9991 |
-| `sign_order` | 0.9995 | 0.9956 |
-| `joiner_inject` | 0.9912 | 0.9216 |
-| `legacy_font` | 0.9989 | 0.9894 |
-| `word_boundary` | 0.9838 | 0.8643 |
-| `random_substitution` | 0.9927 | 0.9427 |
-| `mixed_script` | 0.9806 | 0.8510 |
-| `control_leak` | 0.9516 | 0.7108 |
+| Family | p=0.05 | p=0.4 | 8 GB Windows no-GPU laptop |
+|---|---|---|---|
+| `matra_double` | 0.9865 | 0.8906 | not measured |
+| `matra_detach` | 0.9846 | 0.8788 | not measured |
+| `nukta_spurious` | 0.9959 | 0.9669 | not measured |
+| `virama_insert` | 0.9748 | 0.8143 | not measured |
+| `bindu_swap` | 0.9999 | 0.9991 | not measured |
+| `sign_order` | 0.9995 | 0.9956 | not measured |
+| `joiner_inject` | 0.9935 | 0.9420 | not measured |
+| `legacy_font` | 0.9989 | 0.9894 | not measured |
+| `word_boundary` | 0.9838 | 0.8643 | not measured |
+| `random_substitution` | 0.9927 | 0.9427 | not measured |
+| `mixed_script` | 0.9806 | 0.8510 | not measured |
+| `control_leak` | 0.9516 | 0.7108 | not measured |
+
+Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh); no run on the 8 GB Windows laptop has been made.
 
 Recall at p=0.05, the share of corrupted sites that declare an expected rule for which that rule fired in
 the damaged cluster, is 1.000000 for every family that declares a rule, in every seed that has one
 (`bindu_swap` declares a rule only on its 20% keep-both branch, so seed 3 has none at p=0.05; the
 `recall_ppm` column of the CSV is empty where no site declares a rule).
 
-| Throughput on about 1 MiB of the synthetic corpus (12,888 lines, 273,779 clusters) | Apple-silicon development Mac (placeholder) | 8 GB Windows no-GPU laptop |
+| Throughput on about 1 MiB of the synthetic corpus (1,048,569 bytes, 12,888 lines, 273,779 clusters) | Apple-silicon development Mac (Apple M5 Pro, macOS 27.2.1) | 8 GB Windows no-GPU laptop |
 |---|---|---|
-| native `glyphsift check`, wall clock | 0.05 to 0.06 s (one cold run 0.17 s) | not measured |
-| WASM `validate()` in Node, best of 5 | 232 ms | not measured |
-| WASM `score_ppm()` in Node, best of 5 | 75 ms | not measured |
+| native `glyphsift check`, wall clock, best of 5 | 61 ms (one cold run 396 ms) | not measured |
+| WASM `validate()` in Node 22, best of 5 | 220 ms | not measured |
+| WASM `score_ppm()` in Node 22, best of 5 | 74 ms | not measured |
+| demo in Chrome: 1 MiB pasted, validated and rendered | 1,462 ms (headless Chrome, includes the 20,000-cluster heatmap) | not measured |
+| peak memory | not measured | not measured |
 
-Command and evidence: `evidence/sprint-2/D3/throughput.log` (the native line is `target/release/glyphsift
-check` on the 1 MiB file, five runs; the WASM lines are `validate()` and `score_ppm()` from
-`dist/wasm/nodejs` on the same text, best of five). Browser figures: not measured. Lines per second in
-the browser: not measured.
+Command and evidence: `evidence/sprint-3/D3/throughput.log` (the native line is the release `glyphsift check` on the 1 MiB
+file, five runs including process start; the WASM lines are `validate()` and `score_ppm()` from `dist/wasm/nodejs` on the
+same text, best of five; the demo line is from `evidence/sprint-3/D3/green-D3-07.log`). The Apple-silicon column is the
+development Mac, not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2).
+Browser figures other than the demo line, lines per second in the browser, and memory peak: not measured.
 
 ## Limitations
 
@@ -203,19 +325,22 @@ the browser: not measured.
   next, and a flagged cluster only adds penalty). It is not a measurement of real OCR or of how well the
   score predicts the quality of a real document. No real document has been scored.
 - **Devanagari only.** Text in other scripts is plain text and is never flagged; Tamil and Bengali come later.
-- **Joiners in non-Devanagari clusters are flagged.** `zwj_zwnj_misplaced` (weight 200, the lowest) has no
-  script condition, so a ZWJ or ZWNJ not preceded by a virama is reported wherever it occurs. Two cases:
-  an emoji family sequence (several emoji joined by ZWJ) lowers the score of an otherwise clean Hindi
-  line, and a Persian word written with a ZWNJ inside it is flagged too. The effect on the score is small
-  but real. Restricting the rule to Devanagari bases, with table cases first, is on the v0.1 list in the
-  CHANGELOG. Bench outputs and weights are unchanged.
-- **Invisible Extend characters on a Devanagari base are not flagged.** Unicode tag characters
-  (`U+E0001`, `U+E0020` to `U+E007F`) and non-Indic combining marks such as `U+0301` join the preceding
-  cluster (they are Grapheme_Cluster_Break=Extend) and no rule fires, so a line containing them can
-  score clean; tag characters are invisible, so hidden text survives a clean verdict. A combining mark
-  from another Indic block (for example Bengali `U+09BE`) is flagged. Documented in
-  docs/devanagari-rules.md section 2; flagging both, table cases first, is on the v0.1 list in the
-  CHANGELOG. Bench outputs and weights are unchanged.
+- **Joiners and tags are judged by the cluster's first code point.** A ZWJ or ZWNJ is flagged only in a
+  Devanagari-based cluster or when it starts a cluster, so a joiner that joins a space's cluster (`" "` plus
+  ZWJ) or punctuation is not flagged, and neither is invisible text in a non-Devanagari cluster (a tag
+  character after a Latin letter). This was chosen over the old behaviour (every misplaced joiner flagged,
+  which penalised emoji and Persian text); it lowers sensitivity to a joiner injected after a space: on the
+  benchmark, 599 of 807 injected joiners at p=0.05 land in Devanagari clusters and are flagged, the rest cost nothing.
+- **Variation selectors are not flagged.** `U+FE00..U+FE0F` and `U+E0100..U+E01EF` are combining marks, but a
+  Devanagari consonant followed by one scores clean. Vedic Extensions marks (`U+1CD0..U+1CFF`) on a Devanagari
+  base are not flagged either, and a combining grapheme joiner (`U+034F`) is flagged as a foreign mark.
+- **Invisible text is not fully caught.** These score clean today, each pinned by a `known_gap_*` table case:
+  `U+200B` ZWSP, `U+2060` word joiner, `U+00AD` soft hyphen, `U+2062` invisible times, and in-cluster Extend
+  characters that are not Mn, Mc or Me (`U+1F3FB..U+1F3FF`, `U+FF9E`, `U+FF9F`). The invisible-text gap is not fully
+  closed (docs/devanagari-rules.md section 7).
+- **Lone surrogates, and "identical results" means valid Unicode text.** Python raises `UnicodeEncodeError` on a
+  lone surrogate, WASM and JavaScript substitute `U+FFFD` and report `unexpected_code_point`, and the CLI refuses
+  invalid UTF-8 (exit 1). Native, Python and WASM are byte-identical for valid Unicode text only.
 - **Clusters are judged in isolation.** Word- and document-level signals (legacy-font detection, a run of
   meaningless words, repeated clusters) are not implemented.
 - **No normalisation.** Input is judged as given, so `U+0958` plus a nukta is a double nukta even
@@ -224,27 +349,44 @@ the browser: not measured.
 - **Input limit.** `validate` (CLI, Python and WASM) and `clusters` (Python and WASM) refuse input
   over 4 MiB with the same "too large" error (the report holds one record per cluster); the demo
   accepts at most 1 MiB. Over a 1 MiB input the report is large (the WASM safety script runs one).
-- **No heatmap, no drag-and-drop, no service worker** in the demo; see its "What this demo does not do
-  yet" box. Nothing is published: no crate, wheel or npm package, no tag.
-- **Windows.** The determinism gate (native, Python and WASM) first passed on a hosted Windows runner on
-  9 Nov 2026 ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936)). That is not the target laptop: the 8 GB Windows no-GPU column above still
-  reads "not measured".
+- **Demo.** No service worker, so offline after the first load is best effort. Local files must be UTF-8 text of
+  at most 1 MiB; PDFs, other encodings and larger files are refused. See its "What this demo does not do yet" box.
+- **Third-party notices are a list, not a bundle.** `NOTICE` names every crate compiled into the artifacts with its
+  licence, including the compiled Unicode tables (`unicode-general-category`, Apache-2.0), but the full licence texts of those
+  crates are not copied into the wheel or the tarball, and the wheel carries no SBOM (maturin's Rust SBOM embeds the
+  builder's checkout path, so it is switched off in `crates/glyphsift-py/pyproject.toml`). Generating a
+  `THIRD-PARTY-NOTICES` file with the full texts (cargo-about) is a pre-publish step for the owner. The wheel is tagged
+  `Operating System :: MacOS` until Linux and Windows wheels exist.
+- **Release candidate, nothing published, one platform.** No tag, no crate, wheel or npm package is on a registry,
+  and the names and the npm scope are not reserved. Only a macOS arm64 wheel (`macosx_11_0_arm64`) was built and
+  installed: **no Linux wheel, no Windows wheel and no source distribution yet** (a Sprint 4 carry-over). The npm
+  tarball was installed in Node 22 and in Chrome only (not Firefox or Safari). Nothing is signed: the release
+  manifest tool and a dry run with the public test key exist, the real key does not.
+- **Windows and CI.** The three-OS CI (`check`, `determinism`, `deny`, `demo`) last ran green on 9 Nov 2026 on the Sprint 2
+  commit ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936), 9 of 9 jobs). The Sprint 3
+  changes, the new `packaging` and `demo-browser` jobs and the case table's 154 cases have run on macOS arm64 only; they
+  run on Linux, macOS and Windows after the owner pushes. Even then a hosted Windows runner is not the target laptop:
+  the 8 GB Windows no-GPU column above reads "not measured".
 - **Native-speaker review wanted.** The case table encodes the author's reading of the Unicode Standard
   chapter 12 and common OCR and legacy-font failure modes; the corpus is invented by the author.
-- **What comes next.** Sprint 3 (plan): v0.1 with a per-line heatmap, the Python wheel and an npm package (once the
-  owner has reserved the handles), `airplanemode.event/0.1` timings; later Tamil or Bengali and language-independent scoring.
+- **What comes next.** The owner's steps in [docs/release.md](docs/release.md) (push and read CI, the 8 GB benchmark,
+  signing, tag, publish); Linux and Windows wheels in CI (Sprint 4); later Tamil or Bengali and language-independent scoring.
 
 ## Security and privacy
 
-- No network egress: the core, the CLI, the wheel and the WASM build make no network requests and
+- No network egress: the core, the CLI, the wheel, the npm package and the WASM build make no network requests and
   send no telemetry. The demo makes requests only for its own files, under a CSP with no inline script
-  or style and `connect-src 'self'`.
+  or style and `connect-src 'self'`; reading a local file makes no request (checked: 0 requests during every
+  file action).
 - What is stored where: nothing. The CLI reads the file (or stdin) it is given and writes to
   stdout; the library holds the input only for the duration of the call.
 - Inputs are treated as untrusted text: the validator never interprets them, allocates in
   proportion to their length, caps input at 4 MiB, and has no recursion over input. A 20,000-string
   fuzz test (native) and the same set in WASM (`tests/wasm/run_wasm_safety.mjs`) finish with no panic and
   no trap, and a 5,000-mark run takes about twice as long as a 2,500-mark run (linear).
+- The packed artifacts (wheel, npm tarball) hold only the compiled module, its type declarations, the README and the
+  licence files: no install or lifecycle script, no dependency, no source map, no test data, no file over 5 MB.
+  The wheel and the tarball were installed with scripts off, offline, from an empty cache.
 - The benchmark's SVG is inert: no script, event handler, link or external reference, all text escaped
   (tests assert it). The demo renders every report-derived and pasted string with `textContent` only;
   `scripts/check-demo-sources.sh` fails the build on `innerHTML`, `outerHTML` or `insertAdjacentHTML`.
@@ -257,29 +399,37 @@ the browser: not measured.
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test                                     # core + cli: 93-case table, fuzz, score, corruption, check, bench
+cargo test                                     # core + cli: 154-case table, fuzz, score, corruption, check, bench, CLI surface
 cargo test -p glyphsift-wasm                   # the WASM bindings' native unit tests
 cargo check -p glyphsift-core --target wasm32-unknown-unknown
 cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
 cargo check -p glyphsift-py                    # needs a python3 on PATH for the PyO3 build script
 cargo deny --all-features check                # needs cargo-deny 0.20.2; CI runs the pinned binary
-scripts/determinism.sh                         # native, Python and WASM against tests/determinism/expected, plus the WASM safety script
+scripts/determinism.sh                         # native, Python and WASM against tests/determinism/expected (13 samples), plus the WASM safety script
 scripts/build-demo.sh                          # the Pages demo; CI's `demo` job runs the same command
 cargo run -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
+tests/scripts/release-manifest.sh              # the unsigned release-manifest tool (docs/RELEASING.md)
+scripts/package-python.sh                      # builds the wheel, installs it into a venv from pip and from uv, runs mypy --strict on the stubs
+scripts/package-npm.sh                         # packs the npm tarball and installs it offline into an empty directory (needs dist/wasm)
 ```
 
-Browser check of the built demo, under `/glyphsift/` from a server that answers 404 for every other path,
-in installed Chrome (Playwright is not a dependency of this repository; install it anywhere):
+Browser checks of the built demo and of the installed npm package, in installed Chrome (Playwright is not a
+dependency of this repository; install it anywhere):
 
 ```sh
-(cd /some/scratch/dir && npm i playwright@1.65.0)
-PLAYWRIGHT_DIR=/some/scratch/dir node tests/demo/check_demo.mjs --cli target/release/glyphsift
+(cd /some/scratch/dir && npm i playwright@1.65.0 --ignore-scripts)
+export PLAYWRIGHT_DIR=/some/scratch/dir
+# the demo, under /glyphsift/ from a server that answers 404 for every other path
+node tests/demo/check_demo.mjs --cli target/release/glyphsift [--shots <dir>]
+# the npm package, bundler-free, from a fresh `npm i` directory (scripts/package-npm.sh runs this when PLAYWRIGHT_DIR is set)
+node tests/npm/check_browser.mjs --dir <fresh install dir> --cli target/release/glyphsift
 ```
 
-Tests come before implementation: add a case to `tests/cases/devanagari.toml` first (the file is
-the rules' specification), then make it pass; a weight or corpus change after the first benchmark run
+Tests come before implementation: add a case to `crates/glyphsift-core/tests/cases/devanagari.toml` first (the
+file is the rules' specification), then make it pass; a weight or corpus change after the first benchmark run
 is a `CHANGELOG.md` entry with its reason. The determinism samples contain invisible characters, CRLF and a
-BOM on purpose; `.gitattributes` keeps git from normalising them. See [CONTRIBUTING.md](CONTRIBUTING.md).
+BOM on purpose; `.gitattributes` keeps git from normalising them. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Licence
 

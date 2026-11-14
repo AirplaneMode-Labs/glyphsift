@@ -35,7 +35,13 @@ cargo check -p glyphsift-core --target wasm32-unknown-unknown
 cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
 cargo check -p glyphsift-py
 scripts/determinism.sh
+tests/scripts/release-manifest.sh
 ```
+
+If you touch the demo, the wheel or the npm package, also run `scripts/build-demo.sh` and
+`node tests/demo/check_demo.mjs`, `scripts/package-python.sh` and `scripts/package-npm.sh` (see README, Develop).
+A change to what a rule flags changes the benchmark, the fuzz hash and some determinism samples: regenerate
+them and say why in `CHANGELOG.md`.
 
 Synthetic inputs only: never paste text from a real document, a customer or a scraped corpus into
 tests or docs.

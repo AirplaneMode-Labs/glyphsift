@@ -6,7 +6,61 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - UNRELEASED (release candidate, not tagged)
+
+The first release candidate: everything below, from Sprint 1 to Sprint 3. Nothing is published, signed or tagged;
+the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entries come first in each section.
+
 ### Added
+
+- Python wheel packaging: type stubs `glyphsift.pyi` (installed as `glyphsift/__init__.pyi`) and `py.typed`, the
+  `Development Status :: 3 - Alpha` and `Typing :: Typed` classifiers, and a wheel README with the "Not published
+  yet" sentence, the platform tag proven (`macosx_11_0_arm64`) and "Linux and Windows wheels are not built yet".
+  `scripts/package-python.sh` builds with `uvx maturin`, inspects the wheel (`tests/python/check_wheel.py`),
+  installs it into a `python3 -m venv` with `pip install --no-index --no-deps` and into a `uv venv` with
+  `uv pip install --offline --no-index --no-deps`, runs a real call in each, and runs `mypy --strict` on a script
+  that uses the stubs. D3-04
+- npm package `@airplanemode/glyphsift` 0.1.0 from the wasm-bindgen output: `scripts/package-npm.sh` (package.json
+  with no scripts, dependencies, bin or `type`; `node`, `import` and default exports; `sideEffects: false`),
+  `npm/README.md`, `npm pack` into `dist/npm`, an offline install into a fresh empty directory with an empty
+  cache, `npm ls` showing one package, and a Node call byte-equal to `glyphsift check`
+  (`tests/npm/check_node.mjs`); a bundler-free page in installed Chrome (`tests/npm/index.html`,
+  `tests/npm/check_browser.mjs`). D3-05
+- CLI surface tests: `--version` is 0.1.0, `--help` names every command and exit code, a directory is exit 1, the
+  README `### CLI` section documents the commands and all four exit codes, every crate ships `LICENSE` and `NOTICE`,
+  the README tables have the 8 GB column reading "not measured", and no README cites a scratch path. The CLI,
+  core and WASM crates now carry copies of `LICENSE` and `NOTICE`, as the Python crate did. D3-06
+- Demo: a per-cluster heatmap (one row per line with a strip, a span per cluster, buckets from the sum of the
+  weights of the rules that fired, a legend, capped at 20,000 clusters with a note), drag and drop and a file
+  picker for a local `.txt` file (size checked before the file is read, fatal UTF-8 decoding, BOM and CRLF kept,
+  refusals in plain text, no request), invisible tag characters shown as `<U+XXXX>`, and a source gate against any
+  style attribute. `tests/demo/check_demo.mjs` now makes 138 checks (adding the heatmap against the report for all five
+  samples, drop and picker against `glyphsift check FILE` and paste, zero requests, the refusals, the source grep)
+  and screenshots; fixtures in `tests/demo/fixtures`. D3-07
+- `docs/release.md` (the seven definition-of-done rows, each with a status, evidence, owner and
+  blocker-for-tag, and an "Owner must" block with commands) and `docs/RELEASING.md`. D3-08, D3-09
+- `scripts/release-manifest.mjs`: an unsigned `airplanemode.manifest/0.1` for the wheel and the npm tarball
+  (id `glyphsift-release`, licence Apache-2.0, version from `Cargo.toml`, `SOURCE_DATE_EPOCH` 0 to 253402300799,
+  output confined to `dist/`, no signing option and no key read); identical to pagetriage's script except two
+  constants. `tests/scripts/release-manifest.sh` (42 checks). A dry run with the public RFC 8032 test key
+  through `cp-sign` verified with `--allow-test-key` and was refused without it; nothing signed is in the repository.
+  D3-09
+- CI: a `packaging` job (the wheel, the npm tarball and the release-manifest tests) and a `demo-browser` job (the
+  demo and npm browser checks in the runner's Chrome), both on Linux only; configured, not yet run. D3-04, D3-05, D3-07
+- Seven `known_gap_*` table cases (147 to 154) that pin what still scores clean: U+200B, U+2060, U+00AD, U+2062,
+  U+1F3FB and the halfwidth marks U+FF9E and U+FF9F after a Devanagari base. No rule, weight or the bench CSV changed; the
+  rule count is still 16 and the report spec glyphsift.report/0.2. BUG-T2-S3-01
+- `scripts/remap-paths.sh` (`--remap-path-prefix` for the cargo, rustup and checkout directories, appended to any
+  existing RUSTFLAGS), `scripts/check-no-builder-paths.py` (fails if a wheel, tarball or binary contains `/Users/`,
+  `/home/` or `/private/tmp`) wired into `scripts/package-python.sh` and `scripts/package-npm.sh`, and a CLI
+  install step in the CI `packaging` job. BUG-T2-S3-02, T3-S3-007
+- `scripts/throughput.mjs`, the throughput measurement behind README Benchmarks (paths from its location and arguments). T3-S3-013
+- Table cases for BUG-T2-S2-07 and BUG-T2-S2-15: 54 new cases (93 to 147), 32 of which failed before the rule change
+  (`red-D3-01.log`, `red-D3-02.log`); two determinism samples (`12-joiners-emoji-persian`,
+  `13-tags-and-foreign-marks`, 13 in all) that must be byte-identical on native, Python and WASM; the fuzz alphabet
+  gains two emoji, a variation selector, two foreign marks and three tag characters. D3-01, D3-02
 
 - `validate()`: the Devanagari validator. Sorted `const` code-point tables, a cluster grammar parsed
   once per cluster in linear time, and the sixteen rules, each a small predicate; all 93 cases of
@@ -85,6 +139,48 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- NOTICE lists every third-party crate compiled into the wheel, the WASM and the CLI with its licence (derived from
+  `cargo tree -e normal` and `cargo metadata`), names the compiled Unicode tables (`unicode-general-category`
+  1.1.0, Apache-2.0; `unicode-segmentation`) and no longer says no Unicode data is redistributed. The wheel's OS
+  classifier is `Operating System :: MacOS`. The wheel carries no SBOM (maturin's Rust SBOM embedded the builder's path). T3-S3-014
+- `scripts/package-python.sh` pins `uvx maturin@1.16.0` and `uvx mypy@2.4.1` and prints both versions. T3-S3-011
+- `docs/release.md`: each Open row begins with an `Owner must:` line; the registry install commands sit in a block headed
+  "After the owner publishes"; the full `check_demo.mjs` command is given. T3-S3-011, T3-S3-013
+- README Limitations and `docs/devanagari-rules.md` section 7 state the invisible-text gap, the lone-surrogate behaviour of each
+  runtime (Python `UnicodeEncodeError`, WASM U+FFFD, CLI exit 1) and that identical results mean valid Unicode text; the `.pyi`
+  docstrings say the same. BUG-T2-S3-01, BUG-T2-S3-10
+- README score tables gain the 8 GB column, reading "not applicable (deterministic score)". T3-S3-014
+
+- `zwj_zwnj_misplaced` fires only when the code point is a ZWJ or ZWNJ, the previous code point is not a virama,
+  and the cluster is Devanagari-based (its first code point is Devanagari-class) or the joiner starts the cluster.
+  Emoji ZWJ sequences, a Persian ZWNJ and Latin or Arabic letters with a joiner are no longer flagged; consonant
+  plus ZWJ without a virama, a doubled joiner and a lone joiner still are. A joiner that joins a space's cluster is
+  no longer flagged either. Same rule, same weight (200). BUG-T2-S2-07, D3-01
+- Tag characters (`U+E0001`, `U+E0020` to `U+E007F`) in a Devanagari-based cluster, or starting a cluster, are
+  `unexpected_code_point` (`U+E0001` is always its own cluster, so it is caught by the second condition); the England
+  flag is clean. Combining marks (Mn, Mc, Me) on a Devanagari base outside Devanagari, Devanagari Extended,
+  Devanagari Extended-A and Vedic Extensions, and not a joiner or variation selector, are `mixed_script_in_cluster`
+  (the rule-14 class `OtherMark` now covers every foreign combining mark, not only `U+0980..U+0DFF`); `e` plus
+  `U+0301` is clean. The rule count stays 16, `IssueKind::ALL` and every weight are unchanged, and `REPORT_SPEC`
+  stays `glyphsift.report/0.2`. BUG-T2-S2-15, D3-02
+- Because those rules changed what is flagged: `FUZZ_HASH` re-pinned (`0x3406f55bff039ed3` to `0x9f8eceb1f973730b`) in
+  the fuzz test and in the WASM safety script; the expected report of determinism sample 07 lost one issue (a ZWNJ
+  after a space); the `by_kind` test in `tests/score.rs` puts its ZWNJ on a consonant instead of a space; the
+  generator's `joiner_inject` family still injects at every eligible boundary but declares an expected rule only
+  where the joiner lands in a Devanagari-based cluster or starts its cluster. D3-01, D3-02
+- Benchmark regenerated: 35 rows of `docs/score-vs-noise.csv` changed (all 18 `joiner_inject` rows and 17 `mixed` rows
+  with p above 0), the SVG with them, and the README tables were rebuilt from the CSV (`d20efc20...` to
+  `cac89041...`). Weights and corpus unchanged (SHA-256 logged before the run); two runs byte-identical; mixed mean
+  still falls strictly (1.0000, 0.9985, 0.9970, 0.9917, 0.9840, 0.9675, 0.9334); mixed and all twelve triggering
+  families still non-increasing per seed. D3-03
+- Demo: the "What this demo does not do yet" box no longer lists the heatmap or drag and drop; it lists Devanagari
+  only, structural checks only, uncalibrated weights, UTF-8 text up to 1 MiB, no service worker and nothing
+  published. The adversarial sample gains a tag character, a foreign combining mark, an emoji joiner sequence and a
+  Latin joiner. D3-07
+- README: Status, Install (local wheel, tarball and `cargo install --path`, the "Not published yet" sentence, the
+  platform tag, an "After the owner publishes" block), CLI section with the exit-code table, demo, regenerated
+  benchmark tables with the 8 GB Windows column reading "not measured", and updated Limitations. `scripts/check-demo-sources.sh` also
+  refuses any style attribute set from script. D3-04 to D3-08
 - `validate()` returns the report instead of `Err(Unimplemented)`; `Error` is now `InputTooLarge`, returned over
   `MAX_INPUT_BYTES` (4 MiB); the `Unimplemented` variant is gone. D3-01
 - `REPORT_SPEC` is `glyphsift.report/0.2` (was `/0.1`); 0.2 adds fields to 0.1 and removes none. D3-02
@@ -109,6 +205,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Security
 
+- The demo reads a local file only in the tab, checks `file.size` before reading, decodes with a fatal UTF-8
+  decoder, and makes no request (0 requests during every file action in the test); a file dropped outside the drop
+  zone is default-prevented so the browser does not navigate to it; no element carries a style attribute and every
+  attribute is set with `setAttribute` from a fixed set. D3-07
+- The wheel and the npm tarball contain no lifecycle or install script, no dependency, no source map, no test data
+  and no file over 5 MB, and carry `LICENSE` and `NOTICE`; both were installed offline with scripts off. The release
+  manifest tool has no signing option, never reads a key and writes only inside `dist/`. D3-04, D3-05, D3-09
+- Hidden text no longer scores clean on a Devanagari letter: tag characters are flagged (`unexpected_code_point`)
+  and so is any non-Indic combining mark (`mixed_script_in_cluster`). BUG-T2-S2-15, D3-02
 - `scripts/build-wasm.sh` also refuses (exit 2) a `WASM_OUT` that matches `[A-Za-z]:*` (a Windows drive path) or
   contains a backslash, before cargo and before `rm -rf`; the guard is textually identical to pagetriage's
   (BUG-T2-S2-14)
@@ -129,19 +234,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Notes
 
-- Documented, not changed: `zwj_zwnj_misplaced` has no script condition, so joiners inside emoji sequences and
-  Arabic-script words are flagged (weight 200). `docs/devanagari-rules.md` section 2 and the README Limitations now
-  say so; no rule, weight, corpus or bench output changed. Planned for glyphsift v0.1 (Sprint 3): restrict the
-  rule to Devanagari bases, table cases first. BUG-T2-S2-07
-- Documented, not changed: invisible Extend characters (Unicode tag characters `U+E0001`, `U+E0020` to `U+E007F`,
-  and non-Indic combining marks such as `U+0301`) attached to a Devanagari base are not flagged, so a line
-  containing them can score clean. `docs/devanagari-rules.md` section 2 and the README Limitations say so.
-  Planned for glyphsift v0.1 (Sprint 3): flag tag characters and non-Indic combining marks in Devanagari
-  clusters, table cases first (BUG-T2-S2-15)
+- Sprint 2 documented two known gaps for this release (joiners inside emoji and Persian text were flagged; tag
+  characters and non-Indic combining marks on a Devanagari letter were not). Both are changed above (BUG-T2-S2-07,
+  BUG-T2-S2-15). Remaining and documented in the README Limitations: a joiner on a space's cluster, variation
+  selectors and Vedic Extensions marks on a Devanagari base, and tags after a Latin letter are not flagged.
 
-- Weights file and corpus: the SHA-256 of `crates/glyphsift-core/weights/devanagari.toml` and `bench/corpus/clean.txt`
-  was logged before the first `glyphsift bench` run and neither file has changed since; a later change to either
-  is listed here with its reason.
+- Weights file and corpus: the SHA-256 of `crates/glyphsift-core/weights/devanagari.toml` (`09e1d53f...`) and
+  `bench/corpus/clean.txt` (`f4dba332...`) was logged before the first `glyphsift bench` run and again before the
+  Sprint 3 re-run, and neither file has changed; a later change to either is listed here with its reason.
 - Mid-run correction, not a weights or corpus change: the `legacy_font` generator moved the short-i matra at
   sites where the previous cluster was not a word boundary although it had declared those sites ineligible
   (recall 20/24 in a test before the first bench run); the sites now agree. D3-03
