@@ -11,13 +11,18 @@ crate and package names `glyphsift` until the handles are reserved; nothing is p
 
 ## Status
 
-Sprint 3: glyphsift **0.1.0 is a release candidate, not tagged**. The validator, the score, the CLI, the
+Sprint 4: glyphsift **0.1.0 is a release candidate, not tagged**. The validator, the score, the CLI, the
 WASM and Python bindings, the score-versus-noise benchmark and the demo (with a per-cluster heatmap and
-local-file input) work and are tested on this repository's synthetic text only. A Python wheel and an
-npm tarball were built and installed from local files on macOS arm64; nothing is published, tagged or
-signed. What is open before a tag is in [docs/release.md](docs/release.md): CI read on three operating
-systems after the push, the 8 GB laptop benchmark, signed artifacts, the tag, publishing and the
-write-up.
+local-file input) work and are tested on this repository's synthetic text only. The scoring did not change in
+Sprint 4: the benchmark CSV and the reports are byte-identical, and the WASM module is the Sprint 3 module. A Python
+wheel and an npm tarball were built and installed from local files on macOS arm64; nothing is published, tagged or
+signed. Sprint 4 added hashed tool installs and a `wheels` CI job (Linux, Windows and macOS wheels plus an sdist),
+a fix for `scripts/package-npm.sh` on macOS (BUG-T2-S3-19-R2), and a demo footer that opens the third-party
+notices as `NOTICE.txt` instead of downloading them. Not yet: scripts other than Devanagari (Tamil planned for v0.2,
+design note [docs/v0.2-tamil.md](docs/v0.2-tamil.md), nothing implemented), a published package or wheel; Linux and
+Windows wheels are built only by CI after the owner's push. What is open before a tag is in
+[docs/release.md](docs/release.md): CI read on three operating systems after the push, the 8 GB laptop benchmark
+(not measured on 8 GB), signed artifacts, the tag, publishing and the write-up.
 
 ## Install
 
@@ -31,8 +36,10 @@ From a clone of this repository (Rust 1.98 comes from `rust-toolchain.toml`):
 RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/glyphsift" cargo install --path crates/glyphsift-cli --locked --root <dir>
 
 # Python wheel (abi3, CPython >= 3.9): built, then installed into a fresh venv, offline
-# (scripts/package-python.sh does this with the tool versions pinned and the builder paths remapped)
-. scripts/remap-paths.sh && uvx maturin@1.16.0 build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels
+# (scripts/package-python.sh does this with the tool versions pinned and the builder paths remapped; CI gives it
+# uv, maturin and mypy from tools/ci/requirements.txt, pinned by hash: python -m pip install --require-hashes
+# --no-deps --only-binary=:all: -r tools/ci/requirements.txt, then GLYPHSIFT_TOOLS_VENV=<that venv>)
+. scripts/remap-paths.sh && uvx maturin@1.16.0 build --release --locked -m crates/glyphsift-py/Cargo.toml -o target/wheels
 python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
 uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
 
@@ -49,7 +56,7 @@ What was proven, and where: the wheel is `glyphsift-0.1.0-cp39-abi3-macosx_11_0_
 `macosx_11_0_arm64`, and it installed with `python3 -m venv` plus `pip install --no-index --no-deps` and with
 `uv venv` plus `uv pip install --offline --no-index --no-deps`, each followed by a `python -I` call that printed
 750000 for `score_ppm('कखग\ufffd')` (`evidence/sprint-3/D3/install-wheel-r2.log`). **Linux and Windows wheels are not built yet**
-(a Sprint 4 carry-over), and there is no source distribution. The npm tarball installed offline from an empty
+(they and a source distribution are built only by CI after the owner's push, in the `wheels` job; nothing from it is published, and `docs/release.md` lists what only CI can prove). The npm tarball installed offline from an empty
 cache with install scripts off; `npm ls` showed exactly that one package, and a Node call and a bundler-free
 page in installed Chrome gave the report `glyphsift check` prints (`evidence/sprint-3/D3/npm-install-r2.log`). The CLI
 installed with `cargo install --path` and ran with every documented exit code
@@ -193,8 +200,13 @@ removed and no weight changed, so reports from 0.2 consumers keep their shape.
 
 Live demo: <https://airplanemode-labs.github.io/glyphsift/>. Built from `main` by
 `.github/workflows/pages.yml` on every push, with a box titled "What this demo does not do yet". It
-runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The live page shows the
-Sprint 3 state only after the owner pushes and the workflow runs; until then it shows Sprint 2.)
+runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The Sprint 3 and Sprint 4
+changes are committed locally and not pushed: the live page shows Sprint 2 until the owner pushes and the workflow
+runs. The Sprint 4 demo was proven on a local build served under `/glyphsift/`.) The footer links the third-party
+notices as `NOTICE.txt`, which Pages serves as `text/plain` so that it opens in the browser instead of downloading
+(BUG-T1-S3-R2-01); it carries the MIT texts of the WebAssembly crates that are not offered under Apache-2.0, among
+them zmij (its licence file has no copyright line, so the notice names the author from its `Cargo.toml`)
+(`evidence/sprint-4/D3/green-D3-03.log`).
 
 It shows the real report for pasted text, a local `.txt` file or one of five synthetic samples (clean,
 OCR-corrupted, legacy font read as Latin, legacy font residue, adversarial):
@@ -277,14 +289,14 @@ The twelve triggering families, mean of seeds 1 to 3:
 | `mixed_script` | 0.9806 | 0.8510 | not measured |
 | `control_leak` | 0.9516 | 0.7108 | not measured |
 
-Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh) for valid Unicode text; no run on the 8 GB Windows laptop has been made.
+Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh) for valid Unicode text. Not measured on 8 GB: no run on the 8 GB Windows laptop has been made, and every figure here comes from the Apple M5 Pro, 48 GB development Mac.
 
 Recall at p=0.05, the share of corrupted sites that declare an expected rule for which that rule fired in
 the damaged cluster, is 1.000000 for every family that declares a rule, in every seed that has one
 (`bindu_swap` declares a rule only on its 20% keep-both branch, so seed 3 has none at p=0.05; the
 `recall_ppm` column of the CSV is empty where no site declares a rule).
 
-| Throughput on about 1 MiB of the synthetic corpus (1,048,569 bytes, 12,888 lines, 273,779 clusters) | Apple-silicon development Mac (Apple M5 Pro, macOS 27.2.1) | 8 GB Windows no-GPU laptop |
+| Throughput on about 1 MiB of the synthetic corpus (1,048,569 bytes, 12,888 lines, 273,779 clusters) | Apple M5 Pro, 48 GB (macOS 27.2.1) | 8 GB Windows no-GPU laptop |
 |---|---|---|
 | native `glyphsift check`, wall clock, best of 5 | 61 ms (one cold run 396 ms) | not measured |
 | WASM `validate()` in Node 22, best of 5 | 220 ms | not measured |
@@ -295,7 +307,7 @@ the damaged cluster, is 1.000000 for every family that declares a rule, in every
 Command and evidence: `evidence/sprint-3/D3/throughput.log` (the native line is the release `glyphsift check` on the 1 MiB
 file, five runs including process start; the WASM lines are `validate()` and `score_ppm()` from `dist/wasm/nodejs` on the
 same text, best of five; the demo line is from `evidence/sprint-3/D3/green-D3-07.log`). The Apple-silicon column is the
-development Mac, not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2).
+development Mac (Apple M5 Pro, 48 GB), not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2); it stays "not measured" until that run exists.
 Browser figures other than the demo line, lines per second in the browser, and memory peak: not measured.
 
 ## Limitations
@@ -324,7 +336,8 @@ Browser figures other than the demo line, lines per second in the browser, and m
   monotone fall is partly by construction (the corrupted sites at one p are a subset of those at the
   next, and a flagged cluster only adds penalty). It is not a measurement of real OCR or of how well the
   score predicts the quality of a real document. No real document has been scored.
-- **Devanagari only.** Text in other scripts is plain text and is never flagged; Tamil and Bengali come later.
+- **Devanagari only.** Text in other scripts is plain text and is never flagged. Tamil planned for v0.2, Bengali later;
+  [docs/v0.2-tamil.md](docs/v0.2-tamil.md) is a design note with no code, and nothing for Tamil is implemented.
 - **Joiners and tags are judged by the cluster's first code point.** A ZWJ or ZWNJ is flagged only in a
   Devanagari-based cluster or when it starts a cluster, so a joiner that joins a space's cluster (`" "` plus
   ZWJ) or punctuation is not flagged, and neither is invisible text in a non-Devanagari cluster (a tag
@@ -352,25 +365,34 @@ Browser figures other than the demo line, lines per second in the browser, and m
 - **Demo.** No service worker, so offline after the first load is best effort. Local files must be UTF-8 text of
   at most 1 MiB; PDFs, other encodings and larger files are refused. See its "What this demo does not do yet" box.
 - **Third-party notices are a list, not a bundle.** `NOTICE` names every crate compiled into the artifacts with its
-  licence, including the compiled Unicode tables (`unicode-general-category`, Apache-2.0), but the full licence texts of those
-  crates are not copied into the wheel or the tarball, and the wheel carries no SBOM (maturin's Rust SBOM embeds the
+  licence, including the compiled Unicode tables (`unicode-general-category`, Apache-2.0), and names the author of the
+  MIT-only crate zmij (its licence file has no copyright line). The full licence texts of those crates are not copied
+  into the wheel or the tarball; the MIT texts of zmij and memchr are in the demo's `NOTICE.txt` and in each crate's
+  source package. The wheel carries no SBOM (maturin's Rust SBOM embeds the
   builder's checkout path, so it is switched off in `crates/glyphsift-py/pyproject.toml`). Generating a
   `THIRD-PARTY-NOTICES` file with the full texts (cargo-about) is a pre-publish step for the owner. The wheel is tagged
   `Operating System :: MacOS` until Linux and Windows wheels exist.
-- **Release candidate, nothing published, one platform.** No tag, no crate, wheel or npm package is on a registry,
+- **Release candidate, nothing published, one platform proven.** No tag, no crate, wheel or npm package is on a registry,
   and the names and the npm scope are not reserved. Only a macOS arm64 wheel (`macosx_11_0_arm64`) was built and
-  installed: **no Linux wheel, no Windows wheel and no source distribution yet** (a Sprint 4 carry-over). The npm
+  installed. Linux and Windows wheels are built only by CI after the owner's push (the `wheels` job: manylinux_2_17
+  through zig on Ubuntu, `win_amd64` on Windows, plus an sdist): configured, never run, and the package's OS
+  classifiers stay "MacOS" until those wheels are proven. The npm
   tarball was installed in Node 22 and in Chrome only (not Firefox or Safari). Nothing is signed: the release
   manifest tool and a dry run with the public test key exist, the real key does not.
 - **Windows and CI.** The three-OS CI (`check`, `determinism`, `deny`, `demo`) last ran green on 9 Nov 2026 on the Sprint 2
-  commit ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936), 9 of 9 jobs). The Sprint 3
-  changes, the new `packaging` and `demo-browser` jobs and the case table's 154 cases have run on macOS arm64 only; they
-  run on Linux, macOS and Windows after the owner pushes. Even then a hosted Windows runner is not the target laptop:
-  the 8 GB Windows no-GPU column above reads "not measured".
+  commit ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936), 9 of 9 jobs). The Sprint 3 and
+  Sprint 4 changes, the `packaging` and `demo-browser` jobs (now with hashed tool installs and a Playwright lockfile)
+  and the new `wheels` job have run on macOS arm64 only. Three-OS status: tests-first evidence Done (red/green logs);
+  local macOS green; CI on three OSes configured, pending the owner's push. Hashed installs cover uv, maturin, mypy and ziglang (`tools/ci/requirements.txt`) and Playwright
+  (`tools/playwright/package-lock.json`, `npm ci --ignore-scripts`); known gaps: the pip that `setup-python` ships is
+  not pinned, and `scripts/determinism.sh` installs maturin by version only into a test-only venv. Even then a hosted
+  Windows runner is not the target laptop: the 8 GB Windows no-GPU column above reads "not measured", and the prose
+  says it again: not measured on 8 GB.
 - **Native-speaker review wanted.** The case table encodes the author's reading of the Unicode Standard
   chapter 12 and common OCR and legacy-font failure modes; the corpus is invented by the author.
 - **What comes next.** The owner's steps in [docs/release.md](docs/release.md) (push and read CI, the 8 GB benchmark,
-  signing, tag, publish); Linux and Windows wheels in CI (Sprint 4); later Tamil or Bengali and language-independent scoring.
+  signing, tag, publish); reading the first CI run of the `wheels` job; Tamil for v0.2, then Bengali, and
+  language-independent scoring.
 
 ## Security and privacy
 
@@ -398,27 +420,27 @@ Browser figures other than the demo line, lines per second in the browser, and m
 
 ```sh
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test                                     # core + cli: 154-case table, fuzz, score, corruption, check, bench, CLI surface
-cargo test -p glyphsift-wasm                   # the WASM bindings' native unit tests
-cargo check -p glyphsift-core --target wasm32-unknown-unknown
-cargo check -p glyphsift-wasm --target wasm32-unknown-unknown
-cargo check -p glyphsift-py                    # needs a python3 on PATH for the PyO3 build script
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --locked                            # core + cli: 154-case table, fuzz, score, corruption, check, bench, CLI surface
+cargo test --locked -p glyphsift-wasm          # the WASM bindings' native unit tests
+cargo check --locked -p glyphsift-core --target wasm32-unknown-unknown
+cargo check --locked -p glyphsift-wasm --target wasm32-unknown-unknown
+cargo check --locked -p glyphsift-py           # needs a python3 on PATH for the PyO3 build script
 cargo deny --all-features check                # needs cargo-deny 0.20.2; CI runs the pinned binary
 scripts/determinism.sh                         # native, Python and WASM against tests/determinism/expected (13 samples), plus the WASM safety script
 scripts/build-demo.sh                          # the Pages demo; CI's `demo` job runs the same command
-cargo run -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
-tests/scripts/release-manifest.sh              # the unsigned release-manifest tool (docs/RELEASING.md)
+cargo run --locked -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
+tests/scripts/run-all.sh                       # script tests: release-manifest tool, lockfile and requirements hashes, CI policy, package-npm.sh with its default scratch folder
 scripts/package-python.sh                      # builds the wheel, installs it into a venv from pip and from uv, runs mypy --strict on the stubs
 scripts/package-npm.sh                         # packs the npm tarball and installs it offline into an empty directory (needs dist/wasm)
 ```
 
-Browser checks of the built demo and of the installed npm package, in installed Chrome (Playwright is not a
-dependency of this repository; install it anywhere):
+Browser checks of the built demo and of the installed npm package, in installed Chrome (Playwright 1.65.0 is
+not a dependency of glyphsift; `tools/playwright` holds its lockfile, and `npm ci` pins every package by integrity hash):
 
 ```sh
-(cd /some/scratch/dir && npm i playwright@1.65.0 --ignore-scripts)
-export PLAYWRIGHT_DIR=/some/scratch/dir
+npm ci --prefix tools/playwright --ignore-scripts
+export PLAYWRIGHT_DIR=$PWD/tools/playwright
 # the demo, under /glyphsift/ from a server that answers 404 for every other path
 node tests/demo/check_demo.mjs --cli target/release/glyphsift [--shots <dir>]
 # the npm package, bundler-free, from a fresh `npm i` directory (scripts/package-npm.sh runs this when PLAYWRIGHT_DIR is set)

@@ -13,7 +13,8 @@ Not published yet: the npm scope @airplanemode and the PyPI and crates.io names 
 
 The wheel proven here is `glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl`: platform tag
 `macosx_11_0_arm64` (macOS on Apple silicon), `abi3`, so one wheel serves every CPython 3.9 or later on
-that platform. **Linux and Windows wheels are not built yet.** There is no source distribution.
+that platform. **Linux and Windows wheels are not built yet**: they and a source distribution are built only by CI
+after the owner's push (the `wheels` job), and nothing from that job is published.
 
 Install the locally built wheel into a fresh environment, offline (both ways were run):
 
@@ -54,7 +55,7 @@ see `validate(text: str) -> str`, `score_ppm(text: str) -> int` and `clusters(te
 
 - Release candidate, not tagged, and not published: no registry has this package.
 - Only a macOS arm64 wheel was built and installed (tag `macosx_11_0_arm64`). Linux and Windows wheels
-  are not built yet; there is no source distribution.
+  are not built yet and there is no source distribution here: both are built only by CI after the owner's push.
 - Structural checks only: it judges the order and combination of code points inside one grapheme
   cluster. A well-formed nonsense word, or a visually plausible OCR confusion, scores clean.
 - Devanagari only. Text in other scripts is plain text and is never flagged.

@@ -10,10 +10,36 @@ Nothing yet.
 
 ## [0.1.0] - UNRELEASED (release candidate, not tagged)
 
-The first release candidate: everything below, from Sprint 1 to Sprint 3. Nothing is published, signed or tagged;
-the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entries come first in each section.
+The first release candidate: everything below, from Sprint 1 to Sprint 4. Nothing is published, signed or tagged;
+the owner's open steps are in [docs/release.md](docs/release.md). Sprint 4 entries (14 Nov 2026, untagged, D3-01 to
+D3-04) come first in each section, then Sprint 3. The scoring, the weights, the benchmark CSV and the WASM module did
+not change in Sprint 4.
 
 ### Added
+
+- A static `#sprint-status` line on the demo page (T1-S4-R1-05), asserted exactly by `tests/demo/check_demo.mjs`; no script, no CSP change.
+- `tests/scripts/notice-mit-crates.sh` (BUG-T3-S4-18): every MIT-only crate in the cli, py, wasm and core trees has a block and the full MIT text in NOTICE.
+- A `wheels` CI job: a Linux wheel (`manylinux_2_17` through zig) and an sdist on Ubuntu, a `win_amd64` wheel on Windows
+  and a macOS arm64 wheel, each installed into a fresh venv with `--no-index` and checked with one real call
+  (`ppm 1000000`), kept as a workflow artifact for 7 days (`retention-days: 7`, `if-no-files-found: error`). It
+  publishes nothing and uses no secret, no release or registry step, and runs with `contents: read`. Configured, not
+  yet run: only CI after the owner's push proves it (docs/release.md, "CI-only proofs"). D3-02
+- Hashed, binary-only tool installs (S1-079): `tools/ci/requirements.in` pins uv 0.13.1, maturin 1.16.0, mypy 2.4.1 and
+  ziglang 0.16.0, and `tools/ci/requirements.txt` (362 hashes, every transitive package included, generated with
+  `uv pip compile --universal --generate-hashes`) is installed with `pip install --require-hashes --no-deps
+  --only-binary=:all:`; Playwright 1.65.0 comes from the committed `tools/playwright/package-lock.json` with
+  `npm ci --ignore-scripts` (every entry has an `integrity` hash). `scripts/package-python.sh` uses the hashed venv when
+  `GLYPHSIFT_TOOLS_VENV` is set and reads its version pins from `tools/ci/requirements.in`. D3-02
+- Script tests: `tests/scripts/run-all.sh`, `package-npm-default-scratch.sh` (BUG-T2-S3-19-R2), `lockfile-integrity.sh`
+  (lockfile and hashed requirements, with negative cases) and `ci-policy.sh` (every `uses:` is a SHA row of the
+  conventions table; no `pip install uv==`, `uvx` or `npm i` in `packaging`, `demo-browser` or `wheels`; `--locked` on
+  every cargo and maturin build; the `upload-artifact` and no-publish rules). D3-01, D3-02
+- `docs/v0.2-tamil.md`: a design note, no code, for Tamil as the v0.2 second script (Bengali later): what carries over from
+  the sixteen Devanagari rules, the two-part vowels, the visible pulli, legacy encodings, the test table and generator
+  plan, with a probe of what v0.1 does with Tamil text today. Design only; not implemented. D3-04
+- The demo's third-party notices are served as `NOTICE.txt` and the footer links it; the not-yet box says "Tamil planned
+  for v0.2, Bengali later" and that Linux and Windows wheels are built only by CI after the owner's push.
+  `tests/demo/check_demo.mjs` now makes 148 checks (145 after the NOTICE change, three for the new box wording). D3-03, D3-04
 
 - Python wheel packaging: type stubs `glyphsift.pyi` (installed as `glyphsift/__init__.pyi`) and `py.typed`, the
   `Development Status :: 3 - Alpha` and `Typing :: Typed` classifiers, and a wheel README with the "Not published
@@ -139,6 +165,18 @@ the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entri
 
 ### Changed
 
+- Every cargo and maturin build, test, check, run and install line in `ci.yml` and in the build scripts says `--locked`
+  (`maturin sdist` has no such flag; the `wheels` job checks that `Cargo.lock` is unchanged after it). The `packaging`
+  job installs its tools by hash and runs the script tests; the `demo-browser` job installs Playwright with `npm ci`
+  from the lockfile instead of `npm i`. `scripts/determinism.sh` pins `maturin==1.16.0` (by version, a known gap: not
+  by hash). D3-02
+- The README says Sprint 4, names the benchmark machine "Apple M5 Pro, 48 GB" and says "not measured on 8 GB"; the
+  Linux and Windows wheels are described as built only by CI after the owner's push, no longer as a Sprint 4
+  carry-over. The wheel README says the same. NOTICE names the author of the MIT-only crate zmij (David Tolnay, from
+  its Cargo.toml: its licence file has no copyright line). D3-03, D3-04
+- `docs/release.md` records what Sprint 4 closed and lists what only CI can prove and the known gaps in the hashed
+  installs (the pip that `setup-python` ships is unpinned; `determinism.sh` installs maturin by version only). D3-04
+
 - NOTICE lists every third-party crate compiled into the wheel, the WASM and the CLI with its licence (derived from
   `cargo tree -e normal` and `cargo metadata`), names the compiled Unicode tables (`unicode-general-category`
   1.1.0, Apache-2.0; `unicode-segmentation`) and no longer says no Unicode data is redistributed. The wheel's OS
@@ -205,6 +243,19 @@ the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entri
 
 ### Security
 
+- Notices (S1-090b, BUG-T3-S4-04, TD-28): the root NOTICE, its four crate copies, the npm tarball and the wheel now carry
+  the full MIT text with the copyright or author line for zmij and memchr (the two compiled crates not offered under
+  Apache-2.0); the sentence saying the texts are not bundled is gone. The wheel and npm checks assert the MIT text.
+  The demo's NOTICE.txt is the same file. The WASM module is unchanged.
+
+- Supply chain (S1-079): the CI jobs that build what ships install uv, maturin, mypy and ziglang by hash with
+  `--only-binary=:all:` and Playwright from a lockfile with `npm ci --ignore-scripts`; every `uses:` is still a SHA row of
+  the conventions table and no action was added; the `wheels` job has no publish, release or registry step.
+  D3-02
+- zmij attribution (TD-05): its upstream `LICENSE-MIT` (read with `gh api`, read-only) has no copyright line and equals
+  the crates.io copy, so the demo's `NOTICE.txt` names David Tolnay from the crate's `Cargo.toml` and carries the full
+  MIT text. D3-03
+
 - The demo reads a local file only in the tab, checks `file.size` before reading, decodes with a fatal UTF-8
   decoder, and makes no request (0 requests during every file action in the test); a file dropped outside the drop
   zone is default-prevented so the browser does not navigate to it; no element carries a style attribute and every
@@ -247,6 +298,22 @@ the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entri
   (recall 20/24 in a test before the first bench run); the sites now agree. D3-03
 
 ### Fixed
+
+- Notices (BUG-T3-S4-18): strsim 0.11.1 (MIT, CLI binary only; not in the wheel, npm package or demo) added to NOTICE with its
+  copyright lines and MIT text; the sentence naming crates not offered under Apache-2.0 now names zmij, memchr and strsim.
+- `tests/scripts/package-npm-default-scratch.sh` builds the CLI with `--locked` (BUG-T2-S4-07).
+- `docs/release.md` has a History section naming the four trailer-carrying commits on the stale remote dependabot branch (BUG-T3-S4-13).
+
+- BUG-T2-S3-19-R2: `scripts/package-npm.sh` failed on macOS with its default scratch folder. npm writes the tarball's
+  `file:` dependency relative to the real path of the install directory and `npm ls --prefix` resolved it from the path
+  it was given, so a scratch path through the `/var` link made `npm ls` report the one installed package as invalid
+  (`ELSPROBLEMS`) when the checkout and the scratch folder shared a leading directory, as T2's checkout under
+  a temp directory did. The script now resolves the checkout path and `SCRATCH` to physical paths (`pwd -P`) before npm sees
+  them. Test first: `tests/scripts/package-npm-default-scratch.sh`, added to `tests/scripts/run-all.sh` and to the CI
+  packaging job. D3-01
+- BUG-T1-S3-R2-01: the demo's NOTICE link downloaded the file instead of showing it (Pages serves a file with no extension
+  as `application/octet-stream`). The demo now serves `NOTICE.txt` (`text/plain`) and the footer links it; the demo check
+  asserts the content type and that Chrome displays it with no download. D3-03
 
 - `clusters` is named next to `validate` under the 4 MiB input limit in the README limitations, the Python
   binding README and docs/devanagari-rules.md section 5 (BUG-T2-S2-16); the README Windows line records the first green Windows determinism run (9 Nov 2026).

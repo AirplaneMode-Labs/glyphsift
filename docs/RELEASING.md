@@ -29,8 +29,11 @@ request (configured, not yet run; the job definition is reproduced at the end).
 2. **crates.io.** `cargo publish -p glyphsift-core`, then (once the index has it) `cargo publish -p glyphsift-cli`.
    `glyphsift-py` and `glyphsift-wasm` are `publish = false`: they ship as a wheel and an npm package. Each crate
    carries `LICENSE` and `NOTICE`.
-3. **PyPI.** Build wheels for each platform (a manylinux container or `maturin-action` in CI; only the macOS arm64
-   wheel, tag `macosx_11_0_arm64`, has been built so far, and there is no sdist), then `twine upload dist/wheels/*`.
+3. **PyPI.** Wheels for each platform: the `wheels` job in `ci.yml` builds the Linux (`manylinux_2_17` through zig),
+   Windows and macOS arm64 wheels and an sdist, and keeps them as a workflow artifact for 7 days (configured, not yet
+   run; only the macOS arm64 wheel, tag `macosx_11_0_arm64`, has been built so far, locally). Read that job, change the
+   package's OS classifiers to match the wheels that were proven (docs/release.md, row 6), then `twine upload` the
+   downloaded files.
    The wheel is abi3: one per platform serves CPython 3.9 and later.
 4. **npm.** `npm publish dist/npm/airplanemode-glyphsift-0.1.0.tgz --access public`. The scope `@airplanemode` has
    not been reserved.

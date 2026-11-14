@@ -357,8 +357,56 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
     // Every evidence path in the README names sprint 3 or the earlier sprint 2 run it supersedes.
     for line in readme.lines().filter(|l| l.contains("evidence/")) {
         assert!(
-            line.contains("evidence/sprint-3/D3/") || line.contains("evidence/sprint-2/D3/"),
+            line.contains("evidence/sprint-4/D3/")
+                || line.contains("evidence/sprint-3/D3/")
+                || line.contains("evidence/sprint-2/D3/"),
             "{line}"
         );
     }
+}
+
+/// Sprint 4 wording rules for the README (D3-04): the Status names Sprint 4, the benchmark machine is
+/// named "Apple M5 Pro, 48 GB", the prose says "not measured on 8 GB", Tamil is the planned second script,
+/// and Linux and Windows wheels are said to be built only by CI after the owner's push. The demo's not-yet
+/// box and the wheel README carry the same sentence, so the three cannot drift (the demo box is checked in
+/// tests/demo/check_demo.mjs, the wheel README in tests/python/check_wheel.py).
+#[test]
+fn readme_states_the_sprint_4_position_in_the_required_words() {
+    let root = repo_root();
+    let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
+    let status = readme
+        .split("## Status")
+        .nth(1)
+        .and_then(|t| t.split("\n## ").next())
+        .expect("README has a Status section");
+    assert!(
+        status.contains("Sprint 4"),
+        "the Status section names Sprint 4"
+    );
+    for needle in [
+        "Apple M5 Pro, 48 GB",
+        "not measured on 8 GB",
+        "Tamil planned for v0.2",
+        "Linux and Windows wheels are built only by CI after the owner's push",
+        "docs/v0.2-tamil.md",
+    ] {
+        assert!(readme.contains(needle), "the README lacks {needle:?}");
+    }
+    assert!(
+        !readme.contains("Sprint 4 carry-over"),
+        "the README still calls the Linux and Windows wheels a Sprint 4 carry-over"
+    );
+    let limits = readme
+        .split("\n## Limitations")
+        .nth(1)
+        .and_then(|t| t.split("\n## ").next())
+        .expect("README has a Limitations section");
+    assert!(
+        limits.contains("Linux and Windows wheels are built only by CI after the owner's push"),
+        "Limitations does not say where the Linux and Windows wheels come from"
+    );
+    assert!(
+        limits.contains("NOTICE.txt"),
+        "Limitations does not mention the demo's NOTICE.txt"
+    );
 }
