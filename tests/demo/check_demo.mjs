@@ -3,7 +3,14 @@
 //
 //   scripts/build-demo.sh
 //   PLAYWRIGHT_DIR=/path/to/dir-with-node_modules-playwright \
-//     node tests/demo/check_demo.mjs [--cli target/release/glyphsift] [--evidence out.json]
+//     node tests/demo/check_demo.mjs [--cli target/release/glyphsift] [--evidence out.json] [--shots dir]
+//
+// Sprint 3 (D3-07) adds: the per-line strip and per-cluster heatmap (highlighted clusters equal the
+// distinct cluster indices of report.issues for all five samples, per-line buckets match, class names
+// come from the fixed set, no style attribute), local files through the picker and through a drop
+// (same report as the CLI and as paste, zero requests), the refusals (invalid UTF-8, over 1 MiB, the
+// size checked before the file is read), and the source grep (no innerHTML, insertAdjacentHTML,
+// document.write or style attribute). --shots saves screenshots of the adversarial heatmap and a drop.
 //
 // Playwright is not a dependency of this repository: install it anywhere ("npm i playwright" in a
 // scratch directory) and point PLAYWRIGHT_DIR at that directory. Chrome is used through
@@ -11,7 +18,7 @@
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +30,7 @@ const arg = (name, fallback) => {
 const dist = resolve(root, arg("--dist", "demo/dist"));
 const cli = resolve(root, arg("--cli", "target/release/glyphsift"));
 const evidencePath = arg("--evidence", "");
+const shotsDir = arg("--shots", "");
 const pwDir = process.env.PLAYWRIGHT_DIR;
 if (!pwDir) {
   console.error("set PLAYWRIGHT_DIR to a directory whose node_modules contains playwright");
@@ -72,12 +80,54 @@ const server = createServer((req, res) => {
 await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 const origin = `http://127.0.0.1:${server.address().port}`;
 
+const KINDS = [
+  "dependent_vowel_without_base", "stray_combining_mark", "double_matra", "double_nukta", "nukta_after_matra",
+  "nukta_on_non_consonant", "virama_without_consonant", "virama_after_matra", "sign_before_matra",
+  "multiple_anusvara_like", "visarga_before_anusvara", "vowel_sign_on_independent_vowel", "zwj_zwnj_misplaced",
+  "mixed_script_in_cluster", "unexpected_code_point", "control_character",
+];
+const BUCKETS = ["clean", "low", "mid", "high"];
+const bucketOf = (sum) => (sum <= 0 ? "clean" : sum < 400 ? "low" : sum < 800 ? "mid" : "high");
+// What the heatmap must show for a report: severity per cluster is the sum of its issues' weights, a line's
+// bucket comes from the sum over its clusters.
+function expectedHeatmap(report) {
+  const w = report.score.weights;
+  const perCluster = new Map();
+  for (const i of report.issues) perCluster.set(i.cluster, (perCluster.get(i.cluster) ?? 0) + w[i.kind]);
+  const lines = report.lines.map((l) => {
+    let sum = 0;
+    for (let c = l.cluster_start; c < l.cluster_end; c += 1) sum += perCluster.get(c) ?? 0;
+    return bucketOf(sum);
+  });
+  return { perCluster, lines };
+}
+
 const fmt4 = (ppm) => `${Math.floor(ppm / 1e6)}.${String(Math.floor((ppm % 1e6) / 100)).padStart(4, "0")}`;
 const cliReport = (text) => execFileSync(cli, ["check", "-"], { input: Buffer.from(text, "utf8"), maxBuffer: 1 << 28 }).toString("utf8");
 
 // ---- the browser ---------------------------------------------------------------------------------
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await (await browser.newContext()).newPage();
+// Count every way the page could read a File or Blob, to prove a refused file is never read.
+await page.addInitScript(() => {
+  window.__fileReads = 0;
+  for (const name of ["arrayBuffer", "text", "stream", "slice", "bytes"]) {
+    const orig = Blob.prototype[name];
+    if (typeof orig !== "function") continue;
+    Blob.prototype[name] = function (...a) {
+      window.__fileReads += 1;
+      return orig.apply(this, a);
+    };
+  }
+  const readAs = (n) => {
+    const orig = FileReader.prototype[n];
+    FileReader.prototype[n] = function (...a) {
+      window.__fileReads += 1;
+      return orig.apply(this, a);
+    };
+  };
+  ["readAsArrayBuffer", "readAsText", "readAsDataURL", "readAsBinaryString"].forEach(readAs);
+});
 const consoleErrors = [];
 const requests = [];
 page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
@@ -103,6 +153,10 @@ if (ready) {
   const get = async (p) => (await fetch(`${origin}${p}`, { redirect: "manual" })).status;
   check((await get("/")) === 404 && (await get("/pkg/glyphsift.js")) === 404 && (await get("/index.html")) === 404, "the server answers 404 outside /glyphsift/");
   check((await get(`${BASE}pkg/glyphsift_bg.wasm`)) === 200, "the wasm module is served under /glyphsift/pkg/");
+  const noticeHref = await page.locator('footer a[href="NOTICE"]').getAttribute("href");
+  check(noticeHref === "NOTICE" && (await get(`${BASE}NOTICE`)) === 200 && (await get(`${BASE}LICENSE`)) === 200, "the footer links the third-party NOTICE, served with LICENSE under /glyphsift/");
+  const noticeText = await (await fetch(`${origin}${BASE}NOTICE`)).text();
+  check(noticeText.includes("zmij") && noticeText.includes("memchr 2.8.3 (MIT)"), "the served NOTICE carries the MIT texts of the non-Apache WASM crates");
 
   // CSP and status line
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
@@ -111,8 +165,11 @@ if (ready) {
   check(/Built from main at (local|[0-9a-f]{12})\b/.test(status) && status.includes("glyphsift.report/0.2"), "the status line shows the build id and report 0.2", status.trim());
   check((await text("#not-yet h2")).trim() === "What this demo does not do yet", "the not-yet box is headed exactly 'What this demo does not do yet'");
   const notYet = (await text("#not-yet")).toLowerCase();
-  for (const word of ["heatmap", "devanagari only", "service worker", "drag"]) check(notYet.includes(word), `the not-yet box mentions "${word}"`);
+  for (const word of ["devanagari only", "structural checks only", "not calibrated", "service worker", "nothing is published"]) check(notYet.includes(word), `the not-yet box mentions "${word}"`);
+  for (const word of ["heatmap", "drag", "drop"]) check(!notYet.includes(word), `the not-yet box no longer lists "${word}" (the demo does it now)`);
   check(!notYet.includes("not implemented") && !notYet.includes("unimplemented"), "the not-yet box no longer claims validate() is missing");
+  check((await page.locator("#drop-zone").count()) === 1 && (await page.locator('#file-input[type="file"][accept=".txt,text/plain"]').count()) === 1, "a drop zone and a file input accepting .txt and text/plain are on the page");
+  check((await page.locator("#heatmap").count()) === 1 && (await page.locator("#heatmap-legend li").count()) === 4, "the heatmap panel and its four-item legend are on the page");
 
   // samples
   const keys = await page.locator("#samples button[data-sample]").evaluateAll((els) => els.map((e) => e.dataset.sample));
@@ -138,10 +195,167 @@ if (ready) {
     check(ruleItems === 16, `${key}: all 16 rules are listed`);
     const counted = await page.locator("#issue-kinds li[data-count]").evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.kind, Number(e.dataset.count)])));
     check(Object.entries(report.summary.by_kind).every(([k, n]) => counted[k] === n) && Object.values(counted).reduce((a, b) => a + b, 0) === report.summary.issue_count, `${key}: the rule list counts match summary.by_kind`);
+    // the heatmap: one row per line, a strip bucket per line, a span per cluster
+    const hm = await page.evaluate(() =>
+      [...document.querySelectorAll("#heatmap-rows .hm-line")].map((row) => ({
+        strip: row.querySelector(".strip")?.getAttribute("class") ?? "",
+        stripLabel: row.querySelector(".strip")?.getAttribute("aria-label") ?? "",
+        spans: [...row.querySelectorAll(".cl")].map((c) => ({
+          cls: c.getAttribute("class"),
+          cluster: c.getAttribute("data-cluster"),
+          title: c.getAttribute("title"),
+          aria: c.getAttribute("aria-label"),
+          style: c.hasAttribute("style"),
+        })),
+      })),
+    );
+    const exp = expectedHeatmap(report);
+    check(hm.length === report.lines.length, `${key}: the heatmap has one row per line`, `${hm.length} rows for ${report.lines.length} lines`);
+    check(hm.every((r, i) => r.strip === `strip sev-${exp.lines[i]}`), `${key}: every per-line strip has the bucket of that line's issue weight sum`, hm.map((r) => r.strip.replace("strip sev-", "")).join(","));
+    const flat = hm.flatMap((r) => r.spans);
+    const lit = flat.filter((c) => c.cls !== "cl sev-clean");
+    const wantClusters = [...new Set(report.issues.map((i) => i.cluster))].sort((a, b) => a - b);
+    const got = lit.map((c) => Number(c.cluster)).sort((a, b) => a - b);
+    check(JSON.stringify(got) === JSON.stringify(wantClusters), `${key}: highlighted clusters equal the distinct cluster indices in report.issues`, `${got.length} highlighted, ${wantClusters.length} distinct`);
+    check(lit.every((c) => c.cls === `cl sev-${bucketOf(exp.perCluster.get(Number(c.cluster)) ?? 0)}`), `${key}: each highlighted cluster has the bucket of its summed issue weights`);
+    check(flat.every((c) => c.cls === "cl sev-clean" || BUCKETS.some((b) => c.cls === `cl sev-${b}`)), `${key}: span classes come from the fixed bucket set`);
+    check(lit.every((c) => c.title && c.aria && c.title.split(", ").every((k) => KINDS.includes(k)) && c.aria.split(", ").every((k) => KINDS.includes(k))), `${key}: titles and aria-labels name only rules from the fixed list`);
+    check(flat.every((c) => !c.style), `${key}: no heatmap span carries a style attribute`);
+    check((await page.locator("[style]").count()) === 0, `${key}: no element on the page carries a style attribute`);
+    if (key === "clean") {
+      const firstLine = await page.locator("#heatmap-rows .hm-line").first().locator(".hm-text").textContent();
+      check(firstLine === "नमस्ते दुनिया।", "clean: the heatmap shows the line's own text", firstLine);
+    }
+    if (key === "adversarial" && shotsDir) {
+      mkdirSync(shotsDir, { recursive: true });
+      await page.locator("#heatmap").scrollIntoViewIfNeeded();
+      await page.locator("#heatmap").screenshot({ path: join(shotsDir, "heatmap-adversarial.png") });
+    }
     calls += 1;
     evidence.samples[key] = { bytes: Buffer.byteLength(input), score_ppm: report.score.ppm, lines: report.lines.length, issues: report.summary.issue_count };
   }
   check(Number((await text("#call-count")).trim()) === calls, "validate() call counter matches the samples run", `${calls}`);
+
+  // local files: the picker and a drop give the CLI's report, make no request, and refuse what they must
+  {
+    const fixtures = join(root, "tests", "demo", "fixtures");
+    const fxPath = (n) => join(fixtures, n);
+    const cliFile = (n) => execFileSync(cli, ["check", fxPath(n)], { maxBuffer: 1 << 28 }).toString("utf8");
+    const callsNow = async () => Number((await text("#call-count")).trim());
+    const reads = () => page.evaluate(() => window.__fileReads);
+    const waitJson = (want) => page.waitForFunction((w) => document.querySelector("#json-out").textContent === w, want.replace(/\n$/, ""), { timeout: 15000 });
+    const dropFiles = (files, target = "#drop-zone") =>
+      page.evaluate(
+        ({ files, target }) => {
+          const dt = new DataTransfer();
+          for (const f of files) dt.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: "text/plain" }));
+          const node = document.querySelector(target);
+          const out = { overClass: false, afterClass: true };
+          node.dispatchEvent(new DragEvent("dragenter", { dataTransfer: dt, bubbles: true, cancelable: true }));
+          const over = new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true });
+          node.dispatchEvent(over);
+          out.overPrevented = over.defaultPrevented;
+          out.overClass = node.classList.contains("dragging");
+          const drop = new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true });
+          node.dispatchEvent(drop);
+          out.dropPrevented = drop.defaultPrevented;
+          out.afterClass = node.classList.contains("dragging");
+          return out;
+        },
+        { files, target },
+      );
+    const sampleBytes = readFileSync(fxPath("sample.txt"));
+    const sampleWant = cliFile("sample.txt");
+
+    // paste first, as the reference for the other two paths
+    const reqBefore = requests.length;
+    await page.fill("#text", sampleBytes.toString("utf8"));
+    await waitJson(sampleWant);
+    const pasted = await text("#json-out");
+    check(pasted === sampleWant.replace(/\n$/, ""), "paste: the report for the synthetic .txt equals `glyphsift check FILE`");
+
+    // the file picker
+    await page.fill("#text", "");
+    const c0 = await callsNow();
+    await page.setInputFiles("#file-input", fxPath("sample.txt"));
+    await waitJson(sampleWant);
+    check((await text("#json-out")) === pasted, "file picker: the same report as paste", `${Buffer.byteLength(pasted)} bytes`);
+    check((await text("#json-out")) === sampleWant.replace(/\n$/, ""), "file picker: the report equals `glyphsift check FILE` byte for byte");
+    check((await callsNow()) === c0 + 1, "file picker: validate() ran once");
+    check((await page.inputValue("#text")) === sampleBytes.toString("utf8"), "file picker: the text is shown in the text area");
+    check((await text("#file-note")).includes("sample.txt"), "file picker: the file note names the file", (await text("#file-note")).trim());
+    check(requests.length === reqBefore, "paste and file picker made 0 network requests", `${requests.length - reqBefore} new`);
+
+    // a drop on the drop zone
+    await page.fill("#text", "");
+    const c1 = await callsNow();
+    const dropped = await dropFiles([{ name: "sample.txt", bytes: [...sampleBytes] }]);
+    await waitJson(sampleWant);
+    check(dropped.overPrevented && dropped.dropPrevented, "drop: dragover and drop are default-prevented on the zone");
+    check(dropped.overClass === true && dropped.afterClass === false, "drop: the zone is marked while dragging over and unmarked after the drop");
+    check((await text("#json-out")) === pasted, "drop: the same report as paste and as the file picker");
+    check((await callsNow()) === c1 + 1, "drop: validate() ran once");
+    check(requests.length === reqBefore, "drop made 0 network requests", `${requests.length - reqBefore} new`);
+    if (shotsDir) {
+      mkdirSync(shotsDir, { recursive: true });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: join(shotsDir, "drop-sample.png"), fullPage: true });
+    }
+
+    // a drop elsewhere on the page must not navigate away from the demo
+    const outside = await dropFiles([{ name: "x.txt", bytes: [97] }], "body");
+    check(outside.dropPrevented === true, "a file dropped outside the zone is default-prevented (the browser does not open it)");
+
+    // BOM and CRLF are kept, exactly as the CLI keeps them
+    await page.setInputFiles("#file-input", fxPath("crlf-bom.txt"));
+    const crlfWant = cliFile("crlf-bom.txt");
+    await waitJson(crlfWant);
+    check((await text("#json-out")) === crlfWant.replace(/\n$/, ""), "a BOM and CRLF file: the report equals `glyphsift check FILE` (BOM and CRLF kept)");
+
+    // several files dropped: the first is read, and the note says so
+    const mf = await dropFiles([{ name: "sample.txt", bytes: [...sampleBytes] }, { name: "second.txt", bytes: [97] }]);
+    await waitJson(sampleWant);
+    check(mf.dropPrevented && (await text("#file-note")).toLowerCase().includes("first file"), "several files dropped: only the first is read and the note says so", (await text("#file-note")).trim());
+
+    // refusals: plain text, no validate(), no request
+    const c2 = await callsNow();
+    const r0 = await reads();
+    await page.setInputFiles("#file-input", fxPath("invalid-utf8.txt"));
+    await page.waitForFunction(() => /not valid UTF-8/.test(document.querySelector("#input-note").textContent), null, { timeout: 10000 });
+    const bad = await text("#input-note");
+    check(bad.includes("This file is not valid UTF-8 text"), "an invalid-UTF-8 file is refused with 'This file is not valid UTF-8 text'", bad.trim());
+    check((await callsNow()) === c2, "an invalid-UTF-8 file does not reach validate()");
+    check((await text("#score-value")).trim() === "—", "no stale score is shown after a refused file");
+    check((await page.locator("#heatmap-rows .hm-line").count()) === 0, "no stale heatmap is shown after a refused file");
+    check((await page.locator("#input-note a, #input-note b, #input-note img").count()) === 0, "the refusal is plain text");
+
+    await page.setInputFiles("#file-input", { name: "big.txt", mimeType: "text/plain", buffer: Buffer.alloc(LIMIT + 1, 0x61) });
+    await page.waitForFunction(() => /over 1 MiB/.test(document.querySelector("#input-note").textContent), null, { timeout: 10000 });
+    const big = await text("#input-note");
+    check(big.includes("This file is over 1 MiB"), "a file of 1 MiB + 1 byte is refused with 'This file is over 1 MiB'", big.trim());
+    const r1 = await reads();
+    check(r1 === r0 + 1, "the over-limit file was never read (its size is checked first); only the earlier invalid-UTF-8 file was", `reads ${r0} -> ${r1}`);
+    check((await callsNow()) === c2, "an over-limit file does not reach validate()");
+    const bigDrop = await dropFiles([{ name: "big.txt", bytes: [...Buffer.alloc(LIMIT + 1, 0x61)] }]);
+    await page.waitForFunction(() => /over 1 MiB/.test(document.querySelector("#input-note").textContent), null, { timeout: 10000 });
+    check(bigDrop.dropPrevented && (await reads()) === r1 && (await callsNow()) === c2, "an over-limit file dropped is refused unread, and validate() is not called");
+    check(requests.length === reqBefore, "refusals made 0 network requests", `${requests.length - reqBefore} new`);
+
+    // a good file clears the refusal
+    await page.setInputFiles("#file-input", fxPath("sample.txt"));
+    await waitJson(sampleWant);
+    check(!/refused|not valid UTF-8|over 1 MiB/i.test(await text("#input-note")) , "a good file clears the earlier refusal");
+    // exactly 1 MiB is accepted
+    const unit2 = "नमस्ते दुनिया।\n";
+    const exact2 = unit2.repeat(Math.floor(LIMIT / Buffer.byteLength(unit2)));
+    const padded2 = Buffer.from(exact2 + " ".repeat(LIMIT - Buffer.byteLength(exact2)));
+    check(padded2.length === LIMIT, "the accepted-size file is exactly 1,048,576 bytes");
+    const c3 = await callsNow();
+    await page.setInputFiles("#file-input", { name: "exact.txt", mimeType: "text/plain", buffer: padded2 });
+    await page.waitForFunction((n) => Number(document.querySelector("#call-count").textContent) === n, c3 + 1, { timeout: 60000 });
+    check(!/This file is/.test(await text("#input-note")), "a file of exactly 1 MiB is accepted and validated once");
+    check(requests.length === reqBefore, "no file action made a network request", `${requests.length - reqBefore} new`);
+  }
 
   // the size limit
   const before = Number((await text("#call-count")).trim());
@@ -194,7 +408,12 @@ if (ready) {
   } catch {
     gate = false;
   }
-  check(gate, "scripts/check-demo-sources.sh passes (no innerHTML, outerHTML or insertAdjacentHTML in demo/*.js)");
+  check(gate, "scripts/check-demo-sources.sh passes (no innerHTML, outerHTML, insertAdjacentHTML, document.write or style attribute in demo/)");
+  // the same grep, in this test: the demo sources and the built copy
+  const demoFiles = [...readdirSync(join(root, "demo")).filter((f) => f.endsWith(".js") || f === "index.html").map((f) => join(root, "demo", f)), ...readdirSync(dist).filter((f) => f.endsWith(".js") || f === "index.html").map((f) => join(dist, f))];
+  const banned = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\(\s*["']style|\.style\b|cssText|\sstyle\s*=/;
+  const offenders = demoFiles.filter((f) => banned.test(readFileSync(f, "utf8")));
+  check(offenders.length === 0, "grep: no innerHTML, outerHTML, insertAdjacentHTML, document.write or style attribute in demo/ or demo/dist", offenders.join(", "));
   if (evidencePath) writeFileSync(evidencePath, JSON.stringify({ ...evidence, results }, null, 2));
 }
 

@@ -43,7 +43,9 @@ export const SAMPLES = {
     note: "Legacy-font glyph codes converted without a mapping land in the private use area (unexpected_code_point) and the short-i matra comes before its consonant (dependent_vowel_without_base).",
   },
   // Hostile input: a 60-mark run, mixed scripts, controls, joiners, replacement and private-use code
-  // points, a virama and nukta soup, CRLF and a BOM in the middle of the text.
+  // points, a virama and nukta soup, CRLF and a BOM in the middle of the text. Since v0.1 it also holds
+  // an invisible tag character and a non-Indic combining mark on Devanagari letters (flagged), and an
+  // emoji ZWJ sequence and a Latin joiner (not flagged).
   adversarial: {
     label: "Adversarial",
     text: [
@@ -51,11 +53,12 @@ export const SAMPLES = {
       "Aा eं oि কা க्",
       "क\u0007ख \u{202E}ग \u{FEFF}घ",
       "क\u{200D}क \u{200C}ख क्\u{200D}ष",
+      "क\u{E0041} क\u0301 १\u0301 \u{1F468}\u{200D}\u{1F469} a\u{200D}b",
       "\u{FFFD} \u{F0D0} \u{E000} \u{378}",
       "़््ँ १़ अा",
       "सामान्य पंक्ति।",
       "",
     ].join("\r\n"),
-    note: "Adversarial input: a 60-mark run, mixed scripts, controls, joiners and private-use code points. The validator reports every one and never fails.",
+    note: "Adversarial input: a 60-mark run, mixed scripts, controls, joiners, a hidden tag character, a foreign combining mark and private-use code points. The validator reports each defect and never fails; the emoji joiner sequence and the Latin joiner are not flagged.",
   },
 };

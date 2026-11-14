@@ -33,26 +33,30 @@
         <ul id="requirements-list">
           <li data-req="wasm"><span class="mark">…</span> WebAssembly</li>
           <li data-req="modules"><span class="mark">…</span> ES modules</li>
+          <li data-req="file" data-optional="true"><span class="mark">…</span> Reading local files (<code>Blob.arrayBuffer</code>)</li>
+          <li data-req="utf8" data-optional="true"><span class="mark">…</span> Strict UTF-8 decoding (<code>TextDecoder</code>)</li>
         </ul>
-        <p>No storage, no network: this page keeps nothing and sends nothing after it has loaded.</p>
+        <p>No storage, no network: this page keeps nothing and sends nothing after it has loaded. Without the two file features you can still paste text.</p>
       </section>
 
       <section id="not-yet" class="box box-warn">
         <h2>What this demo does not do yet</h2>
         <ul>
-          <li>No per-line heatmap: each line shows its score as a number, not as a coloured strip (planned for the v0.1 demo).</li>
           <li>Devanagari only: Tamil and Bengali come later, and text in any other script is treated as plain text, so a Latin line scores clean.</li>
           <li>
             Structural checks only: it cannot see visually plausible OCR confusions (<code>ब</code> for
             <code>व</code>), a well-formed but wrong word, or legacy-font text that was read back as Latin letters.
           </li>
           <li>
-            The rule weights come from how badly each defect breaks rendering or reading; they are not
-            calibrated on real documents, and the benchmark behind them uses synthetic text only.
+            The rule weights are not calibrated on real documents: they come from how badly each defect breaks
+            rendering or reading, and the benchmark behind them uses synthetic text only.
           </li>
-          <li>No file drag-and-drop: paste text instead. Input is limited to 1 MiB of UTF-8.</li>
+          <li>UTF-8 text only, at most 1 MiB: no PDF, no OCR, no other encodings.</li>
           <li>No service worker: offline after the first load is best effort (Chrome's HTTP cache), not guaranteed.</li>
-          <li>Nothing is published yet: no npm package or Python wheel.</li>
+          <li>
+            Nothing is published yet: the Python wheel and the npm package were built and installed locally on
+            macOS arm64 only, and are on no registry.
+          </li>
         </ul>
       </section>
 
@@ -63,7 +67,10 @@
 
       <section id="input">
         <h2>Text</h2>
-        <p>Paste Devanagari or Hindi text, or load a synthetic sample. Samples are made up; none is a real document.</p>
+        <p>
+          Paste Devanagari or Hindi text, drop a <code>.txt</code> file on the box below, choose one with the
+          file picker, or load a synthetic sample. Samples are made up; none is a real document.
+        </p>
         <div class="samples" id="samples">
           <button type="button" data-sample="clean">Clean</button>
           <button type="button" data-sample="ocr">OCR-corrupted</button>
@@ -71,6 +78,16 @@
           <button type="button" data-sample="residue">Legacy font residue</button>
           <button type="button" data-sample="adversarial">Adversarial</button>
         </div>
+        <div id="drop-zone" class="drop" role="group" aria-labelledby="drop-title">
+          <p id="drop-title" class="drop-title">Drop a plain-text file here, or choose one</p>
+          <label for="file-input" class="visually-hidden">Choose a UTF-8 text file</label>
+          <input id="file-input" type="file" accept=".txt,text/plain" />
+          <p class="hint">
+            The file is read in this tab only: UTF-8 text up to 1 MiB, never uploaded. A file that is not valid
+            UTF-8, or is over 1 MiB, is refused before anything is validated.
+          </p>
+        </div>
+        <p class="notice" id="file-note" role="status" hidden></p>
         <label for="text" class="visually-hidden">Text to validate</label>
         <textarea id="text" rows="6" spellcheck="false" lang="hi" dir="auto" placeholder="नमस्ते।"></textarea>
         <p class="hint"><span id="byte-count">0 of 1,048,576 bytes</span></p>
@@ -90,6 +107,33 @@
           1 − penalty × 1000 ÷ clusters, in parts per million, shown with four decimals (truncated, never
           rounded) by integer arithmetic. 1.0000 is clean; empty text scores 1.0000.
         </p>
+      </section>
+
+      <section id="heatmap">
+        <h2>Heatmap <span class="count" id="heatmap-count"></span></h2>
+        <p class="hint">
+          One row per line: a strip for the line, then every grapheme cluster of the line. A cluster is
+          shaded by the sum of the weights of the rules that fired on it; the strip uses the same sum over the
+          whole line. Hover a shaded cluster to see the rules. Invisible, control and private-use code points
+          are shown as <code>⟨U+XXXX⟩</code>.
+        </p>
+        <ul id="heatmap-legend" class="legend">
+          <li><span class="swatch sev-clean"></span> clean: no rule fired</li>
+          <li><span class="swatch sev-low"></span> low: weight sum 1 to 399</li>
+          <li><span class="swatch sev-mid"></span> mid: 400 to 799</li>
+          <li><span class="swatch sev-high"></span> high: 800 and above</li>
+        </ul>
+        <p class="hint" id="heatmap-note" hidden></p>
+        <div id="heatmap-rows" class="hm"></div>
+      </section>
+
+      <section id="rules">
+        <h2>The sixteen rules</h2>
+        <p class="hint">
+          The stable wire names from <code>issue_kinds()</code>, each with its weight from
+          <code>weights/devanagari.toml</code> and how many times it fired on this text.
+        </p>
+        <ul id="issue-kinds" class="kinds"></ul>
       </section>
 
       <section id="lines">
@@ -114,15 +158,6 @@
             <tbody id="line-rows"></tbody>
           </table>
         </div>
-      </section>
-
-      <section id="rules">
-        <h2>The sixteen rules</h2>
-        <p class="hint">
-          The stable wire names from <code>issue_kinds()</code>, each with its weight from
-          <code>weights/devanagari.toml</code> and how many times it fired on this text.
-        </p>
-        <ul id="issue-kinds" class="kinds"></ul>
       </section>
 
       <section id="clusters">
@@ -180,6 +215,7 @@
         <a href="https://github.com/AirplaneMode-Labs/glyphsift" rel="noopener">glyphsift on GitHub</a>
         · <a href="https://airplanemode-labs.github.io/site/" rel="noopener">Airplane Mode Labs</a>
         · Apache-2.0
+        · <a href="NOTICE">Third-party notices</a>
       </p>
     </footer>
 

@@ -1,8 +1,14 @@
 // glyphsift demo. Everything runs in this tab: the WASM module is loaded from ./pkg/, the text never
 // leaves the page, and the only network requests are for this page's own files.
 //
-// Every string that comes from the report, from a sample or from the pasted text reaches the page
-// through textContent or createTextNode, never as markup (scripts/check-demo-sources.sh enforces it).
+// Every string that comes from the report, from a sample, from a local file or from the pasted text
+// reaches the page through textContent or createTextNode, never as markup, and every attribute is set
+// with setAttribute from a fixed set of values (scripts/check-demo-sources.sh enforces it).
+//
+// Local files (Sprint 3): the drop zone and the file picker read one file in this tab with
+// File.arrayBuffer(), after checking file.size against the 1 MiB limit (an oversized file is never
+// read), decode it with a fatal UTF-8 decoder, and validate exactly the decoded text, so the report is
+// byte for byte what `glyphsift check FILE` prints. Nothing is uploaded.
 import { SAMPLES } from "./samples.js";
 
 const $ = (id) => document.getElementById(id);
@@ -11,6 +17,7 @@ const LIMIT_BYTES = 1048576; // pasted input over 1 MiB of UTF-8 is refused befo
 const MAX_ROWS = 500; // line and cluster rows rendered; the JSON block always has everything
 const MAX_JSON_CHARS = 200000;
 const MAX_ISSUES_SHOWN = 8; // per line
+const HEATMAP_CLUSTER_CAP = 20000; // clusters drawn in the heatmap; the JSON block always has everything
 
 let validateCalls = 0;
 
@@ -18,24 +25,32 @@ let validateCalls = 0;
 const REQUIREMENTS = {
   wasm: () => typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function",
   modules: () => "noModule" in HTMLScriptElement.prototype,
+  // Optional: without them the demo still validates pasted text, and the file input is disabled.
+  file: () => typeof File === "function" && typeof Blob.prototype.arrayBuffer === "function",
+  utf8: () => {
+    new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+    return true;
+  },
 };
 
 function renderRequirements() {
   let ok = true;
+  let filesOk = true;
   for (const li of document.querySelectorAll("#requirements-list li[data-req]")) {
     let pass = false;
     try {
-      pass = Boolean(REQUIREMENTS[li.dataset.req]());
+      pass = Boolean(REQUIREMENTS[li.getAttribute("data-req")]());
     } catch {
       pass = false;
     }
     const mark = li.querySelector(".mark");
     mark.textContent = pass ? "✓" : "✗";
-    mark.className = `mark ${pass ? "ok" : "bad"}`;
+    mark.setAttribute("class", `mark ${pass ? "ok" : "bad"}`);
     mark.setAttribute("aria-label", pass ? "available" : "missing");
-    ok = ok && pass;
+    if (li.getAttribute("data-optional") === "true") filesOk = filesOk && pass;
+    else ok = ok && pass;
   }
-  return ok;
+  return { ok, filesOk };
 }
 
 function showLoadError(message) {
@@ -46,7 +61,7 @@ function showLoadError(message) {
 // --- Small helpers ----------------------------------------------------------------------------
 function el(tag, className, text) {
   const node = document.createElement(tag);
-  if (className) node.className = className;
+  if (className) node.setAttribute("class", className);
   if (text !== undefined) node.textContent = text;
   return node;
 }
@@ -76,6 +91,7 @@ function visible(s) {
       (cp >= 0x2066 && cp <= 0x2069) ||
       cp === 0xfeff ||
       (cp >= 0xe000 && cp <= 0xf8ff) ||
+      (cp >= 0xe0000 && cp <= 0xe0fff) || // tag characters and variation selectors supplement
       cp >= 0xf0000;
     if (!invisible) out += ch;
     else if (cp === 0x200d) out += "⟨ZWJ⟩";
@@ -131,6 +147,9 @@ function clearResults(g) {
   $("clusters-note").hidden = true;
   $("json-out").textContent = "";
   $("json-note").hidden = true;
+  $("heatmap-rows").replaceChildren();
+  $("heatmap-count").textContent = "";
+  $("heatmap-note").hidden = true;
   renderRules(g, null);
 }
 
@@ -141,8 +160,8 @@ function renderRules(g, report) {
   const frag = document.createDocumentFragment();
   for (const name of kinds) {
     const li = el("li", counts[name] ? "fired" : "");
-    li.dataset.kind = name;
-    li.dataset.count = String(counts[name] ?? 0);
+    li.setAttribute("data-kind", name);
+    li.setAttribute("data-count", String(counts[name] ?? 0));
     li.append(name);
     const detail = el("span", "state");
     detail.textContent = report ? ` — weight ${weights[name]}, fired ${counts[name] ?? 0}` : "";
@@ -158,6 +177,77 @@ function issueItem(issue, cluster) {
   li.append(el("span", "cluster-text", `«${visible(cluster.text)}»`));
   if (issue.code_point) li.append(` · ${issue.code_point}`);
   return li;
+}
+
+// --- Heatmap ----------------------------------------------------------------------------------
+// Severity of a cluster is the sum of the weights of the rules that fired on it (report.score.weights);
+// a line's bucket is the same sum over the line's clusters. Buckets: clean 0, low 1..399, mid 400..799,
+// high 800 and above. Class names come from this fixed set only; titles and aria-labels are rule names
+// from issue_kinds(); no attribute is built from the text.
+function bucketOf(sum) {
+  if (sum <= 0) return "clean";
+  if (sum < 400) return "low";
+  if (sum < 800) return "mid";
+  return "high";
+}
+
+function renderHeatmap(g, report) {
+  const known = new Set(JSON.parse(g.issue_kinds()));
+  const weights = report.score.weights;
+  const severity = new Map();
+  const names = new Map();
+  for (const issue of report.issues) {
+    if (!known.has(issue.kind)) continue;
+    severity.set(issue.cluster, (severity.get(issue.cluster) ?? 0) + (weights[issue.kind] ?? 0));
+    if (!names.has(issue.cluster)) names.set(issue.cluster, []);
+    if (!names.get(issue.cluster).includes(issue.kind)) names.get(issue.cluster).push(issue.kind);
+  }
+  const frag = document.createDocumentFragment();
+  let drawn = 0;
+  let lines = 0;
+  for (const line of report.lines) {
+    if (drawn >= HEATMAP_CLUSTER_CAP) break;
+    let lineSum = 0;
+    for (let c = line.cluster_start; c < line.cluster_end; c += 1) lineSum += severity.get(c) ?? 0;
+    const lineBucket = bucketOf(lineSum);
+    const row = el("div", "hm-line");
+    row.append(el("span", "hm-no", String(line.index + 1)));
+    const strip = el("span", `strip sev-${lineBucket}`);
+    strip.setAttribute("role", "img");
+    strip.setAttribute("aria-label", `line ${line.index + 1}: ${lineBucket}`);
+    strip.setAttribute("data-line", String(line.index));
+    row.append(strip);
+    const textBox = el("span", "hm-text");
+    // The line terminator is an allowed control and never flagged; it is not drawn.
+    const last = report.clusters[line.cluster_end - 1];
+    const end = last && /^(\r\n|\n|\r)$/.test(last.text) ? line.cluster_end - 1 : line.cluster_end;
+    for (let c = line.cluster_start; c < end && drawn < HEATMAP_CLUSTER_CAP; c += 1) {
+      const sum = severity.get(c) ?? 0;
+      const span = el("span", `cl sev-${bucketOf(sum)}`, visible(report.clusters[c].text));
+      span.setAttribute("data-cluster", String(c));
+      if (sum > 0) {
+        const label = names.get(c).join(", ");
+        span.setAttribute("role", "mark");
+        span.setAttribute("title", label);
+        span.setAttribute("aria-label", label);
+      }
+      textBox.append(span);
+      drawn += 1;
+    }
+    row.append(textBox);
+    frag.append(row);
+    lines += 1;
+  }
+  $("heatmap-rows").replaceChildren(frag);
+  const total = report.clusters.length;
+  $("heatmap-count").textContent = `${fmtInt(lines)} of ${fmtInt(report.lines.length)} line${report.lines.length === 1 ? "" : "s"}`;
+  const note = $("heatmap-note");
+  if (drawn >= HEATMAP_CLUSTER_CAP && lines < report.lines.length) {
+    note.textContent = `The heatmap shows the first ${fmtInt(HEATMAP_CLUSTER_CAP)} of ${fmtInt(total)} clusters (${fmtInt(lines)} of ${fmtInt(report.lines.length)} lines); the line table, the rule counts and the JSON report cover everything.`;
+    note.hidden = false;
+  } else {
+    note.hidden = true;
+  }
 }
 
 function renderLines(report) {
@@ -268,6 +358,7 @@ function render(g, text) {
   const s = report.summary;
   $("score-detail").textContent =
     `score_ppm ${report.score.ppm} · penalty ${report.score.penalty} · ${fmtInt(s.flagged_clusters)} of ${fmtInt(s.cluster_count)} clusters flagged · ${fmtInt(s.issue_count)} issues in ${fmtInt(report.lines.length)} lines`;
+  renderHeatmap(g, report);
   renderLines(report);
   renderClusters(report);
   renderRules(g, report);
@@ -283,7 +374,7 @@ function inputBytes(text) {
 }
 
 async function main() {
-  const ok = renderRequirements();
+  const { ok, filesOk } = renderRequirements();
   await loadBuild();
   if (!ok) {
     renderBuildLine("unavailable");
@@ -309,9 +400,12 @@ async function main() {
   const textarea = $("text");
   const sampleNotice = $("sample-notice");
   const inputNote = $("input-note");
+  const fileNote = $("file-note");
+  const fileInput = $("file-input");
+  const dropZone = $("drop-zone");
 
-  const update = () => {
-    const text = textarea.value;
+  // Validate exactly `text` (the textarea's value, or a decoded file) and show the result, or refuse it.
+  const validateText = (text) => {
     const { bytes, atLeast } = inputBytes(text);
     $("byte-count").textContent = `${atLeast ? "at least " : ""}${fmtInt(bytes)} of ${fmtInt(LIMIT_BYTES)} bytes`;
     if (bytes > LIMIT_BYTES) {
@@ -333,23 +427,112 @@ async function main() {
       clearResults(g);
     }
   };
+  const update = () => validateText(textarea.value);
 
   textarea.addEventListener("input", () => {
-    // Hand-typed or edited text: the sample notice no longer applies.
+    // Hand-typed or edited text: the sample and file notices no longer apply.
     sampleNotice.hidden = true;
+    fileNote.hidden = true;
     update();
   });
 
   $("samples").addEventListener("click", (ev) => {
     const button = ev.target.closest("button[data-sample]");
     if (!button) return;
-    const sample = SAMPLES[button.dataset.sample];
+    const sample = SAMPLES[button.getAttribute("data-sample")];
     if (!sample) return;
     textarea.value = sample.text;
     sampleNotice.textContent = sample.note;
     sampleNotice.hidden = false;
+    fileNote.hidden = true;
     update();
   });
+
+  // --- Local files: the drop zone and the picker --------------------------------------------------
+  const refuseFile = (message) => {
+    sampleNotice.hidden = true;
+    fileNote.hidden = true;
+    inputNote.textContent = message;
+    inputNote.hidden = false;
+    clearResults(g);
+  };
+  let loadSeq = 0;
+  const loadFile = async (file, extraFiles) => {
+    loadSeq += 1;
+    const mine = loadSeq;
+    // The size is checked on the File object first: an oversized file is never read or decoded.
+    if (file.size > LIMIT_BYTES) {
+      $("byte-count").textContent = `${fmtInt(file.size)} of ${fmtInt(LIMIT_BYTES)} bytes`;
+      refuseFile(
+        `This file is over 1 MiB (${fmtInt(file.size)} bytes; the demo accepts at most ${fmtInt(LIMIT_BYTES)}). ` +
+          "Nothing was uploaded, the file was not read and the validator was not run.",
+      );
+      return;
+    }
+    let buffer;
+    try {
+      buffer = await file.arrayBuffer();
+    } catch {
+      if (mine === loadSeq) refuseFile("This file could not be read. Nothing was uploaded and the validator was not run.");
+      return;
+    }
+    if (mine !== loadSeq) return; // a newer file replaced this one while it was being read
+    let text;
+    try {
+      // Fatal: any invalid byte sequence is an error. ignoreBOM keeps a BOM in the text, as the CLI does.
+      text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buffer);
+    } catch {
+      refuseFile("This file is not valid UTF-8 text. Nothing was uploaded and the validator was not run.");
+      return;
+    }
+    sampleNotice.hidden = true;
+    textarea.value = text;
+    const name = Array.from(file.name).slice(0, 80).join("");
+    fileNote.textContent =
+      `Loaded ${name} (${fmtInt(file.size)} bytes), read in this tab only.` +
+      (extraFiles > 0 ? ` ${extraFiles} more file${extraFiles === 1 ? " was" : "s were"} dropped; only the first file is read.` : "");
+    fileNote.hidden = false;
+    validateText(text);
+  };
+
+  if (filesOk) {
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      const extra = fileInput.files ? fileInput.files.length - 1 : 0;
+      if (file) loadFile(file, extra);
+      // Allow the same file to be chosen again later.
+      fileInput.value = "";
+    });
+    const hasFiles = (ev) => ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes("Files");
+    for (const type of ["dragenter", "dragover"]) {
+      dropZone.addEventListener(type, (ev) => {
+        if (!hasFiles(ev)) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "copy";
+        dropZone.classList.add("dragging");
+      });
+    }
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragging"));
+    dropZone.addEventListener("drop", (ev) => {
+      if (!hasFiles(ev)) return;
+      ev.preventDefault();
+      dropZone.classList.remove("dragging");
+      const files = ev.dataTransfer.files;
+      if (files && files.length > 0) loadFile(files[0], files.length - 1);
+    });
+    // A file dropped anywhere else must not make the browser navigate to it and leave the demo.
+    for (const type of ["dragover", "drop"]) {
+      window.addEventListener(type, (ev) => {
+        if (!hasFiles(ev)) return;
+        ev.preventDefault();
+        if (ev.type === "dragover" && ev.dataTransfer) ev.dataTransfer.dropEffect = "none";
+      });
+    }
+  } else {
+    fileInput.disabled = true;
+    fileNote.textContent = "Reading local files is not available in this browser; paste the text instead.";
+    fileNote.hidden = false;
+  }
 
   textarea.value = SAMPLES.clean.text;
   sampleNotice.textContent = SAMPLES.clean.note;
