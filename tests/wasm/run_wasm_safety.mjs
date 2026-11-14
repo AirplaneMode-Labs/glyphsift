@@ -6,7 +6,8 @@
 //   1. the export list is exactly validate, score_ppm, report_spec, clusters, clusters_json and
 //      issue_kinds (the JS module and the raw .wasm exports);
 //   2. the 20,000-string fuzz set of crates/glyphsift-core/tests/fuzz.rs (xorshift64* seed 1 over
-//      U+0000..U+097F, ZWJ, ZWNJ and 16 private-use code points): no trap, and the FNV-1a hash of
+//      U+0000..U+097F, ZWJ, ZWNJ, 16 private-use code points and 8 emoji, mark and tag code points):
+//      no trap, and the FNV-1a hash of
 //      all 20,000 canonical reports equals the constant the native test asserts, so WASM and
 //      native agree byte for byte on every one of them;
 //   3. a 1 MiB input of clean text, and a 1 MiB single-cluster run of matras, validate without a
@@ -27,7 +28,7 @@ const require = createRequire(import.meta.url);
 const pkgDir = process.env.GLYPHSIFT_WASM_DIR ?? join(root, "dist", "wasm", "nodejs");
 
 // Keep in step with FUZZ_HASH in crates/glyphsift-core/tests/fuzz.rs.
-const FUZZ_HASH = 0x3406f55bff039ed3n;
+const FUZZ_HASH = 0x9f8eceb1f973730bn;
 const EXPECTED_EXPORTS = ["clusters", "clusters_json", "issue_kinds", "report_spec", "score_ppm", "validate"];
 const MAX_INPUT_BYTES = 4 * 1024 * 1024;
 
@@ -74,13 +75,17 @@ function xorshift64star(seed) {
     return (x * 0x2545f4914f6cdd1dn) & MASK;
   };
 }
-const ALPHABET = 0x980n + 2n + 16n;
+const ALPHABET = 0x980n + 2n + 16n + 8n;
+// Sprint 3: man and black flag emoji, variation selector 16, U+20D7, a Vedic Extensions mark, and the
+// tag characters E0001, E0041 and E007F (same list as EXTRAS in fuzz.rs).
+const EXTRAS = [0x1f468, 0x1f3f4, 0xfe0f, 0x20d7, 0x1cd0, 0xe0001, 0xe0041, 0xe007f];
 function alphabetChar(i) {
   const n = Number(i);
   if (n < 0x980) return String.fromCodePoint(n);
   if (n === 0x980) return "\u{200D}";
   if (n === 0x981) return "\u{200C}";
-  return String.fromCodePoint(0xf0d0 + (n - 0x982));
+  if (n < 0x992) return String.fromCodePoint(0xf0d0 + (n - 0x982));
+  return String.fromCodePoint(EXTRAS[n - 0x992]);
 }
 function fuzzStrings() {
   const next = xorshift64star(1);

@@ -1,7 +1,9 @@
 //! No-panic fuzz test for `validate()`.
 //!
-//! 20,000 strings drawn with xorshift64* (seed 1) over U+0000..U+097F plus ZWJ, ZWNJ and a slice of
-//! the private use area (where legacy-font conversions land). For every input: no panic, the
+//! 20,000 strings drawn with xorshift64* (seed 1) over U+0000..U+097F plus ZWJ, ZWNJ, a slice of
+//! the private use area (where legacy-font conversions land) and, since Sprint 3, eight code points
+//! that exercise the script-aware rules: two emoji, a variation selector, two foreign combining
+//! marks (U+20D7, U+1CD0) and three tag characters. For every input: no panic, the
 //! issues are in input order, every issue names a code point that is in its cluster, and every
 //! issue's cluster index is below the cluster count.
 //!
@@ -25,15 +27,23 @@ impl XorShift64Star {
     }
 }
 
-/// Alphabet: 0x980 code points U+0000..U+097F, then ZWJ, ZWNJ, then U+F0D0..U+F0DF (16 PUA).
-const ALPHABET: u64 = 0x980 + 2 + 16;
+/// Alphabet: 0x980 code points U+0000..U+097F, then ZWJ, ZWNJ, then U+F0D0..U+F0DF (16 PUA), then
+/// `EXTRAS` (8 code points).
+const ALPHABET: u64 = 0x980 + 2 + 16 + 8;
+
+/// Sprint 3 additions (BUG-T2-S2-07, BUG-T2-S2-15): man and black flag emoji, variation selector 16,
+/// combining right arrow above, a Vedic Extensions mark, and the tag characters E0001, E0041, E007F.
+const EXTRAS: [u32; 8] = [
+    0x1F468, 0x1F3F4, 0xFE0F, 0x20D7, 0x1CD0, 0xE0001, 0xE0041, 0xE007F,
+];
 
 fn alphabet_char(i: u64) -> char {
     let cp = match i {
         0..0x980 => i as u32,
         0x980 => 0x200D,
         0x981 => 0x200C,
-        _ => 0xF0D0 + (i - 0x982) as u32,
+        0x982..0x992 => 0xF0D0 + (i - 0x982) as u32,
+        _ => EXTRAS[(i - 0x992) as usize],
     };
     char::from_u32(cp).expect("alphabet holds scalar values only")
 }
@@ -66,7 +76,10 @@ fn fnv1a(mut h: u64, bytes: &[u8]) -> u64 {
 /// `tests/wasm/run_wasm_safety.mjs` carries the same constant.
 // Report 0.2 (lines, score and by_kind included). Changing a rule, a weight or the report shape
 // changes this value: re-pin it here and in tests/wasm/run_wasm_safety.mjs, and say why in CHANGELOG.
-const FUZZ_HASH: u64 = 0x3406f55bff039ed3;
+// Re-pinned in Sprint 3 (0x3406f55bff039ed3 before): the joiner rule is restricted to Devanagari bases
+// (BUG-T2-S2-07), tag characters and non-Indic combining marks are flagged (BUG-T2-S2-15), and the
+// alphabet gained eight code points.
+const FUZZ_HASH: u64 = 0x9f8eceb1f973730b;
 
 #[test]
 fn twenty_thousand_random_strings_never_panic_and_stay_ordered() {

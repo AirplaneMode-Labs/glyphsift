@@ -49,10 +49,41 @@ pub(crate) enum Class {
     Unexpected,
     /// A base letter (`L*`) outside the Devanagari blocks.
     OtherLetter,
-    /// A combining mark from an Indic block other than Devanagari (`U+0980..U+0DFF`).
+    /// A combining mark (Mn, Mc or Me) that is not Devanagari: from another Indic block, or a
+    /// non-Indic mark such as `U+0301`. Not a joiner, a variation selector or a Vedic Extensions mark
+    /// (see `NOT_FOREIGN_MARKS`).
     OtherMark,
+    /// A Unicode tag character, `U+E0001` and `U+E0020..U+E007F`: invisible, and Extend for UAX #29,
+    /// so it joins the cluster before it. Legitimate only inside an emoji flag sequence.
+    Tag,
     /// Everything else: spaces, punctuation, symbols, emoji, other-script non-letters.
     Plain,
+}
+
+impl Class {
+    /// True for the classes whose code points lie in the Devanagari block: letters, digits, danda,
+    /// signs and every Devanagari combining mark. Joiners, controls, `Unexpected` code points and
+    /// everything from another script are not Devanagari-class. A cluster whose first code point is
+    /// Devanagari-class is "Devanagari-based" (rule 13 and rule 15 look at this).
+    pub(crate) fn is_devanagari(self) -> bool {
+        matches!(
+            self,
+            Class::Consonant
+                | Class::NuktaConsonant
+                | Class::Nukta
+                | Class::Virama
+                | Class::Matra
+                | Class::Bindu
+                | Class::Visarga
+                | Class::Vowel
+                | Class::Digit
+                | Class::Danda
+                | Class::Avagraha
+                | Class::Om
+                | Class::Vedic
+                | Class::Abbrev
+        )
+    }
 }
 
 type Range = (u32, u32);
@@ -109,9 +140,20 @@ const UNEXPECTED: &[Range] = &[
     (0xF0000, 0x10FFFF),
 ];
 
-/// Indic blocks other than Devanagari whose combining marks count as "other script" marks:
-/// Bengali, Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam, Sinhala.
-const OTHER_INDIC: &[Range] = &[(0x0980, 0x0DFF)];
+/// Combining marks (Mn, Mc, Me) that are NOT "other script" marks, so a Devanagari base may carry
+/// them: Vedic Extensions (`U+1CD0..U+1CFF`), Devanagari Extended (`U+A8E0..U+A8FF`), variation
+/// selectors (`U+FE00..U+FE0F`, `U+E0100..U+E01EF`) and Devanagari Extended-A (`U+11B00..U+11B5F`).
+/// (The Devanagari block itself is looked up first; ZWJ and ZWNJ are format characters, not marks.)
+/// Every other Mn, Mc or Me code point is `Class::OtherMark`. Devanagari Extended and Extended-A are
+/// already `Unexpected` by `UNEXPECTED` before this table is consulted; they are listed here so the
+/// two tables agree about what a foreign mark is.
+const NOT_FOREIGN_MARKS: &[Range] = &[
+    (0x1CD0, 0x1CFF),
+    (0xA8E0, 0xA8FF),
+    (0xFE00, 0xFE0F),
+    (0x11B00, 0x11B5F),
+    (0xE0100, 0xE01EF),
+];
 
 const BOM: u32 = 0xFEFF;
 
@@ -166,6 +208,9 @@ pub(crate) fn classify(c: char, offset: usize) -> Class {
     if in_ranges(CONTROL, cp) {
         return Class::Control;
     }
+    if cp == 0xE0001 || (0xE0020..=0xE007F).contains(&cp) {
+        return Class::Tag;
+    }
     // U+xFFFE and U+xFFFF are noncharacters in every plane.
     if in_ranges(UNEXPECTED, cp) || cp & 0xFFFE == 0xFFFE {
         return Class::Unexpected;
@@ -180,7 +225,7 @@ pub(crate) fn classify(c: char, offset: usize) -> Class {
         GeneralCategory::NonspacingMark
         | GeneralCategory::SpacingMark
         | GeneralCategory::EnclosingMark
-            if in_ranges(OTHER_INDIC, cp) =>
+            if !in_ranges(NOT_FOREIGN_MARKS, cp) =>
         {
             Class::OtherMark
         }
@@ -207,7 +252,7 @@ mod tests {
         sorted_and_disjoint(&dev);
         sorted_and_disjoint(CONTROL);
         sorted_and_disjoint(UNEXPECTED);
-        sorted_and_disjoint(OTHER_INDIC);
+        sorted_and_disjoint(NOT_FOREIGN_MARKS);
     }
 
     #[test]
@@ -246,6 +291,43 @@ mod tests {
         assert_eq!(classify('\u{09BE}', 0), Class::OtherMark);
         assert_eq!(classify(' ', 0), Class::Plain);
         assert_eq!(classify('\u{1F64F}', 0), Class::Plain);
-        assert_eq!(classify('\u{0301}', 0), Class::Plain);
+        assert_eq!(classify('\u{0301}', 0), Class::OtherMark);
+        assert_eq!(classify('\u{20D7}', 0), Class::OtherMark);
+        assert_eq!(classify('\u{20E3}', 0), Class::OtherMark);
+        assert_eq!(classify('\u{1D165}', 0), Class::OtherMark);
+        assert_eq!(classify('\u{FE0F}', 0), Class::Plain);
+        assert_eq!(classify('\u{E0100}', 0), Class::Plain);
+        assert_eq!(classify('\u{1CD0}', 0), Class::Plain);
+        assert_eq!(classify('\u{1CE1}', 0), Class::Plain);
+        assert_eq!(classify('\u{E0001}', 0), Class::Tag);
+        assert_eq!(classify('\u{E0020}', 0), Class::Tag);
+        assert_eq!(classify('\u{E0041}', 0), Class::Tag);
+        assert_eq!(classify('\u{E007F}', 0), Class::Tag);
+        assert_eq!(classify('\u{E0000}', 0), Class::Unexpected);
+        assert_eq!(classify('\u{E0002}', 0), Class::Unexpected);
+        assert_eq!(classify('\u{E0080}', 0), Class::Unexpected);
+    }
+
+    #[test]
+    fn devanagari_class_is_the_block_and_nothing_else() {
+        for c in [
+            'क', '\u{0958}', '\u{093C}', '\u{094D}', '\u{093E}', '\u{0901}', '\u{0903}', 'अ', '१',
+            '।', '\u{093D}', '\u{0950}', '\u{0951}', '\u{0970}',
+        ] {
+            assert!(classify(c, 3).is_devanagari(), "{c:?}");
+        }
+        for c in [
+            '\u{200D}',
+            '\u{200C}',
+            'a',
+            ' ',
+            '\u{0B95}',
+            '\u{FFFD}',
+            '\u{1F468}',
+            '\u{0627}',
+            '\u{0009}',
+        ] {
+            assert!(!classify(c, 3).is_devanagari(), "{c:?}");
+        }
     }
 }

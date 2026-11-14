@@ -367,6 +367,20 @@ fn splice(cs: &[(char, Class)], idx: usize, insert: &[char], remove: usize) -> S
     out
 }
 
+/// Where a joiner prepended to a site lands, given the clean cluster before the site (`None` at the
+/// start of the text): at the start of the text or after a control or line terminator it starts its
+/// own cluster (UAX #29 GB4), otherwise it extends the previous cluster. Rule 13 flags it in the
+/// first case and, in the second, when that cluster's first code point is Devanagari-class.
+fn joiner_is_flagged(prev: Option<&str>) -> bool {
+    match prev.and_then(|p| p.chars().next()) {
+        None => true,
+        Some(c) => {
+            let class = classify(c, 1);
+            class.is_devanagari() || matches!(class, Class::AllowedControl | Class::Control)
+        }
+    }
+}
+
 fn ends_with_virama(cluster: &str) -> bool {
     let cs = classes(cluster);
     matches!(
@@ -707,10 +721,18 @@ fn plan(family: Family, ctx: &Ctx<'_>, rng: &mut Rng) -> Edit {
         }
         Family::JoinerInject => {
             let joiner = rng.pick(&['\u{200D}', '\u{200C}']);
+            // The joiner is injected at every eligible boundary, but rule 13 only sees it where it
+            // lands in a Devanagari-based cluster or starts its cluster (BUG-T2-S2-07): after a
+            // space or other non-Devanagari cluster the site declares no expected rule.
+            let kinds: &[IssueKind] = if joiner_is_flagged(ctx.prev()) {
+                &[K::ZwjZwnjMisplaced]
+            } else {
+                none
+            };
             Edit {
                 text: format!("{joiner}{}", ctx.cur()),
                 marker: 0,
-                kinds: &[K::ZwjZwnjMisplaced],
+                kinds,
             }
         }
         Family::LegacyFont => {

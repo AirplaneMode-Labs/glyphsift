@@ -32,6 +32,9 @@ pub(crate) struct Slot {
     /// Class of the code point directly before this one in the cluster.
     pub prev: Option<Class>,
     pub host: Host,
+    /// The first code point of the cluster is Devanagari-class (`Class::is_devanagari`). Computed
+    /// once by `parse` and the same for every slot of the cluster.
+    pub devanagari_base: bool,
     /// Matras seen since the current host started.
     pub matras_before: u32,
     /// Bindus (anusvara, chandrabindu) seen since the current host started.
@@ -46,6 +49,10 @@ pub(crate) struct Slot {
 /// Fill `slots` with the parse of `cluster`, which starts at byte `start` of the whole input.
 pub(crate) fn parse(cluster: &str, start: usize, slots: &mut Vec<Slot>) {
     slots.clear();
+    let devanagari_base = cluster
+        .chars()
+        .next()
+        .is_some_and(|c| classify(c, start).is_devanagari());
     let mut host = Host::None;
     let mut prev: Option<Class> = None;
     let mut matras = 0u32;
@@ -60,6 +67,7 @@ pub(crate) fn parse(cluster: &str, start: usize, slots: &mut Vec<Slot>) {
             class,
             prev,
             host,
+            devanagari_base,
             matras_before: matras,
             bindus_before: bindus,
             visarga_before: visarga,
@@ -232,14 +240,18 @@ fn vowel_sign_on_independent_vowel(s: &Slot) -> bool {
     s.class == Class::Matra && s.host == Host::Vowel && s.matras_before == 0
 }
 
-/// Rule 13. ZWJ or ZWNJ anywhere other than directly after a virama.
+/// Rule 13. ZWJ or ZWNJ anywhere other than directly after a virama, in a Devanagari-based cluster
+/// or starting its cluster. A joiner inside an emoji ZWJ sequence, a Persian word or Latin text
+/// sits in a cluster whose first code point is not Devanagari-class and is not flagged.
 fn zwj_zwnj_misplaced(s: &Slot) -> bool {
-    matches!(s.class, Class::Zwj | Class::Zwnj) && s.prev != Some(Class::Virama)
+    matches!(s.class, Class::Zwj | Class::Zwnj)
+        && s.prev != Some(Class::Virama)
+        && (s.devanagari_base || s.prev.is_none())
 }
 
 /// Rule 14, cluster level. Returns the index of the code point that makes the cluster mixed: a
-/// Devanagari mark on a base letter from another script, or a mark from another Indic block on a
-/// Devanagari base.
+/// Devanagari mark on a base letter from another script, or a combining mark that is not
+/// Devanagari (another Indic block, or a non-Indic mark such as `U+0301`) on a Devanagari base.
 fn mixed_script_position(slots: &[Slot]) -> Option<usize> {
     let first = slots.first()?.class;
     let devanagari_mark = |c: Class| {
@@ -272,9 +284,12 @@ fn mixed_script_hook(slots: &[Slot]) -> Option<usize> {
 }
 
 /// Rule 15. U+FFFD, private use, unassigned, noncharacters, or a code point of a Devanagari block
-/// that has no role in the tables.
+/// that has no role in the tables; also a Unicode tag character in a Devanagari-based cluster or
+/// starting its cluster (invisible text). A tag inside a non-Devanagari cluster, such as the
+/// England flag, is part of an emoji tag sequence and is not flagged.
 fn unexpected_code_point(s: &Slot) -> bool {
     s.class == Class::Unexpected
+        || (s.class == Class::Tag && (s.devanagari_base || s.prev.is_none()))
 }
 
 /// Rule 16. A control other than TAB, LF and CR, a bidi format control, or a BOM after offset 0.

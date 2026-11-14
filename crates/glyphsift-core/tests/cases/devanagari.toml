@@ -676,3 +676,445 @@ repeat = { unit = "ा", count = 2000 }
 cluster_count = 1
 issues = [{ kind = "double_matra", cluster = 0, count = 1999 }]
 note = "one consonant followed by 2,000 matras: the first attaches, the other 1,999 are double_matra; must stay linear"
+
+# ---------------------------------------------------------------------------------------------
+# BUG-T2-S2-07: zwj_zwnj_misplaced only fires on a Devanagari-based cluster, or when the joiner starts the cluster.
+# Not flagged: emoji ZWJ sequences, a Persian ZWNJ, Latin or Arabic letters with a joiner. Still flagged: a joiner after a Devanagari
+# base that is not a virama, a doubled joiner, a joiner that starts a cluster.
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "emoji_family_zwj"
+input = "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466"
+clusters = ["\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466"]
+issues = []
+note = "a family emoji is four emoji joined by ZWJ and is one cluster whose base is an emoji, not Devanagari"
+
+[[case]]
+name = "emoji_rainbow_flag"
+input = "\U0001F3F3\uFE0F\u200D\U0001F308"
+clusters = ["\U0001F3F3\uFE0F\u200D\U0001F308"]
+issues = []
+note = "white flag, variation selector 16, ZWJ, rainbow: one emoji cluster, not Devanagari-based"
+
+[[case]]
+name = "emoji_technologist_zwj"
+input = "\U0001F9D1\u200D\U0001F4BB"
+clusters = ["\U0001F9D1\u200D\U0001F4BB"]
+issues = []
+note = "a two-emoji ZWJ sequence"
+
+[[case]]
+name = "persian_zwnj_word"
+input = "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645"
+clusters = ["\u0645", "\u06CC\u200C", "\u062E", "\u0648", "\u0627", "\u0647", "\u0645"]
+issues = []
+note = "Persian writes ZWNJ inside words; the ZWNJ extends a Persian letter, so the cluster is not Devanagari-based"
+
+[[case]]
+name = "persian_zwnj_plural"
+input = "\u06A9\u062A\u0627\u0628\u200C\u0647\u0627"
+clusters = ["\u06A9", "\u062A", "\u0627", "\u0628\u200C", "\u0647", "\u0627"]
+issues = []
+note = "ketab + ZWNJ + ha: a second Persian ZWNJ word"
+
+[[case]]
+name = "arabic_zwj_joining"
+input = "\u0628\u200D\u0628"
+clusters = ["\u0628\u200D", "\u0628"]
+issues = []
+note = "Arabic-script text may use ZWJ to force a joining form"
+
+[[case]]
+name = "latin_with_zwj"
+input = "a\u200Db"
+clusters = ["a\u200D", "b"]
+issues = []
+note = "Latin letter with a ZWJ: clusters 'a ZWJ' and 'b', neither Devanagari-based"
+
+[[case]]
+name = "latin_with_zwnj"
+input = "a\u200Cb"
+clusters = ["a\u200C", "b"]
+issues = []
+note = "Latin letter with a ZWNJ"
+
+[[case]]
+name = "hindi_line_with_emoji_family"
+input = "नमस्ते \U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466 दुनिया।"
+clusters = ["न", "म", "स्ते", " ", "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466", " ", "दु", "नि", "या", "।"]
+issues = []
+note = "a clean Hindi line with a family emoji in it scores 1.0000: the emoji's joiners are not flagged"
+
+[[case]]
+name = "hindi_line_with_persian_word"
+input = "नमस्ते \u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645 दुनिया"
+clusters = ["न", "म", "स्ते", " ", "\u0645", "\u06CC\u200C", "\u062E", "\u0648", "\u0627", "\u0647", "\u0645", " ", "दु", "नि", "या"]
+issues = []
+note = "a clean Hindi line with a Persian word scores 1.0000"
+
+[[case]]
+name = "emoji_zwj_after_devanagari_letter"
+input = "क\U0001F468\u200D\U0001F469"
+clusters = ["क", "\U0001F468\u200D\U0001F469"]
+issues = []
+note = "the emoji ZWJ sequence is its own cluster (UAX #29 GB11); the Devanagari letter before it does not make it Devanagari-based"
+
+[[case]]
+name = "joiner_on_space_is_not_devanagari_based"
+input = " \u200D"
+clusters = [" \u200D"]
+issues = []
+note = "a joiner after a space joins the space's cluster, whose base is not Devanagari and which the joiner does not start: not flagged (documented in docs/devanagari-rules.md)"
+
+[[case]]
+name = "zwnj_between_consonants"
+input = "क\u200Cख"
+clusters = ["क\u200C", "ख"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "consonant + ZWNJ without a virama, the ZWNJ twin of zwj_between_consonants"
+
+[[case]]
+name = "zwj_after_digit"
+input = "१\u200D"
+clusters = ["१\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "a Devanagari digit is a Devanagari-class base"
+
+[[case]]
+name = "zwj_after_danda"
+input = "।\u200D"
+clusters = ["।\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "a danda is a Devanagari-class base"
+
+[[case]]
+name = "zwj_after_independent_vowel"
+input = "अ\u200D"
+clusters = ["अ\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "an independent vowel is a Devanagari-class base"
+
+[[case]]
+name = "zwj_after_anusvara"
+input = "कं\u200D"
+clusters = ["कं\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "a joiner after a bindu, not after a virama"
+
+[[case]]
+name = "double_joiner_after_virama"
+input = "क्\u200D\u200D"
+clusters = ["क्\u200D\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "the first ZWJ follows the virama and is valid; the second follows a ZWJ and is flagged"
+
+[[case]]
+name = "zwj_then_zwnj_after_virama"
+input = "क्\u200D\u200C"
+clusters = ["क्\u200D\u200C"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "the ZWNJ follows a ZWJ, not the virama"
+
+[[case]]
+name = "virama_zwnj_at_end"
+input = "क्\u200C"
+clusters = ["क्\u200C"]
+issues = []
+note = "ZWNJ directly after a virama is valid at the end of a cluster"
+
+[[case]]
+name = "lone_zwj"
+input = "\u200D"
+clusters = ["\u200D"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "a joiner that is the whole text starts its cluster"
+
+[[case]]
+name = "lone_zwj_before_latin"
+input = "\u200Da"
+clusters = ["\u200D", "a"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 0 }]
+note = "a joiner at text start is its own cluster (GB9 does not attach it to the letter that follows) and is flagged"
+
+[[case]]
+name = "zwnj_after_newline_before_devanagari"
+input = "क\n\u200Cख"
+clusters = ["क", "\n", "\u200C", "ख"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 2 }]
+note = "a joiner after a line feed starts a new cluster (GB4): flagged"
+
+[[case]]
+name = "emoji_family_then_misplaced_devanagari_joiner"
+input = "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466 क\u200Dख"
+clusters = ["\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466", " ", "क\u200D", "ख"]
+issues = [{ kind = "zwj_zwnj_misplaced", cluster = 2 }]
+note = "the emoji joiners are clean; the Devanagari consonant + ZWJ in the same line is still flagged"
+
+
+# ---------------------------------------------------------------------------------------------
+# BUG-T2-S2-15: tag characters and non-Indic combining marks in Devanagari clusters.
+# Tag characters (U+E0001, U+E0020..U+E007F) in a Devanagari-based cluster, or starting a cluster, are unexpected_code_point.
+# A combining mark (Mn, Mc, Me) on a Devanagari-class base that is outside Devanagari, Devanagari Extended, Devanagari Extended-A,
+# Vedic Extensions, and is not a variation selector, is mixed_script_in_cluster (rule 14). Latin, emoji and other clusters are untouched.
+# ---------------------------------------------------------------------------------------------
+
+[[case]]
+name = "tag_a_after_consonant"
+input = "क\U000E0041"
+clusters = ["क\U000E0041"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "an invisible tag letter on a Devanagari consonant: hidden text no longer scores clean"
+
+[[case]]
+name = "tag_language_tag"
+input = "क\U000E0001"
+clusters = ["क", "\U000E0001"]
+issues = [{ kind = "unexpected_code_point", cluster = 1 }]
+note = "U+E0001 LANGUAGE TAG has Grapheme_Cluster_Break=Control, so it is always its own cluster (cluster 1 here) and is flagged because it starts its cluster"
+
+[[case]]
+name = "tag_cancel_after_consonant"
+input = "क\U000E007F"
+clusters = ["क\U000E007F"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "U+E007F CANCEL TAG"
+
+[[case]]
+name = "tag_hidden_word_in_devanagari_word"
+input = "न\U000E0068\U000E0069म"
+clusters = ["न\U000E0068\U000E0069", "म"]
+issues = [{ kind = "unexpected_code_point", cluster = 0, count = 2 }]
+note = "two tag characters spelling hidden text after a consonant: one issue per tag, one flagged cluster"
+
+[[case]]
+name = "tag_after_digit"
+input = "१\U000E0041"
+clusters = ["१\U000E0041"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "a Devanagari digit is a Devanagari-class base"
+
+[[case]]
+name = "tag_after_matra_syllable"
+input = "का\U000E0041"
+clusters = ["का\U000E0041"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "the tag after a matra: the consonant+matra part stays clean"
+
+[[case]]
+name = "tag_at_text_start"
+input = "\U000E0041क"
+clusters = ["\U000E0041", "क"]
+issues = [{ kind = "unexpected_code_point", cluster = 0 }]
+note = "a tag with no base starts its own cluster: it is part of no emoji tag sequence, so it is flagged"
+
+[[case]]
+name = "tag_after_newline"
+input = "क\n\U000E0041ख"
+clusters = ["क", "\n", "\U000E0041", "ख"]
+issues = [{ kind = "unexpected_code_point", cluster = 2 }]
+note = "a tag after a line feed starts a new cluster (GB4): flagged"
+
+[[case]]
+name = "england_flag"
+input = "\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F"
+clusters = ["\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F"]
+issues = []
+note = "waving black flag plus tag letters g b e n g and cancel tag: an emoji flag sequence, base is an emoji, not flagged"
+
+[[case]]
+name = "hindi_line_with_england_flag"
+input = "नमस्ते \U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F दुनिया।"
+clusters = ["न", "म", "स्ते", " ", "\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F", " ", "दु", "नि", "या", "।"]
+issues = []
+note = "a clean Hindi line with the England flag emoji stays clean"
+
+[[case]]
+name = "tag_on_latin_base"
+input = "a\U000E0041"
+clusters = ["a\U000E0041"]
+issues = []
+note = "tag characters outside a Devanagari cluster are out of scope for the Devanagari validator"
+
+[[case]]
+name = "tag_and_foreign_mark_one_issue"
+input = "क\u0301\U000E0041"
+clusters = ["क\u0301\U000E0041"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "rule 14 is exclusive for its cluster: one issue, the root cause"
+
+[[case]]
+name = "ka_combining_acute"
+input = "क\u0301"
+clusters = ["क\u0301"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "a non-Indic combining mark on a Devanagari consonant"
+
+[[case]]
+name = "ka_combining_right_arrow_above"
+input = "क\u20D7"
+clusters = ["क\u20D7"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "U+20D7 combining right arrow above (Mn)"
+
+[[case]]
+name = "ka_combining_enclosing_keycap"
+input = "क\u20E3"
+clusters = ["क\u20E3"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "U+20E3 combining enclosing keycap (Me)"
+
+[[case]]
+name = "ka_combining_musical_stem"
+input = "क\U0001D165"
+clusters = ["क\U0001D165"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "U+1D165 musical symbol combining stem (Mc)"
+
+[[case]]
+name = "ka_two_foreign_marks"
+input = "क\u0301\u0302"
+clusters = ["क\u0301\u0302"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "two foreign marks still give one issue for the cluster"
+
+[[case]]
+name = "digit_combining_acute"
+input = "१\u0301"
+clusters = ["१\u0301"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "a Devanagari digit with a foreign combining mark"
+
+[[case]]
+name = "danda_combining_acute"
+input = "।\u0301"
+clusters = ["।\u0301"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "a danda with a foreign combining mark"
+
+[[case]]
+name = "ka_matra_then_acute"
+input = "का\u0301"
+clusters = ["का\u0301"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "a foreign mark after a valid consonant and matra"
+
+[[case]]
+name = "ka_acute_then_matra_one_issue"
+input = "क\u0301ा"
+clusters = ["क\u0301ा"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "the exclusive rule: one issue, not also dependent_vowel_without_base"
+
+[[case]]
+name = "latin_e_combining_acute"
+input = "e\u0301"
+clusters = ["e\u0301"]
+issues = []
+note = "a Latin letter with a combining acute is ordinary Latin text"
+
+[[case]]
+name = "space_combining_acute"
+input = " \u0301"
+clusters = [" \u0301"]
+issues = []
+note = "a space is not a Devanagari base"
+
+[[case]]
+name = "emoji_keycap_sequence"
+input = "1\uFE0F\u20E3"
+clusters = ["1\uFE0F\u20E3"]
+issues = []
+note = "a keycap emoji sequence: not Devanagari-based"
+
+[[case]]
+name = "ka_variation_selector_16"
+input = "क\uFE0F"
+clusters = ["क\uFE0F"]
+issues = []
+note = "a variation selector is a Mn mark but is excluded: not flagged"
+
+[[case]]
+name = "ka_variation_selector_15"
+input = "क\uFE0E"
+clusters = ["क\uFE0E"]
+issues = []
+note = "variation selector 15 is excluded"
+
+[[case]]
+name = "ka_ideographic_variation_selector"
+input = "क\U000E0100"
+clusters = ["क\U000E0100"]
+issues = []
+note = "U+E0100 variation selector 17 is excluded"
+
+[[case]]
+name = "ka_vedic_extensions_mark"
+input = "क\u1CD0"
+clusters = ["क\u1CD0"]
+issues = []
+note = "Vedic Extensions (U+1CD0..U+1CFF) marks are not foreign"
+
+[[case]]
+name = "ka_vedic_extensions_spacing_mark"
+input = "क\u1CE1"
+clusters = ["क\u1CE1"]
+issues = []
+note = "U+1CE1 is a spacing mark (Mc) in Vedic Extensions: not foreign"
+
+[[case]]
+name = "ka_virama_zwj_acute"
+input = "क्\u200D\u0301"
+clusters = ["क्\u200D\u0301"]
+issues = [{ kind = "mixed_script_in_cluster", cluster = 0 }]
+note = "the joiner is not the foreign mark; the acute after it is"
+
+
+[[case]]
+name = "known_gap_ka_zwsp"
+input = "क\u200B"
+clusters = ["क", "\u200B"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+200B ZERO WIDTH SPACE is its own cluster and is not looked for; invisible text, scores clean"
+
+[[case]]
+name = "known_gap_ka_word_joiner"
+input = "क\u2060"
+clusters = ["क", "\u2060"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+2060 WORD JOINER is its own cluster and scores clean"
+
+[[case]]
+name = "known_gap_ka_soft_hyphen"
+input = "क\u00AD"
+clusters = ["क", "\u00AD"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+00AD SOFT HYPHEN is its own cluster and scores clean"
+
+[[case]]
+name = "known_gap_ka_invisible_times"
+input = "क\u2062"
+clusters = ["क", "\u2062"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+2062 INVISIBLE TIMES is its own cluster and scores clean"
+
+[[case]]
+name = "known_gap_ka_emoji_modifier"
+input = "क\U0001F3FB"
+clusters = ["क\U0001F3FB"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+1F3FB is Extend but not Mn/Mc/Me (Sk), so it joins the cluster and is not flagged"
+
+[[case]]
+name = "known_gap_ka_halfwidth_voiced_mark"
+input = "क\uFF9E"
+clusters = ["क\uFF9E"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+FF9E is Extend but Lm, so it joins the cluster and is not flagged"
+
+[[case]]
+name = "known_gap_ka_halfwidth_semivoiced_mark"
+input = "क\uFF9F"
+clusters = ["क\uFF9F"]
+issues = []
+note = "KNOWN GAP (pins current behaviour): U+FF9F is Extend but Lm, so it joins the cluster and is not flagged"

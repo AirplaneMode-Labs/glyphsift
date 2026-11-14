@@ -225,8 +225,10 @@ fn the_report_carries_the_weights_it_used() {
 #[test]
 fn by_kind_counts_every_issue_in_declaration_order() {
     // U+FFFD is unexpected_code_point; the lone matra is dependent_vowel_without_base (declared
-    // first); the lone ZWNJ is zwj_zwnj_misplaced; the second matra of "काा" is double_matra.
-    let r = validate("\u{FFFD} ि\u{200C}काा\u{FFFD}").unwrap();
+    // first); the ZWNJ after a consonant is zwj_zwnj_misplaced (Sprint 3: a joiner on a space's
+    // cluster is no longer flagged, so the ZWNJ sits on its own consonant); the second matra of
+    // "काा" is double_matra.
+    let r = validate("\u{FFFD} ि क\u{200C}काा\u{FFFD}").unwrap();
     let json = to_canonical_json(&r);
     let start = json.find("\"by_kind\":").expect("by_kind present");
     let rest = &json[start..];

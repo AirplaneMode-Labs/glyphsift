@@ -253,3 +253,26 @@ fn empty_and_whitespace_only_text_has_no_issues() {
         assert_eq!(report.summary.issue_count, 0);
     }
 }
+
+/// BUG-T2-S2-07: joiners that belong to emoji sequences and to other scripts never lower the
+/// score of an otherwise clean Devanagari line.
+#[test]
+fn joiners_in_emoji_and_other_scripts_do_not_lower_the_score() {
+    let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}";
+    let persian = "\u{645}\u{6CC}\u{200C}\u{62E}\u{648}\u{627}\u{647}\u{645}";
+    let lines = [
+        format!("नमस्ते {family} दुनिया।\n"),
+        format!("नमस्ते {persian} दुनिया।\n"),
+        "नमस्ते \u{1F3F3}\u{FE0F}\u{200D}\u{1F308} दुनिया।\n".to_owned(),
+    ];
+    for text in &lines {
+        let report = validate(text).expect("validates");
+        assert!(report.issues.is_empty(), "{text:?}: {:?}", report.issues);
+        assert_eq!(report.score.ppm, 1_000_000, "{text:?}");
+        assert_eq!(report.lines[0].score_ppm, 1_000_000, "{text:?}");
+    }
+    // The same line with a joiner after a Devanagari consonant is still flagged, and costs weight 200.
+    let broken = validate("नमस्ते क\u{200D}ख दुनिया।\n").expect("validates");
+    assert_eq!(broken.summary.by_kind.len(), 1);
+    assert_eq!(broken.score.penalty, 200);
+}

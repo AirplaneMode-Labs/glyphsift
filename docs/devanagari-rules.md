@@ -1,9 +1,11 @@
 # Devanagari grapheme-cluster rules
 
 Status: implemented in Sprint 2 (`crates/glyphsift-core/src/tables.rs`, `src/rules.rs`,
-`src/score.rs`). The case table `crates/glyphsift-core/tests/cases/devanagari.toml` is the
-executable form of this document: every case passes, and where the two disagree, fix the one that is
-wrong and add a case first.
+`src/score.rs`) and revised in Sprint 3 for glyphsift 0.1.0: `zwj_zwnj_misplaced` is restricted to
+Devanagari-based clusters (BUG-T2-S2-07), and tag characters and non-Indic combining marks in
+Devanagari clusters are flagged (BUG-T2-S2-15). The rule count stays sixteen and no weight changed.
+The case table `crates/glyphsift-core/tests/cases/devanagari.toml` is the executable form of this
+document: every case passes, and where the two disagree, fix the one that is wrong and add a case first.
 
 ## 1. Segmentation
 
@@ -38,10 +40,12 @@ in 0.1. Word- and document-level signals are a later layer.
 | Om | `U+0950` (ॐ) |
 | Vedic sign | `U+0951..U+0954` (udatta, anudatta, grave, acute) |
 | Abbreviation / dot | `U+0970` (॰), `U+0971` (ॱ) |
-| Joiner | `U+200D` ZWJ, `U+200C` ZWNJ |
+| Joiner | `U+200D` ZWJ, `U+200C` ZWNJ (Cf format characters, not combining marks) |
+| Tag character | `U+E0001` and `U+E0020..U+E007F`: invisible Cf code points; flagged as unexpected in a Devanagari-based cluster or when they start a cluster (below) |
 | Allowed control | `U+0009` TAB, `U+000A` LF, `U+000D` CR |
 | Control (flagged) | other `Cc` (`U+0000..U+001F`, `U+007F..U+009F`); bidi controls `U+200E`, `U+200F`, `U+202A..U+202E`, `U+2066..U+2069`; `U+FEFF` after offset 0 |
-| Unexpected (flagged) | `U+FFFD`; private use `U+E000..U+F8FF`, `U+F0000..U+10FFFF`; unassigned and noncharacters; any code point in `U+0900..U+097F`, `U+A8E0..U+A8FF` (Devanagari Extended) or `U+11B00..U+11B5F` (Devanagari Extended-A) that is not in a row above |
+| Foreign combining mark | any other Mn, Mc or Me code point: another Indic block (for example Bengali `U+09BE`), or non-Indic such as `U+0301`, `U+20D7`, `U+20E3`, `U+1D165`. Not foreign: Devanagari, Devanagari Extended `U+A8E0..U+A8FF`, Devanagari Extended-A `U+11B00..U+11B5F`, Vedic Extensions `U+1CD0..U+1CFF`, the variation selectors `U+FE00..U+FE0F` and `U+E0100..U+E01EF`, ZWJ and ZWNJ |
+| Unexpected (flagged) | `U+FFFD`; private use `U+E000..U+F8FF`, `U+F0000..U+10FFFF`; unassigned and noncharacters; any code point in `U+0900..U+097F`, `U+A8E0..U+A8FF` (Devanagari Extended) or `U+11B00..U+11B5F` (Devanagari Extended-A) that is not in a row above; a tag character in a Devanagari-based cluster or starting its cluster |
 
 Implementation: each row is a sorted `const` slice of inclusive ranges searched by binary search
 (`tables.rs`); unit tests prove the slices are sorted and disjoint and that the Devanagari block
@@ -52,27 +56,48 @@ allowed controls.
 
 Standalone (never flagged on their own): digits, danda, avagraha, om, abbreviation sign, high
 spacing dot, space and other `Zs`, punctuation, Latin and other-script letters without Devanagari
-marks, emoji and symbols. One exception, because `zwj_zwnj_misplaced` has no script condition: a
-ZWJ or ZWNJ whose preceding code point is not a virama is flagged wherever it appears, so joiners
-inside emoji sequences (a family emoji is several emoji joined by ZWJ) or inside Arabic-script
-words (Persian writes ZWNJ within words) are flagged as `zwj_zwnj_misplaced` (weight 200). Emoji
-and symbols are never flagged on their own; their joiners are. Restricting the rule to Devanagari
-bases is listed for glyphsift v0.1 (see the CHANGELOG); no rule changed after the first bench run.
+marks, emoji and symbols.
 
-Not flagged, by a known gap: invisible or non-Indic Extend characters attached to a Devanagari base.
-Unicode tag characters (`U+E0001` and `U+E0020..U+E007F`) and non-Indic combining marks such as
-`U+0301` have Grapheme_Cluster_Break=Extend, so they join the preceding cluster, and no rule looks at
-them: a Devanagari consonant followed by `U+E0041` is one cluster with no issue, and a line that
-contains such characters can score clean even though the tag characters are invisible (hidden text
-survives a clean verdict). By contrast a combining mark from another Indic block, such as Bengali
-`U+09BE`, is flagged as `mixed_script_in_cluster`. Weights, corpus and rules are frozen after the first
-bench run, so this is documented, not changed; flagging both classes, table cases first, is listed for
-glyphsift v0.1 (see the CHANGELOG, BUG-T2-S2-15).
+**Devanagari-based clusters.** A cluster is Devanagari-based when its first code point is
+Devanagari-class: a letter, digit, danda, avagraha, om, abbreviation sign or any Devanagari combining
+mark in `U+0900..U+097F` (not a joiner, a control, a space or anything from another script). The
+parser computes this once per cluster (`Slot::devanagari_base`). Two rules look at it:
+
+- **Joiners (rule 13, BUG-T2-S2-07).** A ZWJ or ZWNJ is flagged only when its preceding code point is
+  not a virama **and** the cluster is Devanagari-based **or** the joiner starts its cluster (the very
+  start of the text, or after a line terminator or other control, where UAX #29 GB4 makes it a cluster
+  of its own). So a joiner inside an emoji ZWJ sequence (a family emoji, the rainbow flag), a Persian
+  word written with a ZWNJ, or Latin or Arabic text with a ZWJ is not flagged: the cluster's first code
+  point is an emoji or a letter of another script. Still flagged: consonant + ZWJ without a virama, a
+  second joiner after a virama's joiner, a lone joiner. By the same rule a joiner that joins a space's
+  cluster (`" " + ZWJ`) is **not** flagged, since a space is not Devanagari-class and the joiner does not
+  start the cluster; this is a deliberate consequence of the rule, and the benchmark's
+  `joiner_inject` family no longer expects rule 13 at such a site.
+- **Tag characters (rule 15, BUG-T2-S2-15).** A Unicode tag character (`U+E0001`, `U+E0020..U+E007F`)
+  is invisible and is Extend for UAX #29 (except `U+E0001`, which is a Control and always its own
+  cluster), so it joins the cluster before it. In a Devanagari-based cluster, or starting its own
+  cluster, it is `unexpected_code_point`: a Devanagari consonant followed by `U+E0041` no longer scores
+  clean. A tag in a non-Devanagari cluster (the England flag, black flag plus tag letters) is part of
+  an emoji tag sequence and is not flagged; so is a tag after a Latin letter (hidden text outside
+  Devanagari clusters is out of scope for this validator). A tag that starts a cluster belongs to no
+  emoji tag sequence, so it is flagged: this is also how `U+E0001` is caught.
+
+**Foreign combining marks (rule 14, BUG-T2-S2-15).** A combining mark (general category Mn, Mc or Me)
+that is not Devanagari, not Devanagari Extended or Extended-A, not a Vedic Extensions mark and not a
+variation selector, on a Devanagari-based base (consonant, nukta consonant, independent vowel, digit,
+danda, avagraha, om, abbreviation sign) is `mixed_script_in_cluster`, the same issue as a Bengali mark
+on a Devanagari base always was: `क` + `U+0301`, `क` + `U+20D7`, `१` + `U+0301` are flagged, and the
+cluster reports that one issue only (rule 14 is exclusive). `e` + `U+0301`, a keycap sequence and a
+space with a mark are not Devanagari-based and are not flagged. Variation selectors are not flagged on
+any base, and Vedic Extensions marks are not flagged on a Devanagari base. A combining grapheme joiner
+(`U+034F`, Mn) is a foreign mark. Documented limit: a cluster that starts with a Devanagari combining
+mark (a matra at the start of a line) is judged by the Devanagari rules for that mark and not by rule
+14.
 
 "Devanagari mark" below means any of: nukta, virama, matra, bindu, visarga, Vedic sign. "Other
 script" means a base letter (`L*` general category) outside `U+0900..U+097F`, `U+A8E0..U+A8FF`,
-`U+11B00..U+11B5F`; a combining mark from another Indic block (for example Bengali `U+09BE`) on a
-Devanagari base is also "other script".
+`U+11B00..U+11B5F`; a foreign combining mark (see above: another Indic block such as Bengali
+`U+09BE`, or a non-Indic mark such as `U+0301`) on a Devanagari base is also "other script".
 
 ## 3. Cluster grammar
 
@@ -96,7 +121,7 @@ small pure predicate over that record. A new consonant after a virama starts a f
 
 Notes: at most one matra; at most one bindu; bindu before visarga; nukta directly after its
 consonant; virama directly after a consonant (or after its nukta); ZWJ/ZWNJ only directly after a
-virama; a trailing virama (dead consonant) is valid; `र्‍` (ra virama ZWJ, the eyelash reph) is the
+virama (in a Devanagari-based cluster; a joiner in another script's cluster is that script's business); a trailing virama (dead consonant) is valid; `र्‍` (ra virama ZWJ, the eyelash reph) is the
 `dead`/`syllable` grammar with ZWJ and is valid.
 
 ## 4. Rules
@@ -118,9 +143,9 @@ order. `code_point` names the offending code point as `U+XXXX`.
 | `multiple_anusvara_like` | a second bindu (anusvara, chandrabindu, inverted chandrabindu) in the cluster | `double_anusvara`, `chandrabindu_anusvara` |
 | `visarga_before_anusvara` | visarga followed by a bindu | `visarga_before_anusvara` (`कंः` is valid) |
 | `vowel_sign_on_independent_vowel` | a matra directly after an independent vowel | `matra_on_independent_a`, `matra_on_independent_i` |
-| `zwj_zwnj_misplaced` | ZWJ or ZWNJ whose preceding code point is not a virama | `zwj_between_consonants`, `zwnj_at_start`, `zwj_after_matra` |
-| `mixed_script_in_cluster` | the cluster's base is from another script and carries a Devanagari mark, or a Devanagari base carries a mark from another Indic block. Suppresses the other mark rules for that cluster (one issue, the root cause). | `latin_base_devanagari_matra`, `bengali_mark_on_devanagari`, `tamil_base_devanagari_virama` |
-| `unexpected_code_point` | any code point in the "Unexpected" row of the table | `replacement_char`, `private_use`, `private_use_legacy_font` |
+| `zwj_zwnj_misplaced` | ZWJ or ZWNJ whose preceding code point is not a virama, in a Devanagari-based cluster or starting its cluster (not in emoji, Persian, Arabic or Latin clusters) | `zwj_between_consonants`, `zwnj_at_start`, `zwj_after_matra`, `double_joiner_after_virama`; not flagged: `emoji_family_zwj`, `persian_zwnj_word` |
+| `mixed_script_in_cluster` | the cluster's base is from another script and carries a Devanagari mark, or a Devanagari base carries a foreign combining mark (another Indic block, or non-Indic such as `U+0301`; not a variation selector or a Vedic Extensions mark). Suppresses the other rules for that cluster (one issue, the root cause). | `latin_base_devanagari_matra`, `bengali_mark_on_devanagari`, `tamil_base_devanagari_virama`, `ka_combining_acute`, `ka_combining_enclosing_keycap` |
+| `unexpected_code_point` | any code point in the "Unexpected" row of the table, including a tag character in a Devanagari-based cluster or starting its cluster | `replacement_char`, `private_use`, `private_use_legacy_font`, `tag_a_after_consonant`, `tag_language_tag` |
 | `control_character` | any code point in the "Control (flagged)" row | `control_bell`, `bidi_control`, `bom_mid_text`, `nul` |
 
 Where the table above is silent, the implementation generalises as follows (each has a case in the
@@ -131,7 +156,8 @@ directly after a virama is `nukta_on_non_consonant`; a second visarga is not fla
 `sign_before_matra`, `multiple_anusvara_like` and `double_matra` the cluster's code points are
 counted since the current consonant started, wherever they sit.
 
-Precedence: `mixed_script_in_cluster` is exclusive for its cluster. `control_character` and
+Precedence: `mixed_script_in_cluster` is exclusive for its cluster (a cluster with both a foreign mark and
+a tag reports the foreign mark only). `control_character` and
 `unexpected_code_point` clusters are single code points under UAX #29 and produce exactly that one
 issue. Otherwise every rule that fires is reported.
 
@@ -173,7 +199,7 @@ input over 4 MiB, 2 on a usage error. Python: `glyphsift.validate(text) -> str`,
 `ValueError` over the limit). WASM: `validate(text) -> string`, `score_ppm(text) -> number`,
 `report_spec()`, `clusters`, `clusters_json`, `issue_kinds` (all throw on over-limit input and never
 trap). Scores are integers in parts per million, never floats, so the
-canonical JSON stays bit-identical across runtimes.
+canonical JSON stays bit-identical across runtimes for valid Unicode text.
 
 ## 6. Score and canonical JSON
 
@@ -223,8 +249,8 @@ changes every score, so it is a `CHANGELOG.md` entry with its reason.
 collection a `Vec` in input order (`by_kind` and `weights` are `BTreeMap`s keyed by `IssueKind`, so
 they follow declaration order), strings escaped exactly as JSON.stringify does (`"`, `\`,
 `U+0000..U+001F`; `/` not escaped), no floating-point values anywhere. `serde_json` is built without
-`preserve_order`. This is what makes the native, Python and WASM outputs byte-identical;
-`scripts/determinism.sh` checks it on eleven samples and the WASM safety script on 20,000 fuzz
+`preserve_order`. This is what makes the native, Python and WASM outputs byte-identical for valid Unicode text;
+`scripts/determinism.sh` checks it on thirteen samples and the WASM safety script on 20,000 fuzz
 inputs.
 
 ## 7. Known gaps
@@ -240,3 +266,22 @@ inputs.
   scores clean.
 - Scripts other than Devanagari are plain text: a Latin or Tamil word with no Devanagari mark is
   never flagged.
+- Variation selectors (`U+FE00..U+FE0F`, `U+E0100..U+E01EF`) are not flagged on a Devanagari base:
+  they change nothing visible there, and a Devanagari consonant followed by one scores clean.
+- Invisible text outside Devanagari-based clusters is not looked for: a tag character after a Latin
+  letter, or a joiner on a space's cluster, is not flagged.
+- **Invisible and default-ignorable characters score clean (the invisible-text gap is not fully closed).**
+  After a Devanagari base, each of these is accepted today and costs nothing; the table pins every one as
+  a `known_gap_*` case in `crates/glyphsift-core/tests/cases/devanagari.toml`:
+  - `U+200B` ZERO WIDTH SPACE, `U+2060` WORD JOINER, `U+00AD` SOFT HYPHEN and `U+2062` INVISIBLE TIMES. UAX #29
+    puts each in a cluster of its own, so no per-cluster rule sees it next to the base.
+  - In-cluster Extend characters whose General_Category is not Mn, Mc or Me: `U+1F3FB..U+1F3FF` (emoji
+    modifiers, Sk) and `U+FF9E`, `U+FF9F` (halfwidth voiced and semi-voiced marks, Lm). They join the base's
+    cluster, and the combining-mark rules look only at Mn, Mc and Me.
+  Tag characters, bidi controls and foreign Mn/Mc/Me marks inside a Devanagari cluster are flagged (BUG-T2-S2-15);
+  the list above is what is still not. Closing it needs a rule change, a new score weight and a new bench
+  CSV, so it is deferred and the rule count stays 16.
+- **Lone surrogates differ by runtime (valid Unicode text is identical everywhere).** A Rust `str` cannot hold a
+  lone surrogate, so each binding handles it at its own boundary: Python raises `UnicodeEncodeError` before the
+  validator runs; WASM and JavaScript replace it with `U+FFFD`, which is reported as `unexpected_code_point`; the
+  CLI refuses invalid UTF-8 with exit code 1. The byte-identical guarantee is for valid Unicode text.
