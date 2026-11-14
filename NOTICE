@@ -5,7 +5,56 @@ This product includes software developed at Airplane Mode Labs (https://github.c
 
 Third-party notices
 -------------------
-Segmentation data and rules follow Unicode Standard Annex #29 (Unicode Text Segmentation),
-Copyright Unicode, Inc., used under the Unicode License v3 (Unicode-3.0) through the
-unicode-segmentation crate (MIT OR Apache-2.0). No Unicode data files are redistributed in this
-repository.
+glyphsift has no runtime dependency to install, but third-party Rust crates are compiled into the
+artifacts it ships. This list was derived from `cargo tree -e normal --target all` for glyphsift-py (the wheel),
+glyphsift-wasm (the npm package) and glyphsift-cli, with each licence read from `cargo metadata`
+(Cargo.lock pins the exact versions). Each crate is used under the licence shown; where it offers a
+choice (OR), glyphsift takes the permissive option named first in this file's table. The full licence text
+of each crate is in its own source package on crates.io; glyphsift does not bundle those texts.
+
+Unicode data. Segmentation follows Unicode Standard Annex #29 (Unicode Text Segmentation), Copyright
+Unicode, Inc., Unicode License v3 (Unicode-3.0). Compiled tables derived from the Unicode Character
+Database ARE redistributed inside the wheel, the WASM and the CLI binary: unicode-segmentation carries the
+grapheme-break tables and unicode-general-category 1.1.0 (Apache-2.0) carries the General_Category
+tables (Unicode 16.0). No Unicode data files are shipped as files; only these compiled tables are.
+
+Crates compiled into the wheel (glyphsift-py), the WASM (glyphsift-wasm) or the CLI (glyphsift-cli)
+(W = wheel, M = WASM, C = CLI; "build" = proc-macro or build-time only, no code from it is in the artifact):
+
+  Crate                       Version   Licence                 In
+  unicode-segmentation        1.13.3    MIT OR Apache-2.0       W M C
+  unicode-general-category    1.1.0     Apache-2.0              W M C
+  zmij                        1.0.23    MIT                     W M C
+  serde                       1.0.229   MIT OR Apache-2.0       W M C
+  serde_core                  1.0.229   MIT OR Apache-2.0       W M C
+  serde_json                  1.0.154   MIT OR Apache-2.0       W M C
+  itoa                        1.0.18    MIT OR Apache-2.0       W M C
+  memchr                      2.8.3     Unlicense OR MIT        W M C
+  thiserror                   2.0.21    MIT OR Apache-2.0       W M C
+  pyo3                        0.30.1    MIT OR Apache-2.0       W
+  pyo3-ffi                    0.30.1    MIT OR Apache-2.0       W
+  libc                        0.2.191   MIT OR Apache-2.0       W C
+  once_cell                   1.21.4    MIT OR Apache-2.0       W M
+  portable-atomic             1.15.0    Apache-2.0 OR MIT       W
+  wasm-bindgen                0.2.129   MIT OR Apache-2.0       M
+  wasm-bindgen-shared         0.2.129   MIT OR Apache-2.0       M
+  cfg-if                      1.0.5     MIT OR Apache-2.0       M
+  bumpalo                     3.20.3    MIT OR Apache-2.0       M
+  clap, clap_builder          4.6.7     MIT OR Apache-2.0       C
+  clap_lex                    1.1.1     MIT OR Apache-2.0       C
+  anstream                    1.0.0     MIT OR Apache-2.0       C
+  anstyle                     1.0.14    MIT OR Apache-2.0       C
+  anstyle-parse               1.0.0     MIT OR Apache-2.0       C
+  anstyle-query               1.1.5     MIT OR Apache-2.0       C
+  anstyle-wincon (Windows)    3.0.11    MIT OR Apache-2.0       C
+  windows-sys (Windows)       0.61.2    MIT OR Apache-2.0       C
+  windows-link (Windows)      0.2.1     MIT OR Apache-2.0       C
+  colorchoice                 1.0.5     MIT OR Apache-2.0       C
+  is_terminal_polyfill        1.70.2    MIT OR Apache-2.0       C
+  once_cell_polyfill (Windows) 1.70.2   MIT OR Apache-2.0       C
+  strsim                      0.11.1    MIT                     C
+  utf8parse                   0.2.2     Apache-2.0 OR MIT       C
+  clap_derive, serde_derive, thiserror-impl, pyo3-macros, pyo3-macros-backend, wasm-bindgen-macro(-support),
+  proc-macro2, quote, syn, heck, unicode-ident: build (proc-macros)
+
+The standard library of the Rust toolchain (MIT OR Apache-2.0) is linked into every artifact.

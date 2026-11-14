@@ -21,3 +21,6 @@
 # CRLF, bare CR and a BOM); git must never normalise them.
 tests/determinism/samples/* -text
 tests/determinism/expected/* -text
+
+# Demo test fixtures include invalid UTF-8, a BOM and CRLF on purpose; git must never normalise them.
+tests/demo/fixtures/* -text

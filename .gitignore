@@ -36,3 +36,6 @@ coverage/
 # browser test caches and local scratch
 .playwright/
 .scratch/
+
+# npm pack tarballs
+*.tgz

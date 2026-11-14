@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>glyphsift npm package: bundler-free import check</title>
+<link rel="icon" href="data:,">
+</head>
+<body>
+<!-- Test page for tests/npm/check_browser.mjs. Served from a fresh `npm i` directory: it imports the
+     installed package by its relative path, with no bundler and no import map. -->
+<pre id="out">loading</pre>
+<script type="module">
+import init, { validate, score_ppm, report_spec, clusters } from "./node_modules/@airplanemode/glyphsift/web/glyphsift.js";
+
+const out = document.getElementById("out");
+try {
+  await init();
+  const result = {
+    spec: report_spec(),
+    report: validate("नमस्ते।"),
+    ppm: score_ppm("कखग�"),
+    clusters: JSON.parse(clusters("नमस्ते।")),
+  };
+  window.__glyphsift = result;
+  out.textContent = "ok " + result.ppm;
+} catch (err) {
+  window.__glyphsiftError = String(err);
+  out.textContent = "error " + String(err);
+}
+</script>
+</body>
+</html>

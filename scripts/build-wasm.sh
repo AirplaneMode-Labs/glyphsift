@@ -30,6 +30,9 @@ if [ "$PINNED" != "$INSTALLED" ]; then
 fi
 command -v wasm-opt >/dev/null || { echo "error: wasm-opt not found (brew install binaryen / apt install binaryen)" >&2; exit 1; }
 
+# Builder paths (home, cargo, rustup, checkout) are remapped so they do not end up in the .wasm panic strings.
+# shellcheck source=scripts/remap-paths.sh
+. scripts/remap-paths.sh
 cargo build --profile wasm --target wasm32-unknown-unknown -p glyphsift-wasm
 RAW=target/wasm32-unknown-unknown/wasm/glyphsift_wasm.wasm
 

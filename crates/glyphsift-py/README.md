@@ -1,35 +1,75 @@
 # glyphsift (Python wheel)
 
-Python bindings for [glyphsift](https://github.com/AirplaneMode-Labs/glyphsift), the
-deterministic Devanagari grapheme-cluster validator for extracted Indic text. The full
-documentation, benchmarks, limitations and security notes live in the repository README.
+Python bindings for [glyphsift](https://github.com/AirplaneMode-Labs/glyphsift), the deterministic
+Devanagari grapheme-cluster validator for extracted Indic text: sixteen structural rules, a document
+score from 0 to 1 as an integer in parts per million, no model and no network. Part of
+[Airplane Mode Labs](https://github.com/AirplaneMode-Labs).
 
-Package names use the placeholder scope `@airplanemode` / crate names `glyphsift` until the
-handles are reserved; nothing is published yet.
+Status: release candidate, not tagged.
 
-## Use
+## Install
 
-```python
-import glyphsift
+Not published yet: the npm scope @airplanemode and the PyPI and crates.io names are not reserved. The commands below were proven from locally built artifacts on macOS arm64 (an npm pack tarball installed offline into a fresh empty directory, a wheel installed into a fresh venv); publishing to the registries is the owner's step.
 
-report_json = glyphsift.validate(text)   # canonical JSON, byte-identical to the CLI and the WASM build
-ppm = glyphsift.score_ppm(text)          # integer score in parts per million, 1000000 is clean
-glyphsift.clusters(text)                 # UAX #29 extended grapheme clusters, as a list of str
-```
+The wheel proven here is `glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl`: platform tag
+`macosx_11_0_arm64` (macOS on Apple silicon), `abi3`, so one wheel serves every CPython 3.9 or later on
+that platform. **Linux and Windows wheels are not built yet.** There is no source distribution.
 
-`validate`, `score_ppm` and `clusters` raise `ValueError` for input over 4 MiB, with the same message. Limitations: structural checks only,
-Devanagari only, nothing published yet; see the repository README.
-
-## Build
-
-From the repository root:
+Install the locally built wheel into a fresh environment, offline (both ways were run):
 
 ```sh
-uvx maturin build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels
+python3 -m venv venv && venv/bin/pip install --no-index --no-deps glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
+uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
 ```
 
-The wheel is `abi3` (`cp39-abi3`): one wheel per platform for every CPython >= 3.9.
+Build the wheel from a clone of the repository:
+
+```sh
+. scripts/remap-paths.sh && uvx maturin@1.16.0 build --release -m crates/glyphsift-py/Cargo.toml -o target/wheels
+```
+
+### After the owner publishes
+
+```sh
+pip install glyphsift
+```
+
+## Quick start
+
+```python
+import json
+import glyphsift
+
+report = json.loads(glyphsift.validate("नमस्ते।"))   # canonical JSON: the same bytes as `glyphsift check` and the WASM build
+print(report["score"]["ppm"])                         # 1000000 is clean
+print(glyphsift.score_ppm("कखग\ufffd"))               # 750000: one of four clusters is broken
+print(glyphsift.clusters("नमस्ते।"))                  # ['न', 'म', 'स्ते', '।']
+```
+
+`validate`, `score_ppm` and `clusters` raise `ValueError` ("input is too large ...") for input over
+4 MiB. The package ships type stubs (`glyphsift.pyi` and `py.typed`), so `mypy --strict` and editors
+see `validate(text: str) -> str`, `score_ppm(text: str) -> int` and `clusters(text: str) -> list[str]`.
+
+## Limitations
+
+- Release candidate, not tagged, and not published: no registry has this package.
+- Only a macOS arm64 wheel was built and installed (tag `macosx_11_0_arm64`). Linux and Windows wheels
+  are not built yet; there is no source distribution.
+- Structural checks only: it judges the order and combination of code points inside one grapheme
+  cluster. A well-formed nonsense word, or a visually plausible OCR confusion, scores clean.
+- Devanagari only. Text in other scripts is plain text and is never flagged.
+- Checked on synthetic text only. No real document has been scored, and the weights are an author's
+  judgement, not calibrated.
+- Joiners (ZWJ, ZWNJ) in emoji, Persian, Arabic or Latin clusters are not flagged; a joiner that joins
+  a space's cluster is not flagged either. Variation selectors on a Devanagari base are not flagged.
+- Input over 4 MiB is refused. No benchmark exists on an 8 GB Windows no-GPU laptop (not measured).
+- The full list, with the benchmark, is in the repository README.
+
+## Security and privacy
+
+No network access and no telemetry; the extension reads only the string it is given and holds no state
+between calls. Input is treated as untrusted text and is capped at 4 MiB.
 
 ## Licence
 
-Apache-2.0; see `LICENSE` and `NOTICE` in this directory (copies of the repository files).
+Apache-2.0; see `LICENSE` and `NOTICE` (copies of the repository files).
