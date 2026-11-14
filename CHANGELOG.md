@@ -267,6 +267,20 @@ the owner's open steps are in [docs/release.md](docs/release.md). Sprint 3 entri
 - `crates/glyphsift-py` now carries the `README.md`, `LICENSE` and `NOTICE` files its
   `pyproject.toml` names, so `uvx maturin build --release` produces the cp39-abi3 wheel (it failed
   with "Failed to read readme specified in pyproject.toml").
+- Sprint 3 fix round 2: the demo serves `LICENSE` and a `NOTICE` that appends the MIT texts of the two WASM
+  crates not offered under Apache-2.0 (memchr, zmij; `scripts/demo-notice-extra.txt`), the page footer links
+  it, and `tests/demo/check_demo.mjs` checks both. T3-S3-023
+- Sprint 3 fix round 2: every 8 GB Windows no-GPU laptop cell in the README Benchmarks tables reads exactly
+  "not measured" (the score tables had read "not applicable (deterministic score)"), and the CLI test now
+  requires that wording in all three tables.
+- Sprint 3 fix round 2: "byte-identical across native, Python and WASM" is qualified "for valid Unicode text"
+  in the README API and determinism sections, the Benchmarks note and `docs/devanagari-rules.md`.
+  BUG-T2-S3-22-R2
+- Sprint 3 fix round 2: `NOTICE` and its copies in the crates are derived with
+  `cargo tree -e normal --target all` and now list the Windows-only crates windows-sys, windows-link and
+  once_cell_polyfill; `*.tgz` is git-ignored; the README install citations point at the round-2 wheel, npm
+  and CLI install logs; the Python binding README builds with `scripts/remap-paths.sh` and `maturin@1.16.0`.
+  These changelog lines close BUG-T2-S3-21-R2.
 
 ### Dependencies
 

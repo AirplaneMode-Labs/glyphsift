@@ -277,7 +277,7 @@ The twelve triggering families, mean of seeds 1 to 3:
 | `mixed_script` | 0.9806 | 0.8510 | not measured |
 | `control_leak` | 0.9516 | 0.7108 | not measured |
 
-Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh); no run on the 8 GB Windows laptop has been made.
+Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh) for valid Unicode text; no run on the 8 GB Windows laptop has been made.
 
 Recall at p=0.05, the share of corrupted sites that declare an expected rule for which that rule fired in
 the damaged cluster, is 1.000000 for every family that declares a rule, in every seed that has one
