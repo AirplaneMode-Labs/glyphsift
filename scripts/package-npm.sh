@@ -12,11 +12,18 @@
 #
 # Environment: WASM_OUT (default dist/wasm; a relative path inside the repository, same rules as
 # build-wasm.sh); SCRATCH (a directory that does not exist yet, or empty; default a fresh mktemp -d)
-# holds the install directory and the empty npm cache; PLAYWRIGHT_DIR (a directory where
-# `npm i playwright@1.65.0` ran) enables the browser check; CLI (default target/release/glyphsift) is
+# holds the install directory and the empty npm cache (it is resolved to its physical path, symlinks
+# followed, before use); PLAYWRIGHT_DIR (tools/playwright
+# after `npm ci --prefix tools/playwright --ignore-scripts`, or any directory with playwright@1.65.0
+# installed) enables the browser check; CLI (default target/release/glyphsift) is
 # the native binary the Node and browser output is compared with.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Physical paths only (BUG-T2-S3-19-R2): npm writes the tarball's file: dependency relative to the real
+# path of the install directory and `npm ls --prefix` resolves it from the path it is given, so a path
+# through a symlink (macOS: /var is a link to /private/var) made `npm ls` report the one installed
+# package as invalid. The checkout path is resolved here and the scratch path below.
+cd "$(pwd -P)"
 
 # Same guard as build-wasm.sh: a set-but-empty, absolute, drive-letter, backslash or '..' path is refused.
 SRC=${WASM_OUT-dist/wasm}
@@ -30,7 +37,7 @@ done
 VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 [ -n "$VERSION" ] || { echo "error: no workspace version in Cargo.toml" >&2; exit 1; }
 CLI=${CLI:-target/release/glyphsift}
-[ -x "$CLI" ] || cargo build -q --release -p glyphsift-cli
+[ -x "$CLI" ] || cargo build -q --release --locked -p glyphsift-cli
 
 OUT=dist/npm
 rm -rf "./$OUT"
@@ -75,6 +82,8 @@ echo "== builder-path gate: no packed file may contain /Users/, /home/ or /priva
 python3 -I scripts/check-no-builder-paths.py "$TGZ"
 
 SCRATCH=${SCRATCH:-$(mktemp -d)}
+mkdir -p "$SCRATCH"
+SCRATCH=$(cd "$SCRATCH" && pwd -P)
 INSTALL=$SCRATCH/install
 CACHE=$SCRATCH/npm-cache-empty
 for d in "$INSTALL" "$CACHE"; do
@@ -94,6 +103,6 @@ if [ -n "${PLAYWRIGHT_DIR:-}" ]; then
   echo "== browser: bundler-free page in installed Chrome"
   node tests/npm/check_browser.mjs --dir "$INSTALL" --cli "$CLI" ${SHOTS:+--shots "$SHOTS"}
 else
-  echo "browser check skipped: set PLAYWRIGHT_DIR to a directory with playwright@1.65.0 installed"
+  echo "browser check skipped: run npm ci --prefix tools/playwright --ignore-scripts and set PLAYWRIGHT_DIR=tools/playwright"
 fi
 echo "npm package ok: @airplanemode/glyphsift $VERSION ($(basename "$TARBALL"))"
