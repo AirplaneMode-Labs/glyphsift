@@ -2,7 +2,7 @@
 # Assemble the static demo into demo/dist/ for GitHub Pages (https://airplanemode-labs.github.io/glyphsift/).
 #   1. scripts/build-wasm.sh  -> dist/wasm/web/{glyphsift.js,glyphsift_bg.wasm}
 #   2. copy demo/{index.html,app.js,styles.css,samples.js} and the two web-target files into demo/dist/
-#   2b. copy LICENSE and NOTICE (plus scripts/demo-notice-extra.txt) into demo/dist/
+#   2b. copy LICENSE, and NOTICE (which ends with scripts/demo-notice-extra.txt) as NOTICE.txt, into demo/dist/
 #   3. write demo/dist/build.json {id, sha}: id = first 16 hex of sha256(glyphsift.js ++ glyphsift_bg.wasm),
 #      sha = $GITHUB_SHA when it is a full 40-hex commit id, otherwise "local" (the page shows the
 #      first 12 characters of a commit, or "local")
@@ -30,9 +30,11 @@ mkdir -p "$OUT/pkg"
 cp demo/index.html demo/app.js demo/styles.css demo/samples.js "$OUT/"
 cp "$WEB/glyphsift.js" "$WEB/glyphsift_bg.wasm" "$OUT/pkg/"
 # Notices for the compiled crates: LICENSE (Apache-2.0) covers every crate offered under Apache-2.0; NOTICE
-# is copied with the MIT texts of the two WASM crates that are not (memchr, zmij) appended.
+# is written as NOTICE.txt (the root NOTICE already ends with the MIT texts of the two crates that are not Apache-2.0: memchr, zmij).
+# The .txt extension matters: GitHub Pages serves a file with no extension as application/octet-stream, so
+# a link to a bare NOTICE downloads it instead of showing it (BUG-T1-S3-R2-01). There is no bare NOTICE.
 cp LICENSE "$OUT/LICENSE"
-cat NOTICE scripts/demo-notice-extra.txt > "$OUT/NOTICE"
+cp NOTICE "$OUT/NOTICE.txt"
 
 sha256_of_stream() {
   if command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1

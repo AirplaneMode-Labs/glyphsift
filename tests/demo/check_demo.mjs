@@ -12,8 +12,9 @@
 // size checked before the file is read), and the source grep (no innerHTML, insertAdjacentHTML,
 // document.write or style attribute). --shots saves screenshots of the adversarial heatmap and a drop.
 //
-// Playwright is not a dependency of this repository: install it anywhere ("npm i playwright" in a
-// scratch directory) and point PLAYWRIGHT_DIR at that directory. Chrome is used through
+// Playwright is not a dependency of glyphsift: `npm ci --prefix tools/playwright --ignore-scripts` installs
+// 1.65.0 from the committed lockfile (every package pinned by integrity hash); point PLAYWRIGHT_DIR at
+// tools/playwright (any directory with playwright installed also works). Chrome is used through
 // `channel: "chrome"`, so no browser is downloaded. Exit 0 when every check passes.
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -50,7 +51,9 @@ function check(ok, what, detail = "") {
 }
 
 // ---- a server that serves dist under /glyphsift/ and nothing else --------------------------------
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".wasm": "application/wasm" };
+// The extension map GitHub Pages uses for these files; an extension it does not know (or no extension, as
+// in a bare NOTICE or LICENSE) is served as application/octet-stream, which a browser downloads instead of showing.
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".wasm": "application/wasm", ".txt": "text/plain; charset=utf-8" };
 const served = [];
 const server = createServer((req, res) => {
   const url = new URL(req.url, "http://x");
@@ -153,19 +156,42 @@ if (ready) {
   const get = async (p) => (await fetch(`${origin}${p}`, { redirect: "manual" })).status;
   check((await get("/")) === 404 && (await get("/pkg/glyphsift.js")) === 404 && (await get("/index.html")) === 404, "the server answers 404 outside /glyphsift/");
   check((await get(`${BASE}pkg/glyphsift_bg.wasm`)) === 200, "the wasm module is served under /glyphsift/pkg/");
-  const noticeHref = await page.locator('footer a[href="NOTICE"]').getAttribute("href");
-  check(noticeHref === "NOTICE" && (await get(`${BASE}NOTICE`)) === 200 && (await get(`${BASE}LICENSE`)) === 200, "the footer links the third-party NOTICE, served with LICENSE under /glyphsift/");
-  const noticeText = await (await fetch(`${origin}${BASE}NOTICE`)).text();
-  check(noticeText.includes("zmij") && noticeText.includes("memchr 2.8.3 (MIT)"), "the served NOTICE carries the MIT texts of the non-Apache WASM crates");
+  // BUG-T1-S3-R2-01: the third-party notice is NOTICE.txt, so that Pages serves it as text/plain and the link displays it.
+  check((await page.locator('footer a[href="NOTICE.txt"]').count()) === 1 && (await page.locator('footer a[href="NOTICE"]').count()) === 0, "the footer links NOTICE.txt (an extensionless NOTICE is served as a download)");
+  const noticeRes = await fetch(`${origin}${BASE}NOTICE.txt`);
+  const noticeType = noticeRes.headers.get("content-type") ?? "";
+  check(noticeRes.status === 200 && noticeType.startsWith("text/plain"), "NOTICE.txt is served with a text/plain content type", noticeType);
+  check((await get(`${BASE}LICENSE`)) === 200, "LICENSE is served under /glyphsift/");
+  check((await get(`${BASE}NOTICE`)) === 404, "there is no extensionless NOTICE next to NOTICE.txt");
+  const noticeText = await noticeRes.text();
+  check(noticeText.includes("zmij 1.0.23 (MIT). The licence file carries no copyright line; the author named in its Cargo.toml is David Tolnay."), "the served NOTICE.txt carries the zmij paragraph: MIT, author named from Cargo.toml (TD-05)");
+  check(noticeText.includes("memchr 2.8.3 (MIT)") && noticeText.includes("Permission is hereby granted, free of charge"), "the served NOTICE.txt carries the MIT texts of the non-Apache WASM crates");
+  {
+    // Chrome shows the file: a text/plain document, no download event, the paragraph in the visible text.
+    const viewer = await page.context().newPage();
+    let downloads = 0;
+    viewer.on("download", () => (downloads += 1));
+    const res = await viewer.goto(`${origin}${BASE}NOTICE.txt`, { waitUntil: "load" });
+    const shown = await viewer.evaluate(() => ({ type: document.contentType, text: document.body.innerText }));
+    check(res?.status() === 200 && shown.type === "text/plain" && downloads === 0 && shown.text.includes("zmij 1.0.23 (MIT)"), "opening NOTICE.txt in Chrome displays it as text (no download)", `${shown.type}, ${downloads} downloads`);
+    await viewer.close();
+  }
 
   // CSP and status line
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
   check(csp === EXPECTED_CSP, "the strict meta CSP is unchanged", csp === EXPECTED_CSP ? "" : csp);
   const status = await text("#build-line");
   check(/Built from main at (local|[0-9a-f]{12})\b/.test(status) && status.includes("glyphsift.report/0.2"), "the status line shows the build id and report 0.2", status.trim());
+  // T1-S4-R1-05: a static #sprint-status line equal to the status-line text recorded in site/data/demos.json.
+  const SPRINT_STATUS = "Sprint 4 (14 Nov 2026): Working: paste, drop or choose a UTF-8 .txt file up to 1 MiB of Devanagari text and get a document score, a per-line strip and table, a per-cluster heatmap, and the count of each of the sixteen rules; a file that is not UTF-8 or is over 1 MiB is refused in plain text; computed in WebAssembly in the tab, with 0 requests after the page loads; the footer names the licence (Apache-2.0) and links the third-party notices (NOTICE.txt). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel (Linux and Windows wheels are built only by CI after the owner's push), 8 GB figures (not measured on 8 GB).";
+  const sprintStatus = (await text("#sprint-status")).trim();
+  check(sprintStatus === SPRINT_STATUS, "the #sprint-status line is exactly the agreed text", sprintStatus.slice(0, 80));
+  check((await page.locator("#sprint-status script, script:not([src])").count()) === 0, "the page has no inline script");
   check((await text("#not-yet h2")).trim() === "What this demo does not do yet", "the not-yet box is headed exactly 'What this demo does not do yet'");
   const notYet = (await text("#not-yet")).toLowerCase();
   for (const word of ["devanagari only", "structural checks only", "not calibrated", "service worker", "nothing is published"]) check(notYet.includes(word), `the not-yet box mentions "${word}"`);
+  // Sprint 4 (D3-04): Tamil is the planned second script; Linux and Windows wheels come only from CI after the push.
+  for (const word of ["tamil planned for v0.2", "bengali later", "linux and windows wheels are built only by ci after the owner's push"]) check(notYet.includes(word), `the not-yet box says "${word}"`);
   for (const word of ["heatmap", "drag", "drop"]) check(!notYet.includes(word), `the not-yet box no longer lists "${word}" (the demo does it now)`);
   check(!notYet.includes("not implemented") && !notYet.includes("unimplemented"), "the not-yet box no longer claims validate() is missing");
   check((await page.locator("#drop-zone").count()) === 1 && (await page.locator('#file-input[type="file"][accept=".txt,text/plain"]').count()) === 1, "a drop zone and a file input accepting .txt and text/plain are on the page");

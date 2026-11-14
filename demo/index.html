@@ -25,6 +25,7 @@
         this page's own files.
       </p>
       <p class="status" id="build-line">Built from main at <code>…</code> by .github/workflows/pages.yml</p>
+      <p class="status" id="sprint-status">Sprint 4 (14 Nov 2026): Working: paste, drop or choose a UTF-8 .txt file up to 1 MiB of Devanagari text and get a document score, a per-line strip and table, a per-cluster heatmap, and the count of each of the sixteen rules; a file that is not UTF-8 or is over 1 MiB is refused in plain text; computed in WebAssembly in the tab, with 0 requests after the page loads; the footer names the licence (Apache-2.0) and links the third-party notices (NOTICE.txt). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel (Linux and Windows wheels are built only by CI after the owner's push), 8 GB figures (not measured on 8 GB).</p>
     </header>
 
     <main>
@@ -42,7 +43,10 @@
       <section id="not-yet" class="box box-warn">
         <h2>What this demo does not do yet</h2>
         <ul>
-          <li>Devanagari only: Tamil and Bengali come later, and text in any other script is treated as plain text, so a Latin line scores clean.</li>
+          <li>
+            Devanagari only: Tamil planned for v0.2 (a design note exists; nothing is implemented), Bengali later. Text in
+            any other script is treated as plain text, so a Latin line scores clean.
+          </li>
           <li>
             Structural checks only: it cannot see visually plausible OCR confusions (<code>ब</code> for
             <code>व</code>), a well-formed but wrong word, or legacy-font text that was read back as Latin letters.
@@ -55,7 +59,7 @@
           <li>No service worker: offline after the first load is best effort (Chrome's HTTP cache), not guaranteed.</li>
           <li>
             Nothing is published yet: the Python wheel and the npm package were built and installed locally on
-            macOS arm64 only, and are on no registry.
+            macOS arm64 only, and are on no registry. Linux and Windows wheels are built only by CI after the owner's push.
           </li>
         </ul>
       </section>
@@ -215,7 +219,7 @@
         <a href="https://github.com/AirplaneMode-Labs/glyphsift" rel="noopener">glyphsift on GitHub</a>
         · <a href="https://airplanemode-labs.github.io/site/" rel="noopener">Airplane Mode Labs</a>
         · Apache-2.0
-        · <a href="NOTICE">Third-party notices</a>
+        · <a href="NOTICE.txt">Third-party notices</a>
       </p>
     </footer>
 
