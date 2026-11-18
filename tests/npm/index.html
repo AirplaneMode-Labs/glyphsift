@@ -10,7 +10,7 @@
      installed package by its relative path, with no bundler and no import map. -->
 <pre id="out">loading</pre>
 <script type="module">
-import init, { validate, score_ppm, report_spec, clusters } from "./node_modules/@airplanemode/glyphsift/web/glyphsift.js";
+import init, { validate, score_ppm, report_spec, clusters, gate } from "./node_modules/@airplanemode/glyphsift/web/glyphsift.js";
 
 const out = document.getElementById("out");
 try {
@@ -20,6 +20,8 @@ try {
     report: validate("नमस्ते।"),
     ppm: score_ppm("कखग�"),
     clusters: JSON.parse(clusters("नमस्ते।")),
+    gate: gate("कखग\ufffd"),
+    gateClean: gate("नमस्ते।"),
   };
   window.__glyphsift = result;
   out.textContent = "ok " + result.ppm;

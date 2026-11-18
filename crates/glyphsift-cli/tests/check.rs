@@ -150,7 +150,7 @@ fn version_prints_the_workspace_version_and_exits_0() {
         r.out(),
         format!("glyphsift {}\n", env!("CARGO_PKG_VERSION"))
     );
-    assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.0");
+    assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.1");
 }
 
 #[test]
@@ -162,6 +162,7 @@ fn help_names_every_exit_code_and_every_command() {
         "check",
         "corrupt",
         "bench",
+        "gate",
         "Exit codes:",
         "0 success",
         "1 I/O",
@@ -170,7 +171,7 @@ fn help_names_every_exit_code_and_every_command() {
     ] {
         assert!(help.contains(needle), "--help lacks {needle:?}:\n{help}");
     }
-    for sub in ["check", "corrupt", "bench"] {
+    for sub in ["check", "corrupt", "bench", "gate"] {
         let r = run(&[sub, "--help"], b"");
         assert_eq!(r.code, 0, "{sub} --help: {}", r.stderr);
     }
@@ -203,6 +204,8 @@ fn the_readme_cli_section_documents_the_commands_and_all_four_exit_codes() {
         "glyphsift check",
         "glyphsift corrupt",
         "glyphsift bench",
+        "glyphsift gate",
+        "--threshold-ppm",
         "--fail-under",
         "--verify",
         "cargo install --path crates/glyphsift-cli --locked",
@@ -298,7 +301,7 @@ fn the_cli_manifest_carries_the_crates_io_metadata() {
 }
 
 #[test]
-fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_measured() {
+fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_measured_on_8_gb() {
     let root = repo_root();
     for path in [
         "README.md",
@@ -320,7 +323,8 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
         );
     }
     // Every table of the repository README that has a machine column has the 8 GB column. The throughput
-    // table, the mixed-family table and the twelve-family table all read exactly "not measured" in every row.
+    // table, the mixed-family table and the twelve-family table all read exactly "not measured on 8 GB" in
+    // every row (T3-S5-15, Sprint 5 fix round 1: a bare "not measured" no longer passes).
     let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
     let mut seen = 0;
     let mut nm = 0;
@@ -340,8 +344,8 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
                 continue;
             }
             assert!(
-                line.trim_end().ends_with("| not measured |"),
-                "an 8 GB column cell does not read exactly 'not measured': {line}"
+                line.trim_end().ends_with("| not measured on 8 GB |"),
+                "an 8 GB column cell does not read exactly 'not measured on 8 GB': {line}"
             );
             nm += 1;
         }
@@ -352,12 +356,13 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
     );
     assert!(
         nm >= 3 + 12 + 5,
-        "all rows of the three tables read 'not measured'"
+        "all rows of the three tables read 'not measured on 8 GB'"
     );
     // Every evidence path in the README names sprint 3 or the earlier sprint 2 run it supersedes.
     for line in readme.lines().filter(|l| l.contains("evidence/")) {
         assert!(
-            line.contains("evidence/sprint-4/D3/")
+            line.contains("evidence/sprint-5/D3/")
+                || line.contains("evidence/sprint-4/D3/")
                 || line.contains("evidence/sprint-3/D3/")
                 || line.contains("evidence/sprint-2/D3/"),
             "{line}"
@@ -365,13 +370,14 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
     }
 }
 
-/// Sprint 4 wording rules for the README (D3-04): the Status names Sprint 4, the benchmark machine is
-/// named "Apple M5 Pro, 48 GB", the prose says "not measured on 8 GB", Tamil is the planned second script,
-/// and Linux and Windows wheels are said to be built only by CI after the owner's push. The demo's not-yet
-/// box and the wheel README carry the same sentence, so the three cannot drift (the demo box is checked in
-/// tests/demo/check_demo.mjs, the wheel README in tests/python/check_wheel.py).
+/// Sprint 5 wording rules for the README (D3-04): the Status names Sprint 5 and version 0.1.1, the benchmark
+/// machine is named "Apple M5 Pro, 48 GB", the prose says "not measured on 8 GB", Tamil is the planned second
+/// script, the gate is documented (docs/gate.md) and the first CI run of the wheels job is cited (run
+/// 43667702791 at 5ff0c47, read on 18 Nov 2026) with nothing published. The demo's not-yet box and the wheel
+/// README carry the same facts, so the three cannot drift (the demo box is checked in tests/demo/check_demo.mjs,
+/// the wheel README in tests/python/check_wheel.py).
 #[test]
-fn readme_states_the_sprint_4_position_in_the_required_words() {
+fn readme_states_the_sprint_5_position_in_the_required_words() {
     let root = repo_root();
     let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
     let status = readme
@@ -380,18 +386,32 @@ fn readme_states_the_sprint_4_position_in_the_required_words() {
         .and_then(|t| t.split("\n## ").next())
         .expect("README has a Status section");
     assert!(
-        status.contains("Sprint 4"),
-        "the Status section names Sprint 4"
+        status.contains("Sprint 5"),
+        "the Status section names Sprint 5"
+    );
+    assert!(
+        status.contains("0.1.1"),
+        "the Status section names version 0.1.1"
+    );
+    assert!(
+        status.contains("release candidate, not tagged"),
+        "the Status section says 0.1.1 is a release candidate, not tagged"
     );
     for needle in [
         "Apple M5 Pro, 48 GB",
         "not measured on 8 GB",
         "Tamil planned for v0.2",
-        "Linux and Windows wheels are built only by CI after the owner's push",
         "docs/v0.2-tamil.md",
+        "docs/gate.md",
+        "run 43667702791",
+        "Linux and Windows wheels and an sdist were built by CI",
     ] {
         assert!(readme.contains(needle), "the README lacks {needle:?}");
     }
+    assert!(
+        !readme.contains("Linux and Windows wheels are built only by CI after the owner's push"),
+        "the README still says the Linux and Windows wheels are built only after the owner's push"
+    );
     assert!(
         !readme.contains("Sprint 4 carry-over"),
         "the README still calls the Linux and Windows wheels a Sprint 4 carry-over"
@@ -401,12 +421,17 @@ fn readme_states_the_sprint_4_position_in_the_required_words() {
         .nth(1)
         .and_then(|t| t.split("\n## ").next())
         .expect("README has a Limitations section");
-    assert!(
-        limits.contains("Linux and Windows wheels are built only by CI after the owner's push"),
-        "Limitations does not say where the Linux and Windows wheels come from"
-    );
-    assert!(
-        limits.contains("NOTICE.txt"),
-        "Limitations does not mention the demo's NOTICE.txt"
-    );
+    for needle in ["NOTICE.txt", "gate", "Devanagari only", "not published"] {
+        assert!(
+            limits.to_lowercase().contains(&needle.to_lowercase()),
+            "Limitations does not mention {needle:?}"
+        );
+    }
+    // The gate is documented where a reader looks for it: Quick start (CLI, Python, Node) and a short section.
+    for needle in ["glyphsift.gate(", "gate(text", "not_scored", "975000"] {
+        assert!(
+            readme.contains(needle),
+            "the README does not document the gate: lacks {needle:?}"
+        );
+    }
 }

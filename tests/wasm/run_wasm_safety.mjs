@@ -3,8 +3,9 @@
 //   scripts/build-wasm.sh && node tests/wasm/run_wasm_safety.mjs
 //
 // It fails (exit 1) on any trap, panic or wrong answer. Checks:
-//   1. the export list is exactly validate, score_ppm, report_spec, clusters, clusters_json and
-//      issue_kinds (the JS module and the raw .wasm exports);
+//   1. the export list is exactly validate, score_ppm, report_spec, clusters, clusters_json,
+//      issue_kinds and, since Sprint 5, gate, gate_spec and default_gate_threshold_ppm (the JS module and
+//      the raw .wasm exports);
 //   2. the 20,000-string fuzz set of crates/glyphsift-core/tests/fuzz.rs (xorshift64* seed 1 over
 //      U+0000..U+097F, ZWJ, ZWNJ, 16 private-use code points and 8 emoji, mark and tag code points):
 //      no trap, and the FNV-1a hash of
@@ -29,7 +30,9 @@ const pkgDir = process.env.GLYPHSIFT_WASM_DIR ?? join(root, "dist", "wasm", "nod
 
 // Keep in step with FUZZ_HASH in crates/glyphsift-core/tests/fuzz.rs.
 const FUZZ_HASH = 0x9f8eceb1f973730bn;
-const EXPECTED_EXPORTS = ["clusters", "clusters_json", "issue_kinds", "report_spec", "score_ppm", "validate"];
+const EXPECTED_EXPORTS = ["clusters", "clusters_json", "default_gate_threshold_ppm", "gate", "gate_spec", "issue_kinds", "report_spec", "score_ppm", "validate"];
+// Keep in step with GATE_FUZZ_HASH in crates/glyphsift-core/tests/fuzz.rs.
+const GATE_FUZZ_HASH = 0xc88d67a6d8c7dc88n;
 const MAX_INPUT_BYTES = 4 * 1024 * 1024;
 
 let failures = 0;
@@ -127,6 +130,90 @@ stage("fuzz", () => {
   const hash = (BigInt(state[0]) << 32n) | BigInt(state[1]);
   check(reports === 20000, "validate() returned a report for all 20,000 fuzz strings (no trap)");
   check(hash === FUZZ_HASH, `fuzz hash 0x${hash.toString(16).padStart(16, "0")} equals the native 0x${FUZZ_HASH.toString(16)}`);
+});
+
+// ---- 2b. the gate call (Sprint 5, D3-01) ---------------------------------------------------------------
+stage("gate fuzz", () => {
+  const enc = new TextEncoder();
+  let state = [0xcbf29ce4, 0x84222325];
+  const nl = Uint8Array.of(10);
+  let n = 0;
+  let scored = 0;
+  // Each fuzz string twice, as drawn and with four Devanagari letters in front (same as fuzz.rs).
+  for (const s of fuzzStrings()) {
+    for (const probe of [s, `कखगघ${s}`]) {
+      const json = g.gate(probe); // a trap or a thrown error ends the stage
+      if (JSON.parse(json).scored) scored += 1;
+      state = fnv1a64(state, enc.encode(json));
+      state = fnv1a64(state, nl);
+      n += 1;
+    }
+  }
+  const hash = (BigInt(state[0]) << 32n) | BigInt(state[1]);
+  check(n === 40000, "gate() returned a verdict for all 40,000 fuzz probes (no trap)");
+  check(hash === GATE_FUZZ_HASH, `gate fuzz hash 0x${hash.toString(16).padStart(16, "0")} equals the native 0x${GATE_FUZZ_HASH.toString(16).padStart(16, "0")} (${scored} scored)`);
+});
+stage("gate contract", () => {
+  check(g.gate_spec() === "glyphsift.gate/0.1", `gate_spec() is glyphsift.gate/0.1 (got ${g.gate_spec()})`);
+  check(g.default_gate_threshold_ppm() === 975000, `default_gate_threshold_ppm() is 975000 (got ${g.default_gate_threshold_ppm()})`);
+  const pass = JSON.parse(g.gate("नमस्ते।"));
+  check(pass.verdict === "pass" && pass.ppm === 1000000 && pass.threshold_ppm === 975000 && pass.script === "devanagari" && pass.scored === true, "gate() passes a clean Hindi word at the default threshold");
+  check(g.gate("नमस्ते।", undefined) === g.gate("नमस्ते।") && g.gate("नमस्ते।", null) === g.gate("नमस्ते।"), "an undefined or null threshold means the default");
+  check(JSON.parse(g.gate("कखग\ufffd")).verdict === "hold" && JSON.parse(g.gate("कखग\ufffd", 750000)).verdict === "pass", "a damaged chunk is held, and passes at a threshold equal to its score");
+  const other = JSON.parse(g.gate("hello"));
+  check(other.verdict === "not_scored" && other.ppm === null && other.script === "other" && other.scored === false, "other scripts pass through marked not_scored");
+  check(JSON.parse(g.gate("")).script === "none", "empty text is script none");
+  // ill-formed strings: a TypeError before the module is called (wasm-bindgen would have made U+FFFD of them)
+  for (const [what, s] of [["a lone high surrogate", "\ud800"], ["a lone low surrogate", "\udc00"], ["a reversed pair", "\ude00\ud83d"], ["one in the middle of Hindi", "न\ud800म"]]) {
+    let err;
+    try {
+      g.gate(s);
+    } catch (e) {
+      err = e;
+    }
+    check(err instanceof TypeError && /well-formed/.test(err.message), `gate() rejects ${what} with a TypeError naming 'well-formed' (${err?.constructor?.name}: ${err?.message})`);
+  }
+  check(JSON.parse(g.gate("नमस्ते \u{1F600}")).scored === true, "a valid surrogate pair is accepted");
+  // thresholds: a whole number 0..1000000, undefined or null; anything else is refused with the right error type
+  const bad = (what, fn, type) => {
+    let err;
+    try {
+      fn();
+    } catch (e) {
+      err = e;
+    }
+    check(err instanceof type, `${what} throws ${type.name} (${err?.constructor?.name}: ${err?.message})`);
+  };
+  bad("gate(text, 1000001)", () => g.gate("क", 1000001), RangeError);
+  bad("gate(text, -1)", () => g.gate("क", -1), RangeError);
+  bad("gate(text, 2 ** 53)", () => g.gate("क", 2 ** 53), RangeError);
+  bad("gate(text, 4294967296)", () => g.gate("क", 4294967296), RangeError);
+  bad("gate(text, 1.5)", () => g.gate("क", 1.5), TypeError);
+  bad("gate(text, NaN)", () => g.gate("क", NaN), TypeError);
+  bad("gate(text, Infinity)", () => g.gate("क", Infinity), TypeError);
+  bad("gate(text, '5')", () => g.gate("क", "5"), TypeError);
+  bad("gate(text, true)", () => g.gate("क", true), TypeError);
+  bad("gate(text, 5n)", () => g.gate("क", 5n), TypeError);
+  bad("gate(42)", () => g.gate(42), TypeError);
+  bad("gate(undefined)", () => g.gate(undefined), TypeError);
+  bad("gate(null)", () => g.gate(null), TypeError);
+  check(JSON.parse(g.gate("क", 0)).threshold_ppm === 0 && JSON.parse(g.gate("क", 1000000)).threshold_ppm === 1000000, "the thresholds 0 and 1000000 are accepted");
+  // over the 4 MiB limit: an Error that is not a TypeError, and the module still works afterwards
+  let err;
+  try {
+    g.gate("क".repeat(Math.floor(MAX_INPUT_BYTES / 3) + 1));
+  } catch (e) {
+    err = e;
+  }
+  check(err instanceof Error && !(err instanceof TypeError) && /too large/.test(err.message), `gate() over 4 MiB throws a 'too large' Error, not a trap (${err?.constructor?.name}: ${err?.message})`);
+  check(g.gate("a".repeat(MAX_INPUT_BYTES)).includes('"script":"other"'), "gate() accepts exactly 4 MiB");
+  check(JSON.parse(g.gate("नमस्ते")).verdict === "pass", "the module still works after the refusals");
+  const unit = "नमस्ते दुनिया।\n";
+  const big = unit.repeat(Math.ceil((1 << 20) / Buffer.byteLength(unit)));
+  const t0 = performance.now();
+  const r = JSON.parse(g.gate(big));
+  console.log(`     gate() on ${Buffer.byteLength(big)} bytes: ${(performance.now() - t0).toFixed(0)} ms`);
+  check(r.verdict === "pass" && r.ppm === 1000000, "gate() passes a 1 MiB clean text");
 });
 
 // ---- 3. large inputs ---------------------------------------------------------------------------

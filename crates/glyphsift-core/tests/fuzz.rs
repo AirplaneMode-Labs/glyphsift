@@ -11,7 +11,7 @@
 //! is asserted by `tests/wasm/run_wasm_safety.mjs` over the WASM build, so the two runtimes agree
 //! on 20,000 inputs, not just on the handful of golden samples.
 
-use glyphsift_core::{to_canonical_json, validate};
+use glyphsift_core::{gate, gate_to_canonical_json, to_canonical_json, validate};
 
 /// xorshift64* (Vigna 2014): the generator `docs/corruption-generator.md` names for the whole lane.
 struct XorShift64Star(u64);
@@ -135,5 +135,52 @@ fn fuzz_set_is_the_same_every_run() {
     assert!(
         a.iter()
             .any(|s| s.chars().any(|c| ('\u{F0D0}'..='\u{F0DF}').contains(&c)))
+    );
+}
+
+/// FNV-1a 64 over the canonical gate JSON of each of the 20,000 fuzz strings, twice: as drawn (the alphabet is mostly
+/// not Devanagari, so about one string in seventy is scored) and with four Devanagari letters in front, which turns
+/// a large share of them into scored chunks. Default threshold; each JSON is followed by a newline.
+/// `tests/wasm/run_wasm_safety.mjs` carries the same constant, so native and WASM agree on all 40,000 results
+/// (Sprint 5, D3-01). Pinned when the gate call was first implemented; changing the gate rules, the weights or the
+/// default threshold changes it: re-pin it here and in run_wasm_safety.mjs, and say why in CHANGELOG.
+const GATE_FUZZ_HASH: u64 = 0xc88d_67a6_d8c7_dc88;
+
+/// The four letters put in front of a fuzz string for the second pass.
+const GATE_PREFIX: &str = "कखगघ";
+
+#[test]
+fn gate_over_the_fuzz_set_is_consistent_with_validate_and_pinned() {
+    let mut hash = FNV_OFFSET;
+    let mut scored = 0usize;
+    let mut held = 0usize;
+    for (n, text) in fuzz_strings().iter().enumerate() {
+        for probe in [text.clone(), format!("{GATE_PREFIX}{text}")] {
+            let r = gate(&probe, None).unwrap_or_else(|e| panic!("input {n} {probe:?}: {e}"));
+            if r.scored {
+                scored += 1;
+                if r.verdict == glyphsift_core::GateVerdict::Hold {
+                    held += 1;
+                }
+                assert_eq!(
+                    r.ppm,
+                    Some(validate(&probe).unwrap().score.ppm),
+                    "input {n} {probe:?}"
+                );
+            } else {
+                assert_eq!(r.ppm, None, "input {n} {probe:?}");
+            }
+            hash = fnv1a(hash, gate_to_canonical_json(&r).as_bytes());
+            hash = fnv1a(hash, b"\n");
+        }
+    }
+    println!("gate fuzz hash: 0x{hash:016x}, {scored} of 40000 scored, {held} held");
+    assert!(
+        scored > 5_000 && held > 500,
+        "the two passes exercise the scored path: {scored} scored, {held} held"
+    );
+    assert_eq!(
+        hash, GATE_FUZZ_HASH,
+        "gate fuzz output changed; update GATE_FUZZ_HASH here and in tests/wasm/run_wasm_safety.mjs"
     );
 }

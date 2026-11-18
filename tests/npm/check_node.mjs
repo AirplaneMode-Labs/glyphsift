@@ -147,7 +147,7 @@ stage("node call", () => {
   const req = createRequire(join(dir, "package.json"));
   const g = req("@airplanemode/glyphsift");
   const exports = Object.keys(g).filter((k) => typeof g[k] === "function" && !k.startsWith("__") && k !== "initSync" && k !== "default").sort();
-  check(JSON.stringify(exports) === JSON.stringify(["clusters", "clusters_json", "issue_kinds", "report_spec", "score_ppm", "validate"]), `require() exposes validate, score_ppm, report_spec, clusters, clusters_json and issue_kinds (${exports.join(", ")})`);
+  check(JSON.stringify(exports) === JSON.stringify(["clusters", "clusters_json", "default_gate_threshold_ppm", "gate", "gate_spec", "issue_kinds", "report_spec", "score_ppm", "validate"]), `require() exposes validate, score_ppm, report_spec, clusters, clusters_json, issue_kinds, gate, gate_spec and default_gate_threshold_ppm (${exports.join(", ")})`);
   const report = g.validate("नमस्ते।");
   check(JSON.parse(report).score.ppm === 1000000, "validate('नमस्ते।') scores 1000000");
   check(g.score_ppm("कखग�") === 750000, "score_ppm('कखग\\ufffd') is 750000");
@@ -157,6 +157,24 @@ stage("node call", () => {
   } else {
     check(false, "no --cli given: the byte-equality check against `glyphsift check` was not run");
   }
+  // Sprint 5 (D3-01): the gate call through the installed package equals `glyphsift gate`, and an unpaired surrogate is a TypeError.
+  check(g.gate_spec() === "glyphsift.gate/0.1" && g.default_gate_threshold_ppm() === 975000, "gate_spec() is glyphsift.gate/0.1 and the default threshold is 975000");
+  if (cli) {
+    for (const [text, threshold] of [["नमस्ते।", undefined], ["कखग�", undefined], ["कखग�", 750000], ["hello", undefined], ["", undefined]]) {
+      const args = ["gate", ...(threshold === undefined ? [] : ["--threshold-ppm", String(threshold)]), "-"];
+      const r = spawnSync(resolve(cli), args, { input: text, encoding: "utf8" });
+      check(r.status === 0 && `${threshold === undefined ? g.gate(text) : g.gate(text, threshold)}\n` === r.stdout, `gate(${JSON.stringify(text)}${threshold === undefined ? "" : ", " + threshold}) is byte-equal to \`glyphsift gate\` output`);
+    }
+  } else {
+    check(false, "no --cli given: the byte-equality check against `glyphsift gate` was not run");
+  }
+  let illFormed;
+  try {
+    g.gate("न\ud800म");
+  } catch (e) {
+    illFormed = e;
+  }
+  check(illFormed instanceof TypeError && /well-formed/.test(illFormed.message), "gate() rejects an unpaired surrogate with a TypeError");
   const samples = join(root, "tests", "determinism", "samples");
   const expected = join(root, "tests", "determinism", "expected");
   let n = 0;
@@ -177,9 +195,9 @@ stage("node call", () => {
 });
 
 stage("esm import", () => {
-  writeFileSync(join(dir, "probe.mjs"), 'import { validate, score_ppm } from "@airplanemode/glyphsift";\nconsole.log(score_ppm("कखग\\ufffd"), JSON.parse(validate("नमस्ते।")).score.ppm);\n');
+  writeFileSync(join(dir, "probe.mjs"), 'import { validate, score_ppm, gate } from "@airplanemode/glyphsift";\nconsole.log(score_ppm("कखग\\ufffd"), JSON.parse(validate("नमस्ते।")).score.ppm, JSON.parse(gate("नमस्ते।")).verdict);\n');
   const out = execFileSync("node", [join(dir, "probe.mjs")], { cwd: dir, encoding: "utf8" }).trim();
-  check(out === "750000 1000000", `an ESM import of the bare specifier works in Node (printed '${out}')`);
+  check(out === "750000 1000000 pass", `an ESM import of the bare specifier works in Node (printed '${out}')`);
 });
 
 console.log(failures === 0 ? "npm package checks: all passed" : `npm package checks: ${failures} failed`);

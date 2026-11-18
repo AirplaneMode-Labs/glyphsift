@@ -74,8 +74,13 @@ def main(argv: list[str]) -> int:
     check(f"Tag: cp39-abi3-{plat}" in wheel_meta, "WHEEL records the same platform tag as the filename")
     check(HONEST in meta, "the packaged METADATA description contains the honest 'Not published yet ...' sentence")
     check("release candidate, not tagged" in meta, "the packaged README says 'release candidate, not tagged'")
-    check("Linux and Windows wheels are not built yet" in meta, "the packaged README says Linux and Windows wheels are not built yet")
-    check("built only by CI after the owner's push" in meta, "the packaged README says where those wheels and the sdist come from (built only by CI after the owner's push)")
+    # Sprint 5 (D3-03): CI built the Linux and Windows wheels and an sdist at 5ff0c47 (run 43667702791, read on
+    # 18 Nov 2026); they are workflow artifacts, not releases, and nothing is published.
+    check("Linux and Windows wheels were built by CI" in meta, "the packaged README says CI built the Linux and Windows wheels")
+    check("43667702791" in meta, "the packaged README cites the CI run that built them (43667702791)")
+    check("nothing from that job is published" in meta, "the packaged README says nothing from that job is published")
+    check("built only by CI after the owner's push" not in meta and "Linux and Windows wheels are not built yet" not in meta, "the packaged README no longer says the Linux and Windows wheels are unbuilt")
+    check("glyphsift.gate(" in meta, "the packaged README documents glyphsift.gate()")
     # The README records the tag that was installed and proven (macOS arm64); a wheel built elsewhere (CI on
     # Linux) has another tag, and the README must not claim that one was proven.
     check("macosx_11_0_arm64" in meta, "the packaged README records the platform tag proven (macosx_11_0_arm64)")

@@ -86,6 +86,8 @@ try {
   check(JSON.parse(r.report).score.ppm === 1000000, "the report scores 1000000");
   check(r?.ppm === 750000, "score_ppm('कखग\\ufffd') is 750000");
   check(JSON.stringify(r?.clusters) === JSON.stringify(["न", "म", "स्ते", "।"]), "clusters('नमस्ते।') is ['न', 'म', 'स्ते', '।']");
+  check(typeof r?.gate === "string" && JSON.parse(r.gate).verdict === "hold" && JSON.parse(r.gate).ppm === 750000, "gate('कखग\\ufffd') in Chrome is a hold at 750000 ppm");
+  check(typeof r?.gateClean === "string" && JSON.parse(r.gateClean).verdict === "pass" && r.gateClean.includes('"spec":"glyphsift.gate/0.1"'), "gate('नमस्ते।') in Chrome passes and carries the gate spec");
   check(consoleErrors.length === 0, `0 console errors or warnings${consoleErrors.length ? ": " + consoleErrors.join(" | ") : ""}`);
   check(pageErrors.length === 0, `0 page errors${pageErrors.length ? ": " + pageErrors.join(" | ") : ""}`);
   check(failed.length === 0, `0 failed requests${failed.length ? ": " + failed.join(" | ") : ""}`);

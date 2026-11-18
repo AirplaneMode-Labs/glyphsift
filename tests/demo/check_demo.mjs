@@ -181,17 +181,28 @@ if (ready) {
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
   check(csp === EXPECTED_CSP, "the strict meta CSP is unchanged", csp === EXPECTED_CSP ? "" : csp);
   const status = await text("#build-line");
-  check(/Built from main at (local|[0-9a-f]{12})\b/.test(status) && status.includes("glyphsift.report/0.2"), "the status line shows the build id and report 0.2", status.trim());
+  // Sprint 5: "Built from main at <sha12>" for a CI build, "Local build <sha12>[-dirty]" for a local one, checked against build.json.
+  const build = JSON.parse(readFileSync(join(dist, "build.json"), "utf8"));
+  const sha12 = /^[0-9a-f]{40}$/.test(build.sha) ? build.sha.slice(0, 12) : "";
+  const wantBuild = build.source === "ci" && sha12 ? `Built from main at ${sha12} by .github/workflows/pages.yml` : `Local build ${sha12 ? sha12 + (build.dirty ? "-dirty" : "") : "no git checkout"}`;
+  check(status.trim().startsWith(wantBuild) && status.includes("glyphsift.report/0.2"), "the status line shows the build id (Built from main at <sha12>, or Local build <sha12>[-dirty]) and report 0.2", status.trim());
+  check(build.source === "ci" || build.source === "local", "build.json says whether CI or a local build made it", `${build.source}, dirty ${build.dirty}`);
+  if (build.source === "local" && sha12) {
+    const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    check(build.sha === head, "a local build's id is this checkout's HEAD", head.slice(0, 12));
+  }
   // T1-S4-R1-05: a static #sprint-status line equal to the status-line text recorded in site/data/demos.json.
-  const SPRINT_STATUS = "Sprint 4 (14 Nov 2026): Working: paste, drop or choose a UTF-8 .txt file up to 1 MiB of Devanagari text and get a document score, a per-line strip and table, a per-cluster heatmap, and the count of each of the sixteen rules; a file that is not UTF-8 or is over 1 MiB is refused in plain text; computed in WebAssembly in the tab, with 0 requests after the page loads; the footer names the licence (Apache-2.0) and links the third-party notices (NOTICE.txt). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel (Linux and Windows wheels are built only by CI after the owner's push), 8 GB figures (not measured on 8 GB).";
+  const SPRINT_STATUS = "Sprint 5 (18 Nov 2026): Working: everything from Sprint 4, plus a Gate tab that gives a pasted chunk of Devanagari text one of three answers, pass, hold or not scored (text that is not mostly Devanagari is passed through and not scored), with the score, the Devanagari share and a threshold you can change (975000 ppm by default), as the same canonical JSON the command line and the Python wheel print, computed in WebAssembly in the tab; text with an unpaired surrogate is refused in plain text; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).";
   const sprintStatus = (await text("#sprint-status")).trim();
   check(sprintStatus === SPRINT_STATUS, "the #sprint-status line is exactly the agreed text", sprintStatus.slice(0, 80));
   check((await page.locator("#sprint-status script, script:not([src])").count()) === 0, "the page has no inline script");
   check((await text("#not-yet h2")).trim() === "What this demo does not do yet", "the not-yet box is headed exactly 'What this demo does not do yet'");
   const notYet = (await text("#not-yet")).toLowerCase();
   for (const word of ["devanagari only", "structural checks only", "not calibrated", "service worker", "nothing is published"]) check(notYet.includes(word), `the not-yet box mentions "${word}"`);
-  // Sprint 4 (D3-04): Tamil is the planned second script; Linux and Windows wheels come only from CI after the push.
-  for (const word of ["tamil planned for v0.2", "bengali later", "linux and windows wheels are built only by ci after the owner's push"]) check(notYet.includes(word), `the not-yet box says "${word}"`);
+  // Sprint 5 (D3-04): Tamil is the planned second script; the gate passes other scripts through unscored; nothing is
+  // published (CI built Linux and Windows wheels, run 43667702791, but they are workflow artifacts); no 8 GB figure.
+  for (const word of ["tamil planned for v0.2", "bengali later", "not scored", "not measured on 8 gb", "run 43667702791"]) check(notYet.includes(word), `the not-yet box says "${word}"`);
+  check(!notYet.includes("built only by ci after the owner's push"), "the not-yet box no longer says the Linux and Windows wheels are built only after the owner's push");
   for (const word of ["heatmap", "drag", "drop"]) check(!notYet.includes(word), `the not-yet box no longer lists "${word}" (the demo does it now)`);
   check(!notYet.includes("not implemented") && !notYet.includes("unimplemented"), "the not-yet box no longer claims validate() is missing");
   check((await page.locator("#drop-zone").count()) === 1 && (await page.locator('#file-input[type="file"][accept=".txt,text/plain"]').count()) === 1, "a drop zone and a file input accepting .txt and text/plain are on the page");
@@ -261,6 +272,130 @@ if (ready) {
     evidence.samples[key] = { bytes: Buffer.byteLength(input), score_ppm: report.score.ppm, lines: report.lines.length, issues: report.summary.issue_count };
   }
   check(Number((await text("#call-count")).trim()) === calls, "validate() call counter matches the samples run", `${calls}`);
+
+  // ---- Sprint 5 (D3-04): the Gate tab ---------------------------------------------------------------
+  // Pasted text gives the gate verdict as the same canonical JSON `glyphsift gate -` prints, computed in WASM
+  // and rendered as text nodes; a threshold field changes the threshold; an unpaired surrogate is refused.
+  {
+    const cliGate = (input, threshold) =>
+      execFileSync(cli, ["gate", ...(threshold === undefined ? [] : ["--threshold-ppm", String(threshold)]), "-"], { input: Buffer.from(input, "utf8"), maxBuffer: 1 << 28 }).toString("utf8");
+    const gateCalls = async () => Number((await text("#gate-call-count")).trim());
+    const verdictOf = async () => (await page.locator("#gate-verdict").getAttribute("data-verdict")) ?? "";
+    const waitGate = (want) => page.waitForFunction((w) => document.querySelector("#gate-json").textContent === w, want.replace(/\n$/, ""), { timeout: 15000 });
+    const reqBefore = requests.length;
+    const styleBefore = await page.locator("[style]").count();
+
+    // the tabs
+    const tabInfo = await page.locator('[role="tablist"] [role="tab"]').evaluateAll((els) => els.map((e) => ({ name: e.textContent.trim(), selected: e.getAttribute("aria-selected"), controls: e.getAttribute("aria-controls") })));
+    check(tabInfo.length === 2 && tabInfo[0].name === "Report" && tabInfo[1].name === "Gate", "the page has two tabs, Report and Gate", tabInfo.map((t) => t.name).join(", "));
+    check(tabInfo[0]?.selected === "true" && tabInfo[1]?.selected === "false", "Report is selected by default");
+    check((await page.locator("#panel-report").isVisible()) && !(await page.locator("#panel-gate").isVisible()), "the Report panel is visible and the Gate panel hidden by default");
+    check(tabInfo[0]?.controls === "panel-report" && tabInfo[1]?.controls === "panel-gate", "each tab names its panel with aria-controls");
+    await page.click("#tab-gate");
+    check((await page.locator("#tab-gate").getAttribute("aria-selected")) === "true" && (await page.locator("#tab-report").getAttribute("aria-selected")) === "false", "clicking Gate selects it");
+    check((await page.locator("#panel-gate").isVisible()) && !(await page.locator("#panel-report").isVisible()), "the Gate panel shows and the Report panel hides");
+    const meaning = (await text("#gate-meaning")).toLowerCase();
+    check(meaning.includes("hold") && meaning.includes("not scored") && meaning.includes("975000"), "the Gate panel says what pass, hold and not scored mean and names the default threshold", meaning.slice(0, 60));
+    check((await page.inputValue("#gate-threshold")) === "975000", "the threshold field starts at the default, 975000");
+
+    // every sample: the gate JSON is the CLI's, the verdict and numbers are shown, no request
+    const seen = new Set();
+    let gcalls = await gateCalls();
+    for (const key of keys) {
+      await page.click(`#samples button[data-sample="${key}"]`);
+      const input = await page.inputValue("#text");
+      const want = cliGate(input);
+      const rep = JSON.parse(want);
+      await waitGate(want);
+      gcalls += 1;
+      seen.add(rep.verdict);
+      check((await text("#gate-json")) === want.replace(/\n$/, ""), `gate ${key}: the demo's JSON equals \`glyphsift gate -\` byte for byte`, `${rep.verdict}, ppm ${rep.ppm}, devanagari ${rep.devanagari_ppm}`);
+      check((await verdictOf()) === rep.verdict, `gate ${key}: the verdict is ${rep.verdict}`);
+      const shown = (await text("#gate-verdict")).trim().toLowerCase().replace(/ /g, "_");
+      check(shown === rep.verdict, `gate ${key}: the verdict is shown as words`, shown);
+      check((await text("#gate-details")).includes(String(rep.devanagari_ppm)) && (await text("#gate-details")).includes(String(rep.threshold_ppm)), `gate ${key}: the Devanagari share and the threshold are shown`);
+      check(rep.scored ? (await text("#gate-details")).includes(String(rep.ppm)) : (await text("#gate-details")).toLowerCase().includes("not scored"), `gate ${key}: the score is shown, or 'not scored'`);
+      check((await gateCalls()) === gcalls, `gate ${key}: the gate ran once`, `${gcalls}`);
+    }
+    check(seen.has("pass") && seen.has("not_scored"), "the samples show a pass and a not-scored verdict", [...seen].join(", "));
+
+    // a damaged chunk is held; the threshold decides
+    const damaged = "कखग\u{FFFD}";
+    await page.fill("#text", damaged);
+    await waitGate(cliGate(damaged));
+    check((await verdictOf()) === "hold", "damaged Devanagari is held with the default threshold");
+    for (const t of [750000, 750001, 0, 1000000]) {
+      await page.fill("#gate-threshold", String(t));
+      await waitGate(cliGate(damaged, t));
+      check((await text("#gate-json")) === cliGate(damaged, t).replace(/\n$/, "") && (await verdictOf()) === JSON.parse(cliGate(damaged, t)).verdict, `threshold ${t}: the JSON equals the CLI's and the verdict is ${JSON.parse(cliGate(damaged, t)).verdict}`);
+    }
+    // not a number, out of range, or not a whole number: refused in plain text, the gate is not run
+    gcalls = await gateCalls();
+    for (const bad of ["abc", "-1", "1000001", "1.5", "", "1e3", "0x10"]) {
+      await page.fill("#gate-threshold", bad);
+      await page.waitForFunction(() => document.querySelector("#gate-note").textContent.length > 0, null, { timeout: 5000 });
+      const note = await text("#gate-note");
+      check(/threshold/i.test(note) && /0 to 1,000,000|whole number/i.test(note), `threshold "${bad}" is refused with a message naming the range`, note.trim().slice(0, 90));
+      check((await text("#gate-json")).trim() === "" && (await verdictOf()) === "" && (await gateCalls()) === gcalls, `threshold "${bad}": no stale verdict or JSON, and the gate was not run`);
+    }
+    await page.fill("#gate-threshold", "975000");
+    await waitGate(cliGate(damaged, 975000));
+    check((await text("#gate-note")).trim() === "", "a valid threshold clears the refusal");
+
+    // an unpaired surrogate: refused with a plain-text message before the module sees it
+    gcalls = await gateCalls();
+    for (const [what, value] of [["a high surrogate in the middle", "न\ud800म"], ["a low surrogate alone", "\udc00"], ["a reversed pair", "\ude00\ud83d"], ["a high surrogate at the end", "नमस्ते\ud83d"]]) {
+      await page.evaluate((v) => {
+        const area = document.querySelector("#text");
+        area.value = v;
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+      }, value);
+      await page.waitForFunction(() => document.querySelector("#gate-note").textContent.length > 0, null, { timeout: 5000 });
+      const note = await text("#gate-note");
+      check(/unpaired surrogate/i.test(note) && /well-formed/i.test(note), `${what}: the Gate tab refuses it, naming the unpaired surrogate`, note.trim().slice(0, 100));
+      check((await text("#gate-json")).trim() === "" && (await verdictOf()) === "" && (await gateCalls()) === gcalls, `${what}: no verdict, no JSON, the gate was not run`);
+      check((await page.locator("#panel-gate [class~='gate-note'] a, #panel-gate [class~='gate-note'] img, #gate-note a, #gate-note img").count()) === 0, `${what}: the refusal is plain text`);
+    }
+    // well-formed astral text is accepted (a valid surrogate pair is not an unpaired surrogate)
+    await page.fill("#text", "नमस्ते 😀");
+    await waitGate(cliGate("नमस्ते 😀"));
+    check((await text("#gate-note")).trim() === "" && (await verdictOf()) !== "", "a valid surrogate pair (an emoji) is accepted");
+
+    // markup in the pasted text creates no element in the Gate panel
+    await page.fill("#text", `<img src=x onerror="window.__gx=1"><b>bold</b> क्ष`);
+    await page.waitForTimeout(200);
+    check((await page.evaluate(() => window.__gx)) === undefined && (await page.locator("#panel-gate img, #panel-gate b, #panel-gate script, #panel-gate a").count()) === 0, "markup in pasted text creates no element in the Gate panel");
+
+    // a file through the picker gives the CLI's gate output, and a refused file does not reach the gate
+    const fx = join(root, "tests", "demo", "fixtures", "sample.txt");
+    await page.fill("#text", "");
+    await page.setInputFiles("#file-input", fx);
+    const fileWant = cliGate(readFileSync(fx, "utf8"));
+    await waitGate(fileWant);
+    check((await text("#gate-json")) === fileWant.replace(/\n$/, ""), "file picker: the gate JSON equals `glyphsift gate FILE`");
+    gcalls = await gateCalls();
+    await page.setInputFiles("#file-input", join(root, "tests", "demo", "fixtures", "invalid-utf8.txt"));
+    await page.waitForFunction(() => /not valid UTF-8/.test(document.querySelector("#input-note").textContent), null, { timeout: 10000 });
+    check((await gateCalls()) === gcalls && (await text("#gate-json")).trim() === "" && (await verdictOf()) === "", "a refused file leaves no stale gate verdict and does not reach the gate");
+
+    // over the size limit: refused before the gate (and the validator) is called
+    await page.fill("#text", "नमस्ते");
+    await waitGate(cliGate("नमस्ते"));
+    gcalls = await gateCalls();
+    await page.evaluate((value) => {
+      const area = document.querySelector("#text");
+      area.value = value;
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+    }, "a".repeat(LIMIT + 1));
+    check((await gateCalls()) === gcalls && (await text("#gate-json")).trim() === "" && (await verdictOf()) === "", "1 MiB + 1 byte is refused before the gate is called");
+
+    check(requests.length === reqBefore, "every Gate-tab action made 0 network requests", `${requests.length - reqBefore} new`);
+    // Playwright's element screenshot (--shots) can leave a style attribute behind; the Gate tab must add none of its own.
+    check((await page.locator("[style]").count()) === styleBefore, "the Gate tab adds no element with a style attribute", (await page.evaluate(() => [...document.querySelectorAll("[style]")].map((e) => e.outerHTML.slice(0, 100)))).join(" | "));
+    await page.click("#tab-report");
+    check((await page.locator("#panel-report").isVisible()) && !(await page.locator("#panel-gate").isVisible()), "the Report tab shows its panel again");
+    await page.fill("#text", "");
+  }
 
   // local files: the picker and a drop give the CLI's report, make no request, and refuse what they must
   {
