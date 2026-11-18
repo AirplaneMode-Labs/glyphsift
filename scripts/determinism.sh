@@ -23,6 +23,13 @@ for sample in tests/determinism/samples/*.txt; do
 done
 [ "$fail" -eq 0 ] || exit 1
 
+# The gate call (Sprint 5, TD-42): the 200-case corpus in tests/determinism/gate is what scripts/make-gate-corpus.mjs
+# generates, and the native CLI prints the recorded line for every case (an ill-formed string, which no UTF-8 file can
+# hold, is fed as WTF-8 and refused with exit 1 or 2).
+echo "== native: gate corpus"
+node scripts/make-gate-corpus.mjs --check
+node tests/determinism/run_gate_native.mjs
+
 echo "== python"
 # Python virtual environments put their executables in Scripts/ on Windows and bin/ elsewhere.
 case "$(uname -s)" in
@@ -41,10 +48,12 @@ export VIRTUAL_ENV="$PWD/$VENV"
 export PATH="$PWD/$VBIN:$PATH"
 maturin develop --release --locked --quiet --manifest-path crates/glyphsift-py/Cargo.toml
 python -I tests/determinism/run_python.py
+python -I tests/determinism/run_gate_python.py
 
 echo "== wasm"
 scripts/build-wasm.sh
 node tests/wasm/run_wasm_safety.mjs
 node tests/determinism/run_wasm.mjs
+node tests/determinism/run_gate_wasm.mjs
 
-echo "determinism: native, python and wasm all match the expected reports"
+echo "determinism: native, python and wasm all match the expected reports and the 200 gate cases"

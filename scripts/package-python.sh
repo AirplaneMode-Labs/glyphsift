@@ -82,6 +82,7 @@ SCRATCH=${SCRATCH:-$(mktemp -d)}
 mkdir -p "$SCRATCH"
 CALL='import glyphsift, json
 assert json.loads(glyphsift.validate("नमस्ते।"))["score"]["ppm"] == 1000000
+assert json.loads(glyphsift.gate("नमस्ते।"))["verdict"] == "pass"
 print(glyphsift.score_ppm("कखग�"))'
 
 echo "== install 1: python3 -m venv + pip install --no-index --no-deps"
@@ -104,6 +105,7 @@ echo "== both environments: the report equals the bytes the native CLI recorded,
 for py in "$SCRATCH/pipvenv/bin/python" "$SCRATCH/venv/bin/python"; do
   "$py" --version
   "$py" -I - tests/determinism/samples/01-clean-hindi.txt tests/determinism/expected/01-clean-hindi.json <<'PY'
+import json
 import sys
 import glyphsift
 
@@ -111,6 +113,14 @@ text = open(sys.argv[1], "rb").read().decode("utf-8")
 want = open(sys.argv[2], "rb").read().decode("utf-8")
 assert glyphsift.validate(text) + "\n" == want, "the wheel's report differs from the recorded CLI report"
 assert glyphsift.clusters("नमस्ते।") == ["न", "म", "स्ते", "।"]
+assert glyphsift.GATE_SPEC == "glyphsift.gate/0.1" and glyphsift.DEFAULT_GATE_THRESHOLD_PPM == 975000
+assert json.loads(glyphsift.gate("कखग�"))["verdict"] == "hold" and json.loads(glyphsift.gate("कखग�", 750000))["verdict"] == "pass"
+try:
+    glyphsift.gate("न\ud800म")
+except ValueError:
+    pass
+else:
+    raise SystemExit("an unpaired surrogate did not raise ValueError in gate()")
 try:
     glyphsift.validate("a" * (4 * 1024 * 1024 + 1))
 except ValueError as e:
@@ -124,8 +134,8 @@ done
 if [ "${SKIP_MYPY:-0}" != 1 ]; then
   echo "== mypy --strict on a two-line script that uses the stubs"
   mkdir -p "$SCRATCH/mypy"
-  printf 'import glyphsift\nn: int = glyphsift.score_ppm("x"); s: str = glyphsift.validate("x"); c: list[str] = glyphsift.clusters("x")\n' > "$SCRATCH/mypy/probe_ok.py"
-  printf 'import glyphsift\nn: int = glyphsift.validate("x")\n' > "$SCRATCH/mypy/probe_bad.py"
+  printf 'import glyphsift\nn: int = glyphsift.score_ppm("x"); s: str = glyphsift.validate("x"); c: list[str] = glyphsift.clusters("x"); v: str = glyphsift.gate("x", 975000); w: str = glyphsift.gate("x"); t: int = glyphsift.DEFAULT_GATE_THRESHOLD_PPM; k: str = glyphsift.GATE_SPEC\n' > "$SCRATCH/mypy/probe_ok.py"
+  printf 'import glyphsift\nn: int = glyphsift.validate("x")\nm: int = glyphsift.gate("x")\n' > "$SCRATCH/mypy/probe_bad.py"
   ( cd "$SCRATCH/mypy" && "${MYPY[@]}" --strict --python-executable "$SCRATCH/venv/bin/python" probe_ok.py )
   echo "(and the stubs are real types: a wrong annotation must fail)"
   if ( cd "$SCRATCH/mypy" && "${MYPY[@]}" --strict --python-executable "$SCRATCH/venv/bin/python" probe_bad.py ); then
@@ -133,4 +143,4 @@ if [ "${SKIP_MYPY:-0}" != 1 ]; then
     exit 1
   fi
 fi
-echo "python wheel ok: $FILE (platform tag $PLAT; Linux and Windows wheels are built only by CI after the owner's push)"
+echo "python wheel ok: $FILE (platform tag $PLAT; the Linux and Windows wheels are built by CI, run 43667702791 proved the Sprint 4 ones; nothing is published)"

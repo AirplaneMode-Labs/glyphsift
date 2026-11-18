@@ -5,11 +5,13 @@
 //
 // Node 22, no dependencies. This script has no signing option and never reads a key: signing is a
 // separate step done by the owner on an offline key machine with `cp-sign` (docs/RELEASING.md, "Signing
-// the manifest"). The output path must resolve (symlinks included) to a place inside this repository's
-// dist/ directory. SOURCE_DATE_EPOCH (decimal seconds, 0..253402300799) fixes createdAt for
-// reproducible output; without it the current time is used. Exit 0 on success, 2 on any refusal.
+// the manifest"). The output path must resolve (symlinks, junctions and 8.3 names included) to a regular file
+// inside this repository's dist/ directory; the rules, the Windows-only rules and the residual check-then-write
+// window are in scripts/lib/confine.mjs and docs/release.md ("Output confinement"). SOURCE_DATE_EPOCH (decimal
+// seconds, 0..253402300799) fixes createdAt for reproducible output; without it the current time is used.
+// Exit 0 on success, 2 on any refusal, 1 on a write error.
 //
-// Contract constants (shared with the glyphsift copy of this script; only these lines differ).
+// Contract constants (shared with the pagetriage copy of this script; only these lines differ).
 const MANIFEST_ID = "glyphsift-release";
 const PUBLISHER = "Airplane Mode Labs";
 const LICENCE = "Apache-2.0";
@@ -17,9 +19,10 @@ const VERSION_SOURCE = "Cargo.toml"; // [workspace.package] version, relative to
 const MANIFEST_SPEC = "airplanemode.manifest/0.1";
 
 import { createHash } from "node:crypto";
-import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Refusal, confineOutput, writeConfined } from "./lib/confine.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/;
@@ -67,34 +70,6 @@ function workspaceVersion() {
   return v[1];
 }
 
-// The output must land inside <repo>/dist after every symlink is resolved. The deepest existing ancestor
-// of the target is resolved with realpath; a dangling symlink anywhere on the way is refused.
-function confinedOutput(out) {
-  if (out.split(/[\\/]/).includes("..")) refuse("--out must not contain '..'");
-  const distDir = join(ROOT, "dist");
-  mkdirSync(distDir, { recursive: true });
-  const distReal = realpathSync(distDir);
-  const abs = resolve(ROOT, out);
-  let cur = abs;
-  for (;;) {
-    let st = null;
-    try { st = lstatSync(cur); } catch { /* does not exist */ }
-    if (st) {
-      if (st.isSymbolicLink()) {
-        try { realpathSync(cur); } catch { refuse(`--out passes through a dangling symlink: ${cur}`); }
-      }
-      break;
-    }
-    const parent = dirname(cur);
-    if (parent === cur) refuse("--out has no existing ancestor");
-    cur = parent;
-  }
-  const final = join(realpathSync(cur), relative(cur, abs));
-  if (!final.startsWith(distReal + sep)) refuse(`--out must resolve inside dist/ (resolves to ${final})`);
-  if (final === distReal) refuse("--out must be a file inside dist/");
-  return abs;
-}
-
 function mediaType(name) {
   if (name.endsWith(".whl") || name.endsWith(".zip")) return "application/zip";
   if (name.endsWith(".tgz") || name.endsWith(".tar.gz") || name.endsWith(".crate")) return "application/gzip";
@@ -117,7 +92,13 @@ function hashFile(path) {
 const { out, artifacts } = parseArgs(process.argv.slice(2));
 const created = createdAt();
 const version = workspaceVersion();
-const target = confinedOutput(out);
+let plan;
+try {
+  plan = confineOutput(out, { root: ROOT });
+} catch (e) {
+  if (e instanceof Refusal) refuse(e.message);
+  throw e;
+}
 
 const entries = [];
 const seen = new Set();
@@ -135,6 +116,12 @@ for (const a of artifacts) {
 entries.sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)); // ids are ASCII, so this is byte order
 
 const manifest = { spec: MANIFEST_SPEC, id: MANIFEST_ID, version, publisher: PUBLISHER, createdAt: created, entries, signatures: [] };
-mkdirSync(dirname(target), { recursive: true });
-writeFileSync(target, JSON.stringify(manifest, null, 2) + "\n");
-process.stdout.write(`wrote unsigned manifest ${relative(ROOT, target)} (${entries.length} entries, version ${version})\n`);
+try {
+  writeConfined(plan, JSON.stringify(manifest, null, 2) + "\n");
+} catch (e) {
+  if (e instanceof Refusal) refuse(e.message);
+  process.stderr.write(`release-manifest: could not write ${plan.target}: ${e && e.message}\n`);
+  process.exit(1);
+}
+const shown = ["dist", ...plan.target.slice(plan.distReal.length).split(sep).filter(Boolean)].join("/");
+process.stdout.write(`wrote unsigned manifest ${shown} (${entries.length} entries, version ${version})\n`);

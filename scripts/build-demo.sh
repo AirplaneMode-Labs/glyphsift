@@ -3,9 +3,10 @@
 #   1. scripts/build-wasm.sh  -> dist/wasm/web/{glyphsift.js,glyphsift_bg.wasm}
 #   2. copy demo/{index.html,app.js,styles.css,samples.js} and the two web-target files into demo/dist/
 #   2b. copy LICENSE, and NOTICE (which ends with scripts/demo-notice-extra.txt) as NOTICE.txt, into demo/dist/
-#   3. write demo/dist/build.json {id, sha}: id = first 16 hex of sha256(glyphsift.js ++ glyphsift_bg.wasm),
-#      sha = $GITHUB_SHA when it is a full 40-hex commit id, otherwise "local" (the page shows the
-#      first 12 characters of a commit, or "local")
+#   3. write demo/dist/build.json {id, sha, source, dirty}: id = first 16 hex of sha256(glyphsift.js ++ glyphsift_bg.wasm),
+#      sha = $GITHUB_SHA when it is a full 40-hex commit id (source "ci"), otherwise this checkout's HEAD (source "local",
+#      dirty true when the tree has uncommitted or untracked files), or "" when there is no git checkout; the page shows
+#      "Built from main at <sha12>" or "Local build <sha12>[-dirty]"
 # Before building it runs scripts/check-demo-sources.sh: no innerHTML, outerHTML or
 # insertAdjacentHTML in demo/*.js, no inline script, style or event handler in demo/index.html.
 # demo/dist/ is a build product and is git-ignored; nothing here is committed.
@@ -41,10 +42,24 @@ sha256_of_stream() {
   else sha256sum | cut -d' ' -f1; fi
 }
 ID=$(cat "$OUT/pkg/glyphsift.js" "$OUT/pkg/glyphsift_bg.wasm" | sha256_of_stream | cut -c1-16)
-# A malformed GITHUB_SHA never reaches build.json: only a full lowercase 40-hex commit id is kept.
-SHA=local
-if [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then SHA=$GITHUB_SHA; fi
-printf '{"id":"%s","sha":"%s"}\n' "$ID" "$SHA" > "$OUT/build.json"
+# The build id the page shows (Sprint 5 convention): "Built from main at <sha12>" when CI built it (GITHUB_SHA is a
+# full lowercase 40-hex commit id, anything else is ignored), otherwise "Local build <sha12>[-dirty]" from this
+# checkout's own HEAD (dirty when anything is uncommitted or untracked), or "Local build" alone when there is no git
+# checkout of this repository. Only this repository's own .git is asked (git -C <absolute path>, and only when that
+# path is the top level of the work tree), so a copy of the sources inside some other repository never reports that
+# repository's commit.
+ROOT=$(pwd -P)
+SHA=""; SOURCE=local; DIRTY=false
+if [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  SHA=$GITHUB_SHA; SOURCE=ci
+elif [ "$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)" = "$ROOT" ]; then
+  HEAD_SHA=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)
+  if [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    SHA=$HEAD_SHA
+    if [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then DIRTY=true; fi
+  fi
+fi
+printf '{"id":"%s","sha":"%s","source":"%s","dirty":%s}\n' "$ID" "$SHA" "$SOURCE" "$DIRTY" > "$OUT/build.json"
 
-echo "demo assembled in $OUT (module id $ID, sha $SHA)"
+echo "demo assembled in $OUT (module id $ID, source $SOURCE, sha ${SHA:-none}, dirty $DIRTY)"
 find "$OUT" -type f | sort

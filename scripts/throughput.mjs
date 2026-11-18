@@ -1,5 +1,5 @@
-// Throughput of the validator on one text file: WASM validate() and score_ppm() in Node (best of 5) and the
-// native `glyphsift check` (wall clock including process start, output to a pipe, 5 runs).
+// Throughput of the validator on one text file: WASM validate(), score_ppm() and gate() in Node (best of 5) and the
+// native `glyphsift check` and `glyphsift gate` (wall clock including process start, output to a pipe, 5 runs).
 //
 //   node scripts/throughput.mjs <text-file> [--cli target/release/glyphsift]
 //
@@ -39,5 +39,8 @@ const best = (fn, n = 5) => {
 const fmt = (t) => `${t.map((x) => x.toFixed(0)).join(", ")}; best ${Math.min(...t).toFixed(0)} ms`;
 console.log(`WASM validate() in Node, five runs ms: ${fmt(best(() => g.validate(text)))}`);
 console.log(`WASM score_ppm() in Node, five runs ms: ${fmt(best(() => g.score_ppm(text)))}`);
+console.log(`WASM gate() in Node, five runs ms: ${fmt(best(() => g.gate(text)))} (verdict ${JSON.parse(g.gate(text)).verdict})`);
 const n = best(() => execFileSync(cli, ["check", file], { maxBuffer: 1 << 30 }));
 console.log(`native glyphsift check (wall clock incl. process start, output to a pipe), five runs ms: ${fmt(n)}`);
+const ng = best(() => execFileSync(cli, ["gate", file], { maxBuffer: 1 << 30 }));
+console.log(`native glyphsift gate (wall clock incl. process start, output to a pipe), five runs ms: ${fmt(ng)}`);
