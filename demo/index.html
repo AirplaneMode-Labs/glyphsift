@@ -10,7 +10,7 @@
     <meta name="referrer" content="no-referrer" />
     <meta
       name="description"
-      content="glyphsift demo: a Devanagari text-quality score, per-line issues and the sixteen rules, computed in WebAssembly in this tab. Nothing is uploaded."
+      content="glyphsift demo: a Devanagari text-quality score, per-line issues, the sixteen rules and a pass, hold or not-scored gate, computed in WebAssembly in this tab. Nothing is uploaded."
     />
     <title>glyphsift demo</title>
     <link rel="icon" href="data:," />
@@ -24,8 +24,8 @@
         computed in WebAssembly in this tab. Nothing is uploaded; the only network requests are for
         this page's own files.
       </p>
-      <p class="status" id="build-line">Built from main at <code>…</code> by .github/workflows/pages.yml</p>
-      <p class="status" id="sprint-status">Sprint 4 (14 Nov 2026): Working: paste, drop or choose a UTF-8 .txt file up to 1 MiB of Devanagari text and get a document score, a per-line strip and table, a per-cluster heatmap, and the count of each of the sixteen rules; a file that is not UTF-8 or is over 1 MiB is refused in plain text; computed in WebAssembly in the tab, with 0 requests after the page loads; the footer names the licence (Apache-2.0) and links the third-party notices (NOTICE.txt). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel (Linux and Windows wheels are built only by CI after the owner's push), 8 GB figures (not measured on 8 GB).</p>
+      <p class="status" id="build-line">Build <code>…</code></p>
+      <p class="status" id="sprint-status">Sprint 5 (18 Nov 2026): Working: everything from Sprint 4, plus a Gate tab that gives a pasted chunk of Devanagari text one of three answers, pass, hold or not scored (text that is not mostly Devanagari is passed through and not scored), with the score, the Devanagari share and a threshold you can change (975000 ppm by default), as the same canonical JSON the command line and the Python wheel print, computed in WebAssembly in the tab; text with an unpaired surrogate is refused in plain text; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).</p>
     </header>
 
     <main>
@@ -45,22 +45,27 @@
         <ul>
           <li>
             Devanagari only: Tamil planned for v0.2 (a design note exists; nothing is implemented), Bengali later. Text in
-            any other script is treated as plain text, so a Latin line scores clean.
+            any other script is treated as plain text, so a Latin line scores clean in the Report tab, and the Gate tab marks
+            it not scored: passed through, never held.
           </li>
           <li>
             Structural checks only: it cannot see visually plausible OCR confusions (<code>ब</code> for
-            <code>व</code>), a well-formed but wrong word, or legacy-font text that was read back as Latin letters.
+            <code>व</code>), a well-formed but wrong word, or legacy-font text that was read back as Latin letters. A pass
+            means no structural damage above the threshold was found, not that the text is correct.
           </li>
           <li>
-            The rule weights are not calibrated on real documents: they come from how badly each defect breaks
-            rendering or reading, and the benchmark behind them uses synthetic text only.
+            The rule weights and the gate's default threshold (975000) are not calibrated on real documents: they come from
+            how badly each defect breaks rendering or reading and from a benchmark on synthetic text only. Nothing here says
+            how good a Hindi answer built on gated text would be.
           </li>
           <li>UTF-8 text only, at most 1 MiB: no PDF, no OCR, no other encodings.</li>
           <li>No service worker: offline after the first load is best effort (Chrome's HTTP cache), not guaranteed.</li>
           <li>
             Nothing is published yet: the Python wheel and the npm package were built and installed locally on
-            macOS arm64 only, and are on no registry. Linux and Windows wheels are built only by CI after the owner's push.
+            macOS arm64 only, and are on no registry. CI built Linux and Windows wheels and an sdist (run 43667702791),
+            but those are workflow artifacts, not releases.
           </li>
+          <li>No figure on this page was measured on an 8 GB laptop: not measured on 8 GB.</li>
         </ul>
       </section>
 
@@ -99,6 +104,12 @@
         <p class="notice" id="input-note" role="status" hidden></p>
       </section>
 
+      <div class="tabs" role="tablist" aria-label="Result">
+        <button type="button" role="tab" id="tab-report" aria-selected="true" aria-controls="panel-report">Report</button>
+        <button type="button" role="tab" id="tab-gate" aria-selected="false" aria-controls="panel-gate" tabindex="-1">Gate</button>
+      </div>
+
+      <div id="panel-report" role="tabpanel" aria-labelledby="tab-report">
       <section id="score">
         <h2>Document score</h2>
         <div class="score-row">
@@ -212,6 +223,39 @@
           <dd><code id="call-count">0</code> <span class="hint">(a refused input is not counted: the validator is not run for it)</span></dd>
         </dl>
       </section>
+      </div>
+
+      <div id="panel-gate" role="tabpanel" aria-labelledby="tab-gate" hidden>
+        <section id="gate">
+          <h2>Gate</h2>
+          <p class="hint" id="gate-meaning">
+            One answer per chunk of extracted text. <strong>Pass</strong>: a Devanagari chunk whose score is at or above the threshold.
+            <strong>Hold</strong>: a Devanagari chunk below it, probably garbled by extraction, so a pipeline would keep it out of
+            its index and say so. <strong>Not scored</strong>: text that is not mostly Devanagari (under 500000 ppm of its letters,
+            or no letters at all) is passed through unjudged; it is never held. The default threshold is 975000 ppm, derived from
+            the benchmark in docs/gate.md; the field below changes it.
+          </p>
+          <div class="gate-row">
+            <label for="gate-threshold">Threshold, a whole number of ppm from 0 to 1,000,000</label>
+            <input id="gate-threshold" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="975000" />
+          </div>
+          <p class="notice" id="gate-note" role="status" hidden></p>
+          <p class="gate-verdict-line">Verdict: <strong id="gate-verdict" data-verdict="" aria-live="polite">—</strong></p>
+          <dl class="kv" id="gate-details"></dl>
+          <details open>
+            <summary>Gate JSON</summary>
+            <p class="hint">
+              Exactly what <code>gate()</code> returned, which is byte for byte what <code>glyphsift gate -</code> prints for the
+              same text and threshold.
+            </p>
+            <pre id="gate-json"></pre>
+          </details>
+          <p class="hint">
+            gate() calls: <code id="gate-call-count">0</code>
+            <span class="hint">(a refused input or threshold is not counted: the gate is not run for it)</span>
+          </p>
+        </section>
+      </div>
     </main>
 
     <footer>

@@ -9,6 +9,12 @@
 // File.arrayBuffer(), after checking file.size against the 1 MiB limit (an oversized file is never
 // read), decode it with a fatal UTF-8 decoder, and validate exactly the decoded text, so the report is
 // byte for byte what `glyphsift check FILE` prints. Nothing is uploaded.
+//
+// The Gate tab (Sprint 5): the same text goes through gate(text, threshold_ppm) in the WASM module, and the
+// canonical JSON it returns (byte for byte what `glyphsift gate -` prints) and the numbers in it are shown as text.
+// The module itself refuses a string with an unpaired surrogate (a TypeError, checked with isWellFormed before
+// the Rust code is called) and a threshold that is not a whole number from 0 to 1,000,000; the demo checks the
+// threshold field first to give a plain message, and shows the module's own message for anything else.
 import { SAMPLES } from "./samples.js";
 
 const $ = (id) => document.getElementById(id);
@@ -19,7 +25,11 @@ const MAX_JSON_CHARS = 200000;
 const MAX_ISSUES_SHOWN = 8; // per line
 const HEATMAP_CLUSTER_CAP = 20000; // clusters drawn in the heatmap; the JSON block always has everything
 
+const GATE_THRESHOLD_MAX = 1000000;
+const GATE_VERDICTS = { pass: "Pass", hold: "Hold", not_scored: "Not scored" }; // fixed set: nothing from the text names a verdict
+
 let validateCalls = 0;
+let gateCalls = 0;
 
 // --- Browser requirements: feature detection at load, not a static list -----------------------
 const REQUIREMENTS = {
@@ -107,31 +117,37 @@ function td(className, text) {
 }
 
 // --- Build line -------------------------------------------------------------------------------
-let buildId = "local";
-let buildSha = "";
+// The build id (Sprint 5): "Built from main at <sha12>" for a CI build, "Local build <sha12>[-dirty]" for a local one, "Local build"
+// when the build had no git checkout. A commit shows as its first 12 hex digits only when it is a full 40-hex SHA.
+let buildLabel = "Local build";
+let buildCommit = "";
+let buildModule = "";
 async function loadBuild() {
   try {
     const res = await fetch(new URL("./build.json", import.meta.url));
     if (!res.ok) throw new Error(`build.json: HTTP ${res.status}`);
     const build = await res.json();
-    // A commit shows as its first 12 hex digits only when it is a full 40-hex SHA; anything else is "local".
-    buildId = typeof build.sha === "string" && /^[0-9a-f]{40}$/.test(build.sha) ? build.sha.slice(0, 12) : "local";
-    buildSha = typeof build.id === "string" ? build.id : "unknown";
+    const commit = typeof build.sha === "string" && /^[0-9a-f]{40}$/.test(build.sha) ? build.sha.slice(0, 12) : "";
+    if (build.source === "ci" && commit) {
+      buildLabel = "Built from main at ";
+      buildCommit = commit;
+    } else {
+      buildLabel = "Local build";
+      buildCommit = commit ? `${commit}${build.dirty === true ? "-dirty" : ""}` : "";
+    }
+    buildModule = typeof build.id === "string" ? build.id : "unknown";
   } catch {
-    buildId = "local";
-    buildSha = "unknown";
+    buildLabel = "Local build";
+    buildCommit = "";
+    buildModule = "unknown";
   }
-  $("module-id").textContent = buildSha;
+  $("module-id").textContent = buildModule;
 }
 
 function renderBuildLine(spec) {
   const code = (t) => el("code", "", t);
-  $("build-line").replaceChildren(
-    "Built from main at ",
-    code(buildId),
-    " by .github/workflows/pages.yml · report ",
-    code(spec),
-  );
+  const first = buildLabel.endsWith(" ") ? [buildLabel, code(buildCommit), " by .github/workflows/pages.yml"] : [buildLabel, " ", code(buildCommit || "no git checkout")];
+  $("build-line").replaceChildren(...first, " · report ", code(spec));
 }
 
 // --- Rendering --------------------------------------------------------------------------------
@@ -151,6 +167,7 @@ function clearResults(g) {
   $("heatmap-count").textContent = "";
   $("heatmap-note").hidden = true;
   renderRules(g, null);
+  clearGate("The gate was not run for this input.");
 }
 
 function renderRules(g, report) {
@@ -365,6 +382,84 @@ function render(g, text) {
   renderJson(json);
 }
 
+// --- The Gate tab -----------------------------------------------------------------------------
+function setGateNote(message) {
+  const note = $("gate-note");
+  note.textContent = message;
+  note.hidden = message === "";
+}
+
+// Empty the verdict, the details and the JSON (never leave a stale answer next to a new input), with an optional note.
+function clearGate(message = "") {
+  const verdict = $("gate-verdict");
+  verdict.textContent = "—";
+  verdict.setAttribute("data-verdict", "");
+  $("gate-details").replaceChildren();
+  $("gate-json").textContent = "";
+  setGateNote(message);
+}
+
+// Two decimals of a percentage by integer arithmetic, truncated: 666666 -> "66.66".
+function fmtPercent(ppm) {
+  const whole = Math.floor(ppm / 10000);
+  const frac = Math.floor((ppm % 10000) / 100);
+  return `${whole}.${String(frac).padStart(2, "0")}`;
+}
+
+// The threshold field: a whole number from 0 to 1,000,000, digits only. Returns the number, or null with a note.
+function readGateThreshold() {
+  const raw = $("gate-threshold").value.trim();
+  if (!/^[0-9]{1,7}$/.test(raw) || Number(raw) > GATE_THRESHOLD_MAX) {
+    return null;
+  }
+  return Number(raw);
+}
+
+function renderGate(g, text) {
+  const threshold = readGateThreshold();
+  if (threshold === null) {
+    clearGate("The threshold must be a whole number from 0 to 1,000,000 (parts per million), digits only. The gate was not run.");
+    return;
+  }
+  let json;
+  try {
+    json = g.gate(text, threshold);
+  } catch (err) {
+    clearGate(`The gate refused this input: ${err instanceof Error ? err.message : String(err)}. It was not run.`);
+    return;
+  }
+  gateCalls += 1;
+  $("gate-call-count").textContent = String(gateCalls);
+  const report = JSON.parse(json);
+  const verdict = $("gate-verdict");
+  verdict.textContent = GATE_VERDICTS[report.verdict] ?? "—";
+  verdict.setAttribute("data-verdict", GATE_VERDICTS[report.verdict] ? report.verdict : "");
+  const rows = [
+    ["Script", report.script],
+    ["Devanagari share", `devanagari_ppm ${report.devanagari_ppm} (${fmtPercent(report.devanagari_ppm)}% of the letters, truncated)`],
+    ["Score", report.scored ? `ppm ${report.ppm} (${fmt4(report.ppm)})` : "not scored (ppm null): not mostly Devanagari, passed through unjudged"],
+    ["Threshold", `threshold_ppm ${report.threshold_ppm}`],
+  ];
+  const frag = document.createDocumentFragment();
+  for (const [name, value] of rows) {
+    frag.append(el("dt", "", name), el("dd", "", value));
+  }
+  $("gate-details").replaceChildren(frag);
+  $("gate-json").textContent = json;
+  setGateNote("");
+}
+
+// Tabs: Report and Gate. Roving tabindex, arrow keys move between them; the hidden attribute shows one panel.
+function selectTab(name) {
+  for (const tab of ["report", "gate"]) {
+    const on = tab === name;
+    const button = $(`tab-${tab}`);
+    button.setAttribute("aria-selected", on ? "true" : "false");
+    button.setAttribute("tabindex", on ? "0" : "-1");
+    $(`panel-${tab}`).hidden = !on;
+  }
+}
+
 // --- Input, the size limit and wiring ---------------------------------------------------------
 function inputBytes(text) {
   // A UTF-16 unit is at least one UTF-8 byte, so a longer string is certainly over the limit and
@@ -404,6 +499,9 @@ async function main() {
   const fileInput = $("file-input");
   const dropZone = $("drop-zone");
 
+  // The text the Gate tab last ran on, or null when the input was refused or empty of a result.
+  let gateText = null;
+
   // Validate exactly `text` (the textarea's value, or a decoded file) and show the result, or refuse it.
   const validateText = (text) => {
     const { bytes, atLeast } = inputBytes(text);
@@ -414,6 +512,7 @@ async function main() {
         `Refused: this text is ${atLeast ? "at least " : ""}${fmtInt(bytes)} bytes of UTF-8 and the demo accepts at most ${fmtInt(LIMIT_BYTES)} bytes (1 MiB). ` +
         "Nothing was sent anywhere and the validator was not run.";
       inputNote.hidden = false;
+      gateText = null;
       clearResults(g);
       return;
     }
@@ -424,8 +523,12 @@ async function main() {
     } catch (err) {
       inputNote.textContent = `The validator refused this text: ${err instanceof Error ? err.message : String(err)}`;
       inputNote.hidden = false;
+      gateText = null;
       clearResults(g);
+      return;
     }
+    gateText = text;
+    renderGate(g, text);
   };
   const update = () => validateText(textarea.value);
 
@@ -434,6 +537,30 @@ async function main() {
     sampleNotice.hidden = true;
     fileNote.hidden = true;
     update();
+  });
+
+  // The tabs.
+  for (const name of ["report", "gate"]) {
+    $(`tab-${name}`).addEventListener("click", () => selectTab(name));
+    $(`tab-${name}`).addEventListener("keydown", (ev) => {
+      if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      ev.preventDefault();
+      const next = name === "report" ? "gate" : "report";
+      selectTab(next);
+      $(`tab-${next}`).focus();
+    });
+  }
+  // The threshold field: judge the same text again at the new threshold (or say why the threshold is refused).
+  $("gate-threshold").addEventListener("input", () => {
+    if (gateText === null) {
+      if (readGateThreshold() === null) {
+        clearGate("The threshold must be a whole number from 0 to 1,000,000 (parts per million), digits only. The gate was not run.");
+      } else if ($("gate-note").textContent.startsWith("The threshold must")) {
+        clearGate("The gate was not run for this input.");
+      }
+      return;
+    }
+    renderGate(g, gateText);
   });
 
   $("samples").addEventListener("click", (ev) => {
@@ -454,6 +581,7 @@ async function main() {
     fileNote.hidden = true;
     inputNote.textContent = message;
     inputNote.hidden = false;
+    gateText = null;
     clearResults(g);
   };
   let loadSeq = 0;
