@@ -6,18 +6,18 @@ score from 0 to 1 as an integer in parts per million, per-line scores, no model 
 canonical JSON report as the Rust CLI and the Python wheel, byte for byte. Part of
 [Airplane Mode Labs](https://github.com/AirplaneMode-Labs).
 
-Status: release candidate, not tagged.
+Status: 0.1.1, release candidate, not tagged.
 
 ## Install
 
 Not published yet: the npm scope @airplanemode and the PyPI and crates.io names are not reserved. The commands below were proven from locally built artifacts on macOS arm64 (an npm pack tarball installed offline into a fresh empty directory, a wheel installed into a fresh venv); publishing to the registries is the owner's step.
 
-The tarball proven here is `airplanemode-glyphsift-0.1.0.tgz`, made by `npm pack` from the wasm-bindgen
+The tarball proven here is `airplanemode-glyphsift-0.1.1.tgz`, made by `npm pack` from the wasm-bindgen
 output. It has no dependencies, so it installs offline from an empty cache, with install scripts off:
 
 ```sh
 npm init -y
-npm i ./airplanemode-glyphsift-0.1.0.tgz --ignore-scripts --offline --no-audit --no-fund
+npm i ./airplanemode-glyphsift-0.1.1.tgz --ignore-scripts --offline --no-audit --no-fund
 ```
 
 Build the tarball from a clone of the repository (needs `wasm-bindgen` 0.2.129 and `wasm-opt`; see
@@ -38,12 +38,14 @@ npm i @airplanemode/glyphsift
 Node (CommonJS or ES modules; the `nodejs` build loads the WASM synchronously, no `init()`):
 
 ```js
-const { validate, score_ppm, clusters } = require("@airplanemode/glyphsift");
+const { validate, score_ppm, clusters, gate } = require("@airplanemode/glyphsift");
 
 const report = JSON.parse(validate("नमस्ते।"));   // the canonical report, glyphsift.report/0.2
 console.log(report.score.ppm);                      // 1000000 is clean
 console.log(score_ppm("कखग\ufffd"));                // 750000: one of four clusters is broken
 console.log(JSON.parse(clusters("नमस्ते।")));       // ['न', 'म', 'स्ते', '।']
+console.log(JSON.parse(gate("कखग\ufffd")).verdict); // "hold": a damaged Devanagari chunk (default threshold 975000)
+console.log(JSON.parse(gate("hello")).verdict);      // "not_scored": not Devanagari, passed through unjudged
 ```
 
 Browser, with no bundler, from an installed directory (the `web` build; call `init()` once, it fetches
@@ -58,9 +60,14 @@ Browser, with no bundler, from an installed directory (the `web` build; call `in
 ```
 
 With a bundler, `import init, { validate } from "@airplanemode/glyphsift"` resolves to the `web` build.
-Exports: `validate(text)`, `score_ppm(text)`, `report_spec()`, `clusters(text)`, `clusters_json(text)`
-and `issue_kinds()`; all throw an `Error` ("input is too large ...") for input over 4 MiB and never trap.
-TypeScript types ship for both builds.
+Exports: `validate(text)`, `score_ppm(text)`, `report_spec()`, `clusters(text)`, `clusters_json(text)`,
+`issue_kinds()`, `gate(text, threshold_ppm?)`, `gate_spec()` and `default_gate_threshold_ppm()`; all throw an `Error`
+("input is too large ...") for input over 4 MiB and never trap. TypeScript types ship for both builds.
+
+`gate(text, threshold_ppm?)` returns the canonical `glyphsift.gate/0.1` JSON (`pass`, `hold` or `not_scored`; the rules and the
+derivation of the 975000 default are in the repository's `docs/gate.md`). It rejects a string with an unpaired surrogate with a
+`TypeError` before the module is called (`String.prototype.isWellFormed`, because the module would otherwise see U+FFFD), a
+threshold that is not a whole number with a `TypeError`, and a whole number outside 0..1000000 with a `RangeError`.
 
 ## Limitations
 
@@ -75,6 +82,7 @@ TypeScript types ship for both builds.
   judgement, not calibrated.
 - Joiners (ZWJ, ZWNJ) in emoji, Persian, Arabic or Latin clusters are not flagged; a joiner that joins
   a space's cluster is not flagged either. Variation selectors on a Devanagari base are not flagged.
+- The gate is structural and Devanagari-only: `not_scored` for any other script, and no claim about Hindi answer quality.
 - Input over 4 MiB is refused. Speed on an 8 GB Windows no-GPU laptop: not measured.
 - The full list, with the benchmark, is in the repository README.
 

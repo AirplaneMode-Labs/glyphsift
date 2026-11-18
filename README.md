@@ -2,8 +2,8 @@
 
 Scores whether extracted Indic text is clean enough to trust or train on: a deterministic
 Devanagari grapheme-cluster validator with a Rust core, a WASM build for the browser, a Python
-wheel and a CLI. Sixteen structural rules, a document score from 0 to 1, per-line scores, no model
-and no network.
+wheel and a CLI. Sixteen structural rules, a document score from 0 to 1, per-line scores, a per-chunk
+pass/hold gate, no model and no network.
 
 Part of [Airplane Mode Labs](https://github.com/AirplaneMode-Labs), an open-core, offline-first,
 browser-native AI infrastructure lab. Package names use the placeholder scope `@airplanemode` /
@@ -11,18 +11,24 @@ crate and package names `glyphsift` until the handles are reserved; nothing is p
 
 ## Status
 
-Sprint 4: glyphsift **0.1.0 is a release candidate, not tagged**. The validator, the score, the CLI, the
-WASM and Python bindings, the score-versus-noise benchmark and the demo (with a per-cluster heatmap and
-local-file input) work and are tested on this repository's synthetic text only. The scoring did not change in
-Sprint 4: the benchmark CSV and the reports are byte-identical, and the WASM module is the Sprint 3 module. A Python
-wheel and an npm tarball were built and installed from local files on macOS arm64; nothing is published, tagged or
-signed. Sprint 4 added hashed tool installs and a `wheels` CI job (Linux, Windows and macOS wheels plus an sdist),
-a fix for `scripts/package-npm.sh` on macOS (BUG-T2-S3-19-R2), and a demo footer that opens the third-party
-notices as `NOTICE.txt` instead of downloading them. Not yet: scripts other than Devanagari (Tamil planned for v0.2,
-design note [docs/v0.2-tamil.md](docs/v0.2-tamil.md), nothing implemented), a published package or wheel; Linux and
-Windows wheels are built only by CI after the owner's push. What is open before a tag is in
-[docs/release.md](docs/release.md): CI read on three operating systems after the push, the 8 GB laptop benchmark
-(not measured on 8 GB), signed artifacts, the tag, publishing and the write-up.
+Sprint 5 (18 Nov 2026): Working: everything from Sprint 4, plus a Gate tab that gives a pasted chunk of Devanagari text one of three answers, pass, hold or not scored (text that is not mostly Devanagari is passed through and not scored), with the score, the Devanagari share and a threshold you can change (975000 ppm by default), as the same canonical JSON the command line and the Python wheel print, computed in WebAssembly in the tab; text with an unpaired surrogate is refused in plain text; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).
+
+In more detail, for the Sprint 5 release candidate: glyphsift **0.1.1 is a release candidate, not tagged** (0.1.0 was never tagged; 0.1.1 supersedes
+it). New in Sprint 5: the **gate call** (TD-42), `gate(text, threshold_ppm)`: for one chunk of extracted text it answers `pass`,
+`hold` (a Devanagari chunk scoring below the threshold, 975000 ppm by default) or `not_scored` (text that is not mostly
+Devanagari is passed through unjudged), as the same canonical JSON `glyphsift.gate/0.1` from the Rust core, the CLI
+(`glyphsift gate`), the Python wheel and the WASM build, byte-identical on a 200-case corpus, with the rules and the derivation
+of the default threshold in [docs/gate.md](docs/gate.md) and a Gate tab in the demo. Also new: the sdist now builds
+`cargo build --locked` from its own `Cargo.lock` (S1-103, `scripts/package-sdist.sh`), and the first CI run of the `wheels`
+job has been read: run 43667702791 at 5ff0c47 built a `manylinux_2_17` wheel, a `win_amd64` wheel, a macOS arm64 wheel and an
+sdist, and all 14 jobs were green on 15 Nov 2026 (read with `gh` on 18 Nov 2026; [docs/release.md](docs/release.md) records
+what that proved and what it did not). Linux and Windows wheels and an sdist were built by CI; nothing is published, tagged
+or signed. The scoring did not change in Sprint 5: the benchmark CSV and the reports are byte-identical. Everything is
+tested on this repository's synthetic text only. Not yet: scripts other than Devanagari (Tamil planned for v0.2, design note
+[docs/v0.2-tamil.md](docs/v0.2-tamil.md), nothing implemented), a published package or wheel, any claim about the quality of
+Hindi answers built on gated text. What is open before a tag is in [docs/release.md](docs/release.md): CI read on three
+operating systems for the Sprint 5 commit after the owner's push, the 8 GB laptop benchmark (not measured on 8 GB), signed
+artifacts, the tag, publishing and the write-up.
 
 ## Install
 
@@ -31,7 +37,7 @@ Not published yet: the npm scope @airplanemode and the PyPI and crates.io names 
 From a clone of this repository (Rust 1.98 comes from `rust-toolchain.toml`):
 
 ```sh
-# Command line: installs the `glyphsift` binary (0.1.0) under <dir>/bin. The RUSTFLAGS prefix keeps your home
+# Command line: installs the `glyphsift` binary (0.1.1) under <dir>/bin. The RUSTFLAGS prefix keeps your home
 # and checkout paths out of the binary (optional; scripts/remap-paths.sh sets the same flags for the build scripts)
 RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/glyphsift" cargo install --path crates/glyphsift-cli --locked --root <dir>
 
@@ -40,34 +46,41 @@ RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.ru
 # uv, maturin and mypy from tools/ci/requirements.txt, pinned by hash: python -m pip install --require-hashes
 # --no-deps --only-binary=:all: -r tools/ci/requirements.txt, then GLYPHSIFT_TOOLS_VENV=<that venv>)
 . scripts/remap-paths.sh && uvx maturin@1.16.0 build --release --locked -m crates/glyphsift-py/Cargo.toml -o target/wheels
-python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
-uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
+python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl
+uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl
 
 # npm package @airplanemode/glyphsift (WASM, Node and browser): packed, then installed offline into an empty directory
 scripts/install-wasm-tools.sh    # wasm-bindgen 0.2.129 and binaryen from digest-pinned release binaries (default ~/.local/glyphsift-tools)
-scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.0.tgz
-mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.0.tgz --ignore-scripts --offline --no-audit --no-fund
+scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.1.tgz
+mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.1.tgz --ignore-scripts --offline --no-audit --no-fund
+
+# The source distribution: builds with maturin, prunes its Cargo.lock to its own workspace, and proves cargo build --locked from it
+scripts/package-sdist.sh      # dist/sdist/glyphsift-0.1.1.tar.gz
 
 # The demo: demo/dist/ (runs build-wasm.sh first)
 scripts/build-demo.sh
 ```
 
-What was proven, and where: the wheel is `glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
+What was proven, and where: the wheel is `glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
 `macosx_11_0_arm64`, and it installed with `python3 -m venv` plus `pip install --no-index --no-deps` and with
 `uv venv` plus `uv pip install --offline --no-index --no-deps`, each followed by a `python -I` call that printed
-750000 for `score_ppm('कखग\ufffd')` (`evidence/sprint-3/D3/install-wheel-r2.log`). **Linux and Windows wheels are not built yet**
-(they and a source distribution are built only by CI after the owner's push, in the `wheels` job; nothing from it is published, and `docs/release.md` lists what only CI can prove). The npm tarball installed offline from an empty
+750000 for `score_ppm('कखग\ufffd')` and checked `gate()` (`evidence/sprint-5/D3/green/package-python.log`). **Linux and Windows wheels and an sdist were built by CI**
+(run 43667702791 at 5ff0c47, the `wheels` job, read on 18 Nov 2026: a `manylinux_2_17` wheel through zig, a `win_amd64` wheel and an
+sdist, each wheel installed into a fresh venv with `--no-index` and answering `ppm 1000000`; they are workflow artifacts kept for
+7 days, not releases, and `docs/release.md` lists what that run proved and what it did not). The sdist built by `scripts/package-sdist.sh` builds
+`cargo build --locked` from its own pruned `Cargo.lock` (61 lock entries pruned to the 36 its workspace needs, same versions and
+checksums: `evidence/sprint-5/D3/green/D3-02.log`). The npm tarball installed offline from an empty
 cache with install scripts off; `npm ls` showed exactly that one package, and a Node call and a bundler-free
-page in installed Chrome gave the report `glyphsift check` prints (`evidence/sprint-3/D3/npm-install-r2.log`). The CLI
+page in installed Chrome gave the report `glyphsift check` and the verdict `glyphsift gate` print (`evidence/sprint-5/D3/green/package-npm.log`). The CLI
 installed with `cargo install --path` and ran with every documented exit code
-(`evidence/sprint-3/D3/cli-install-r2.log`). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
+(`evidence/sprint-5/D3/green/cli-install.log`). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
 no source map, no install script and no file over 5 MB. The source packages `cargo package --list` would upload
 do include each crate's `tests/` (`glyphsift-core` ships `tests/cases/devanagari.toml`, invented strings, and `tests/*.rs`;
 `glyphsift-cli` ships `tests/*.rs`) so the crates can be tested from the registry; that is intended. Third-party crates
 and the compiled Unicode tables that ship inside the wheel, the WASM and the CLI are listed with their licences in
 [NOTICE](NOTICE). Builder paths (home, cargo, rustup and checkout directories) are remapped out of the Rust builds with
-`--remap-path-prefix` (`scripts/remap-paths.sh`) and `scripts/package-python.sh` and `scripts/package-npm.sh` fail if
-any packed file contains `/Users/`, `/home/` or the scratch-directory prefix (`scripts/check-no-builder-paths.py`).
+`--remap-path-prefix` (`scripts/remap-paths.sh`) and `scripts/package-python.sh`, `scripts/package-npm.sh` and the sdist test
+fail if any packed file contains a home-directory, checkout or scratch-directory prefix (`scripts/check-no-builder-paths.py`).
 
 ### After the owner publishes
 
@@ -90,17 +103,27 @@ echo 'नमस्ते।' | glyphsift check -
 
 printf 'कखग\xef\xbf\xbd' | glyphsift check - --fail-under 800000 > /dev/null; echo $?
 # score 750000 is below 800000: the report is printed, the exit code is 4
+
+printf 'कखग\xef\xbf\xbd' | glyphsift gate -
+# {"spec":"glyphsift.gate/0.1","scored":true,"script":"devanagari","devanagari_ppm":1000000,"ppm":750000,
+#  "threshold_ppm":975000,"verdict":"hold"}   (exit 0: a hold is an answer, not an error)
+printf 'hello' | glyphsift gate - --threshold-ppm 900000
+# {"spec":"glyphsift.gate/0.1","scored":false,"script":"other","devanagari_ppm":0,"ppm":null,
+#  "threshold_ppm":900000,"verdict":"not_scored"}
 ```
 
 (From a clone, `cargo run -q -p glyphsift-cli -- check -` runs the same thing without installing.)
 
 - `glyphsift check FILE|- [--fail-under PPM]` validates UTF-8 text from a file or standard input (up to 4 MiB)
   and prints the canonical JSON report. `--fail-under` is a threshold in parts per million, 0 to 1000000.
+- `glyphsift gate [--threshold-ppm N] FILE|-` judges one chunk of text and prints the canonical `glyphsift.gate/0.1` JSON:
+  `pass`, `hold` (a Devanagari chunk scoring below `N`, default 975000) or `not_scored` (not mostly Devanagari). Every
+  verdict exits 0; input that is not valid UTF-8 is a usage error (exit 2).
 - `glyphsift corrupt --family <name>|mixed --p <decimal> --seed <u64> [--sites <path>]` applies a seeded
   OCR-noise family to clean text on standard input (`--list-families` prints the 19 names and `mixed`).
 - `glyphsift bench --corpus <path> --seeds 1,2,3 --csv <path> --svg <path>` runs the score-versus-noise
   benchmark and writes the CSV and the chart; `glyphsift bench --verify <csv>` re-checks an existing CSV.
-- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.0) exit 0.
+- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.1) exit 0.
 
 Exit codes, the same for every command:
 
@@ -108,7 +131,7 @@ Exit codes, the same for every command:
 |---|---|
 | 0 | Success: `check` printed the report and the score is not under `--fail-under`; `corrupt` wrote its output; `bench` met the criterion (or `--verify` passed) |
 | 1 | I/O error, invalid UTF-8, input over 4 MiB, or a failed `bench` criterion (`bench --verify` on a CSV that violates it) |
-| 2 | Usage error: missing or bad arguments, an unknown command or family |
+| 2 | Usage error: missing or bad arguments, an unknown command or family; for `gate` also input that is not valid UTF-8 and a threshold outside 0 to 1000000 |
 | 4 | `check --fail-under`: the score is below the threshold (the report is still printed) |
 
 There is no exit code 3. Installing the CLI from the crates.io registry works only after the owner publishes
@@ -133,9 +156,10 @@ report = json.loads(glyphsift.validate("नमस्ते।"))   # the same by
 print(report["score"]["ppm"])                         # 1000000 is clean
 print(glyphsift.score_ppm("कखग\ufffd"))               # 750000
 print(glyphsift.clusters("नमस्ते।"))                  # ['न', 'म', 'स्ते', '।']
+print(json.loads(glyphsift.gate("कखग\ufffd"))["verdict"])   # hold  (the gate, below)
 ```
 
-`validate`, `score_ppm` and `clusters` raise `ValueError` over 4 MiB. The wheel ships type stubs (`glyphsift.pyi`,
+`validate`, `score_ppm`, `clusters` and `gate` raise `ValueError` over 4 MiB. The wheel ships type stubs (`glyphsift.pyi`,
 `py.typed`); `mypy --strict` passes on a script that uses them.
 
 ### Node and the browser
@@ -154,7 +178,23 @@ console.log(JSON.parse(validate("नमस्ते।")).score.ppm);           
 ```
 
 Exports: `validate(text)`, `score_ppm(text)`, `report_spec()`, `clusters(text)`, `clusters_json(text)`,
-`issue_kinds()`; nothing else. For valid Unicode text, all three runtimes return byte-identical reports.
+`issue_kinds()`, `gate(text, threshold_ppm?)`, `gate_spec()` and `default_gate_threshold_ppm()`; nothing else. For valid
+Unicode text, all three runtimes return byte-identical reports.
+
+### The gate
+
+A pipeline that ingests extracted text chunk by chunk needs one decision per chunk. `gate(text, threshold_ppm)` gives it, in
+the core, the CLI (`glyphsift gate`), Python (`glyphsift.gate(text, threshold_ppm=None)`) and WASM or Node
+(`gate(text, threshold_ppm?)`), as the canonical JSON `glyphsift.gate/0.1`: `{scored, script, devanagari_ppm, ppm,
+threshold_ppm, verdict}`. Letters are alphabetic code points plus the three Devanagari blocks; a chunk with no letters
+(script `none`) or under 500,000 ppm Devanagari (script `other`) is `not_scored`, passed through unjudged, with `ppm` null;
+otherwise `ppm` is exactly the document score and the verdict is `pass` at or above the threshold, `hold` below it. The default
+threshold, 975000, is derived from `docs/score-vs-noise.csv` in [docs/gate.md](docs/gate.md), which also says what a hold
+means for a reader and which noise level produces one (the gate holds `control_leak` at p=0.1 on 285 of 288 three-line chunks).
+A string with an unpaired surrogate is rejected by every binding (WASM: a `TypeError`, before the module is called, because
+wasm-bindgen would turn it into U+FFFD; Python: `ValueError`; the CLI: exit 2), and a threshold outside 0 to 1000000 is refused. Native, Python
+and WASM print identical bytes on the 200-case corpus in `tests/determinism/gate/` (`scripts/determinism.sh`), and 10,000
+seeded random strings plus the 4 MiB boundary cause no panic (`cargo test`).
 
 ## How it works
 
@@ -200,9 +240,10 @@ removed and no weight changed, so reports from 0.2 consumers keep their shape.
 
 Live demo: <https://airplanemode-labs.github.io/glyphsift/>. Built from `main` by
 `.github/workflows/pages.yml` on every push, with a box titled "What this demo does not do yet". It
-runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The Sprint 3 and Sprint 4
-changes are committed locally and not pushed: the live page shows Sprint 2 until the owner pushes and the workflow
-runs. The Sprint 4 demo was proven on a local build served under `/glyphsift/`.) The footer links the third-party
+runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The live page shows Sprint 4,
+pushed on 15 Nov 2026. The Sprint 5 changes, the Gate tab below, are committed locally and not pushed: the live page changes only
+after the owner pushes and the workflow runs. The Sprint 5 demo was proven on a local build served under `/glyphsift/`:
+`evidence/sprint-5/D3/green/D3-04.log`.) The footer links the third-party
 notices as `NOTICE.txt`, which Pages serves as `text/plain` so that it opens in the browser instead of downloading
 (BUG-T1-S3-R2-01); it carries the MIT texts of the WebAssembly crates that are not offered under Apache-2.0, among
 them zmij (its licence file has no copyright line, so the notice names the author from its `Cargo.toml`)
@@ -218,6 +259,13 @@ OCR-corrupted, legacy font read as Latin, legacy font residue, adversarial):
   the only cue; hover a cluster for its rules; capped at 20,000 clusters with a note);
 - the sixteen rules with their weights and how often each fired, a per-line table, the clusters, and the canonical
   JSON, which is byte for byte what `glyphsift check -` prints for the same text.
+
+**The Gate tab** (Sprint 5): the page has two tabs under the text input, Report (everything above) and Gate. The Gate tab
+runs `gate()` in WebAssembly on the same text (pasted, dropped, chosen or a sample) and shows the verdict (pass, hold or not
+scored), the Devanagari share, the score, a threshold field (975000 by default; whole numbers from 0 to 1,000,000, anything
+else is refused in plain text and the gate is not run) and the canonical JSON, which is byte for byte what `glyphsift gate -`
+prints. Text with an unpaired surrogate is refused with a plain-text message before the module is called. Everything is rendered
+as text nodes and nothing makes a request.
 
 **Local files**: drop a `.txt` file on the drop zone or choose one with the file picker. The file is read in the
 tab with `File.arrayBuffer()` after its size is checked (over 1 MiB is refused unread, with "This file is over 1 MiB"),
@@ -268,26 +316,26 @@ scores, 1.0000 being clean; figures are rounded half-up to four decimals (score_
 
 | Mixed family | p=0 | p=0.01 | p=0.02 | p=0.05 | p=0.1 | p=0.2 | p=0.4 | 8 GB Windows no-GPU laptop |
 |---|---|---|---|---|---|---|---|---|
-| mean of seeds 1 to 3 | 1.0000 | 0.9985 | 0.9970 | 0.9917 | 0.9840 | 0.9675 | 0.9334 | not measured |
-| minimum | 1.0000 | 0.9983 | 0.9969 | 0.9911 | 0.9828 | 0.9651 | 0.9321 | not measured |
-| maximum | 1.0000 | 0.9988 | 0.9971 | 0.9927 | 0.9852 | 0.9705 | 0.9359 | not measured |
+| mean of seeds 1 to 3 | 1.0000 | 0.9985 | 0.9970 | 0.9917 | 0.9840 | 0.9675 | 0.9334 | not measured on 8 GB |
+| minimum | 1.0000 | 0.9983 | 0.9969 | 0.9911 | 0.9828 | 0.9651 | 0.9321 | not measured on 8 GB |
+| maximum | 1.0000 | 0.9988 | 0.9971 | 0.9927 | 0.9852 | 0.9705 | 0.9359 | not measured on 8 GB |
 
 The twelve triggering families, mean of seeds 1 to 3:
 
 | Family | p=0.05 | p=0.4 | 8 GB Windows no-GPU laptop |
 |---|---|---|---|
-| `matra_double` | 0.9865 | 0.8906 | not measured |
-| `matra_detach` | 0.9846 | 0.8788 | not measured |
-| `nukta_spurious` | 0.9959 | 0.9669 | not measured |
-| `virama_insert` | 0.9748 | 0.8143 | not measured |
-| `bindu_swap` | 0.9999 | 0.9991 | not measured |
-| `sign_order` | 0.9995 | 0.9956 | not measured |
-| `joiner_inject` | 0.9935 | 0.9420 | not measured |
-| `legacy_font` | 0.9989 | 0.9894 | not measured |
-| `word_boundary` | 0.9838 | 0.8643 | not measured |
-| `random_substitution` | 0.9927 | 0.9427 | not measured |
-| `mixed_script` | 0.9806 | 0.8510 | not measured |
-| `control_leak` | 0.9516 | 0.7108 | not measured |
+| `matra_double` | 0.9865 | 0.8906 | not measured on 8 GB |
+| `matra_detach` | 0.9846 | 0.8788 | not measured on 8 GB |
+| `nukta_spurious` | 0.9959 | 0.9669 | not measured on 8 GB |
+| `virama_insert` | 0.9748 | 0.8143 | not measured on 8 GB |
+| `bindu_swap` | 0.9999 | 0.9991 | not measured on 8 GB |
+| `sign_order` | 0.9995 | 0.9956 | not measured on 8 GB |
+| `joiner_inject` | 0.9935 | 0.9420 | not measured on 8 GB |
+| `legacy_font` | 0.9989 | 0.9894 | not measured on 8 GB |
+| `word_boundary` | 0.9838 | 0.8643 | not measured on 8 GB |
+| `random_substitution` | 0.9927 | 0.9427 | not measured on 8 GB |
+| `mixed_script` | 0.9806 | 0.8510 | not measured on 8 GB |
+| `control_leak` | 0.9516 | 0.7108 | not measured on 8 GB |
 
 Scores are deterministic (byte-identical across native, Python and WASM in scripts/determinism.sh) for valid Unicode text. Not measured on 8 GB: no run on the 8 GB Windows laptop has been made, and every figure here comes from the Apple M5 Pro, 48 GB development Mac.
 
@@ -298,17 +346,24 @@ the damaged cluster, is 1.000000 for every family that declares a rule, in every
 
 | Throughput on about 1 MiB of the synthetic corpus (1,048,569 bytes, 12,888 lines, 273,779 clusters) | Apple M5 Pro, 48 GB (macOS 27.2.1) | 8 GB Windows no-GPU laptop |
 |---|---|---|
-| native `glyphsift check`, wall clock, best of 5 | 61 ms (one cold run 396 ms) | not measured |
-| WASM `validate()` in Node 22, best of 5 | 220 ms | not measured |
-| WASM `score_ppm()` in Node 22, best of 5 | 74 ms | not measured |
-| demo in Chrome: 1 MiB pasted, validated and rendered | 1,462 ms (headless Chrome, includes the 20,000-cluster heatmap) | not measured |
-| peak memory | not measured | not measured |
+| native `glyphsift check`, wall clock, best of 5 | 61 ms (one cold run 396 ms) | not measured on 8 GB |
+| WASM `validate()` in Node 22, best of 5 | 220 ms | not measured on 8 GB |
+| WASM `score_ppm()` in Node 22, best of 5 | 74 ms | not measured on 8 GB |
+| WASM `gate()` in Node 22, best of 5 (Sprint 5: the verdict only, no per-cluster report is built) | 40 ms | not measured on 8 GB |
+| native `glyphsift gate`, wall clock, best of 5 (Sprint 5) | 17 ms | not measured on 8 GB |
+| demo in Chrome: 1 MiB pasted, validated and rendered | 1,462 ms (headless Chrome, includes the 20,000-cluster heatmap) | not measured on 8 GB |
+| peak memory | not recorded on the Mac | not measured on 8 GB |
 
 Command and evidence: `evidence/sprint-3/D3/throughput.log` (the native line is the release `glyphsift check` on the 1 MiB
 file, five runs including process start; the WASM lines are `validate()` and `score_ppm()` from `dist/wasm/nodejs` on the
 same text, best of five; the demo line is from `evidence/sprint-3/D3/green-D3-07.log`). The Apple-silicon column is the
-development Mac (Apple M5 Pro, 48 GB), not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2); it stays "not measured" until that run exists.
-Browser figures other than the demo line, lines per second in the browser, and memory peak: not measured.
+development Mac (Apple M5 Pro, 48 GB), not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2); it stays "not measured on 8 GB" until that run exists.
+The two `gate` rows are from `evidence/sprint-5/D3/green/throughput.log` (the same 1 MiB file and the same command with
+`gate()` added to `scripts/throughput.mjs`); the same run measured `validate()` at 234 ms, `score_ppm()` at 80 ms and the native
+`check` at 67 ms, 6 to 10 percent above the Sprint 3 figures above, which are kept as recorded (an interactive Mac, a different day:
+that is noise, not a change in the validator, whose scoring did not change). The gate is faster than `validate()` because it never
+builds the per-cluster report.
+Browser figures other than the demo line, lines per second in the browser, and memory peak: not measured on 8 GB, and not recorded on the Mac either.
 
 ## Limitations
 
@@ -351,9 +406,17 @@ Browser figures other than the demo line, lines per second in the browser, and m
   `U+200B` ZWSP, `U+2060` word joiner, `U+00AD` soft hyphen, `U+2062` invisible times, and in-cluster Extend
   characters that are not Mn, Mc or Me (`U+1F3FB..U+1F3FF`, `U+FF9E`, `U+FF9F`). The invisible-text gap is not fully
   closed (docs/devanagari-rules.md section 7).
-- **Lone surrogates, and "identical results" means valid Unicode text.** Python raises `UnicodeEncodeError` on a
-  lone surrogate, WASM and JavaScript substitute `U+FFFD` and report `unexpected_code_point`, and the CLI refuses
-  invalid UTF-8 (exit 1). Native, Python and WASM are byte-identical for valid Unicode text only.
+- **Lone surrogates, and "identical results" means valid Unicode text.** For `validate`, `score_ppm` and `clusters`, Python
+  raises `UnicodeEncodeError` on a lone surrogate, WASM and JavaScript substitute `U+FFFD` and report
+  `unexpected_code_point`, and the CLI refuses invalid UTF-8 (exit 1). Native, Python and WASM are byte-identical for valid
+  Unicode text only. `gate` is stricter: every binding rejects a string with an unpaired surrogate (WASM with a `TypeError`
+  checked through `String.prototype.isWellFormed`, so it needs an engine that has it: Chrome 111 or Node 20 and later; an older
+  one is refused too, never guessed at).
+- **The gate is structural and Devanagari-only.** A chunk that is not mostly Devanagari is `not_scored`: passed through unjudged,
+  never held. The default threshold (975000) is derived from synthetic noise on 288 invented lines and was not tuned on real
+  documents or on a model's answers. A `pass` means no structural damage above the threshold was found, not that the text is
+  correct, and the seven noise families the validator cannot see stay invisible to the gate. No claim is made about the quality
+  of Hindi answers built on gated text. See [docs/gate.md](docs/gate.md).
 - **Clusters are judged in isolation.** Word- and document-level signals (legacy-font detection, a run of
   meaningless words, repeated clusters) are not implemented.
 - **No normalisation.** Input is judged as given, so `U+0958` plus a nukta is a double nukta even
@@ -372,27 +435,35 @@ Browser figures other than the demo line, lines per second in the browser, and m
   builder's checkout path, so it is switched off in `crates/glyphsift-py/pyproject.toml`). Generating a
   `THIRD-PARTY-NOTICES` file with the full texts (cargo-about) is a pre-publish step for the owner. The wheel is tagged
   `Operating System :: MacOS` until Linux and Windows wheels exist.
-- **Release candidate, nothing published, one platform proven.** No tag, no crate, wheel or npm package is on a registry,
-  and the names and the npm scope are not reserved. Only a macOS arm64 wheel (`macosx_11_0_arm64`) was built and
-  installed. Linux and Windows wheels are built only by CI after the owner's push (the `wheels` job: manylinux_2_17
-  through zig on Ubuntu, `win_amd64` on Windows, plus an sdist): configured, never run, and the package's OS
-  classifiers stay "MacOS" until those wheels are proven. The npm
+- **Release candidate, not published, one platform installed locally.** No tag, no crate, wheel or npm package is on a registry,
+  and the names and the npm scope are not reserved. Only a macOS arm64 wheel (`macosx_11_0_arm64`) was installed from a local
+  build. Linux and Windows wheels and an sdist were built by CI (run 43667702791 at 5ff0c47, the `wheels` job: `manylinux_2_17`
+  through zig on Ubuntu, `win_amd64` on Windows, macOS arm64, plus an sdist; each wheel installed into a fresh venv and answered
+  `ppm 1000000`), but they are 0.1.0 artifacts kept for 7 days, not releases, they were never installed on a clean machine from a registry, and the package's OS
+  classifiers stay "MacOS" until the owner publishes CI-built wheels. The npm
   tarball was installed in Node 22 and in Chrome only (not Firefox or Safari). Nothing is signed: the release
   manifest tool and a dry run with the public test key exist, the real key does not.
-- **Windows and CI.** The three-OS CI (`check`, `determinism`, `deny`, `demo`) last ran green on 9 Nov 2026 on the Sprint 2
-  commit ([run](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/42635283936), 9 of 9 jobs). The Sprint 3 and
-  Sprint 4 changes, the `packaging` and `demo-browser` jobs (now with hashed tool installs and a Playwright lockfile)
-  and the new `wheels` job have run on macOS arm64 only. Three-OS status: tests-first evidence Done (red/green logs);
-  local macOS green; CI on three OSes configured, pending the owner's push. Hashed installs cover uv, maturin, mypy and ziglang (`tools/ci/requirements.txt`) and Playwright
+- **Windows and CI.** The three-OS CI ran green at 5ff0c47, the Sprint 4 head the owner pushed on 15 Nov 2026
+  ([run 43667702791](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/43667702791), all 14 jobs: `check`,
+  `determinism` and `wheels` on ubuntu, macOS and Windows, plus `packaging`, `demo-browser`, `demo` and `deny`; read with `gh`
+  on 18 Nov 2026). The Sprint 5 changes (the gate, the sdist script, the `doc` job) have run on macOS arm64 only: three-OS status
+  for them is configured, pending the owner's push. Hashed installs cover uv, maturin, mypy and ziglang (`tools/ci/requirements.txt`) and Playwright
   (`tools/playwright/package-lock.json`, `npm ci --ignore-scripts`); known gaps: the pip that `setup-python` ships is
   not pinned, and `scripts/determinism.sh` installs maturin by version only into a test-only venv. Even then a hosted
-  Windows runner is not the target laptop: the 8 GB Windows no-GPU column above reads "not measured", and the prose
-  says it again: not measured on 8 GB.
+  Windows runner is not the target laptop: the 8 GB Windows no-GPU column above reads "not measured on 8 GB" in every cell, and the
+  prose says it again: not measured on 8 GB.
+- **Release-manifest output containment is proven on macOS only, so far.** `scripts/release-manifest.mjs` writes only inside `dist/`
+  (`scripts/lib/confine.mjs`, ported from pagetriage in Sprint 5, fix round 1). Its Windows rules are unit-tested here against `path.win32` and
+  an in-memory volume, not against Windows: the real symlink, hard-link and junction cases run on macOS, and on Windows only in CI after the
+  owner's push (the `check` job, windows-latest). A short window between the last check and the rename remains for a process that can
+  already write inside `dist/` ([docs/release.md](docs/release.md), "Output confinement").
+- **A wheel built on a Mac is not a release artifact.** Two local macOS builds of the same commit in different directories differ in the
+  Mach-O `LC_UUID` and the ad-hoc signature, so they are not byte-identical. Only CI-built wheels are signed and published
+  ([docs/release.md](docs/release.md), "Packaging notes"); the sdist is a source release that includes its synthetic tests on purpose.
 - **Native-speaker review wanted.** The case table encodes the author's reading of the Unicode Standard
   chapter 12 and common OCR and legacy-font failure modes; the corpus is invented by the author.
 - **What comes next.** The owner's steps in [docs/release.md](docs/release.md) (push and read CI, the 8 GB benchmark,
-  signing, tag, publish); reading the first CI run of the `wheels` job; Tamil for v0.2, then Bengali, and
-  language-independent scoring.
+  signing, tag, publish); Tamil for v0.2, then Bengali, and language-independent scoring.
 
 ## Security and privacy
 
@@ -402,6 +473,9 @@ Browser figures other than the demo line, lines per second in the browser, and m
   file action).
 - What is stored where: nothing. The CLI reads the file (or stdin) it is given and writes to
   stdout; the library holds the input only for the duration of the call.
+- The gate takes no more than `validate` does: the same 4 MiB cap, no network, no storage, and it allocates in proportion to one cluster
+  rather than to the input (it counts letters and sums penalties without building the report). A string with an unpaired
+  surrogate is refused rather than silently rewritten (WASM: a `TypeError`).
 - Inputs are treated as untrusted text: the validator never interprets them, allocates in
   proportion to their length, caps input at 4 MiB, and has no recursion over input. A 20,000-string
   fuzz test (native) and the same set in WASM (`tests/wasm/run_wasm_safety.mjs`) finish with no panic and
@@ -421,16 +495,19 @@ Browser figures other than the demo line, lines per second in the browser, and m
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --locked                            # core + cli: 154-case table, fuzz, score, corruption, check, bench, CLI surface
+cargo test --locked                            # core + cli: 154-case table, fuzz, score, corruption, check, bench, CLI surface, the gate (rules, 10,000 random strings, noise tables)
 cargo test --locked -p glyphsift-wasm          # the WASM bindings' native unit tests
 cargo check --locked -p glyphsift-core --target wasm32-unknown-unknown
 cargo check --locked -p glyphsift-wasm --target wasm32-unknown-unknown
 cargo check --locked -p glyphsift-py           # needs a python3 on PATH for the PyO3 build script
 cargo deny --all-features check                # needs cargo-deny 0.20.2; CI runs the pinned binary
-scripts/determinism.sh                         # native, Python and WASM against tests/determinism/expected (13 samples), plus the WASM safety script
+scripts/determinism.sh                         # native, Python and WASM against tests/determinism/expected (13 samples) and the 200 gate cases in tests/determinism/gate, plus the WASM safety script
 scripts/build-demo.sh                          # the Pages demo; CI's `demo` job runs the same command
 cargo run --locked -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
-tests/scripts/run-all.sh                       # script tests: release-manifest tool, lockfile and requirements hashes, CI policy, package-npm.sh with its default scratch folder
+tests/scripts/run-all.sh                       # script tests: release-manifest tool, lockfile and requirements hashes, CI policy (with a live cargo doc), package-npm.sh with its default scratch folder, the sdist builds --locked (sdist-locked.sh), release.md and the version (release-doc.sh), the README status line and figures (readme-claims.sh), and the --out containment unit tests (confine.test.mjs)
+node --test tests/scripts/confine.test.mjs     # the --out containment alone (Windows rules through path.win32, then real links); the CI `check` job runs it and release-manifest.sh on every OS
+scripts/package-sdist.sh                       # builds the sdist, prunes its Cargo.lock to its own workspace, proves cargo build --locked from it (S1-103)
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked   # the CI `doc` job
 scripts/package-python.sh                      # builds the wheel, installs it into a venv from pip and from uv, runs mypy --strict on the stubs
 scripts/package-npm.sh                         # packs the npm tarball and installs it offline into an empty directory (needs dist/wasm)
 ```

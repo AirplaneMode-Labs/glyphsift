@@ -6,9 +6,86 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+## [0.1.1] - 2026-11-18 (untagged)
 
-## [0.1.0] - UNRELEASED (release candidate, not tagged)
+Sprint 5 (18 Nov 2026, untagged), glyphsift **0.1.1**: the gate call (TD-42), the sdist fix (S1-103), the first CI read of the `wheels` job and
+the version bump (TD-43). 0.1.0 was never tagged; 0.1.1 supersedes it. Nothing is published, signed or tagged. The scoring, the weights, the report spec (`glyphsift.report/0.2`) and the
+benchmark CSV and SVG did not change: `bench --verify` passes and the reports are byte-identical.
+
+### Added
+
+- The gate call, `gate(text, threshold_ppm)` (D3-01, TD-42): for one chunk of extracted text it answers `pass`, `hold` (a Devanagari chunk whose score is below the
+  threshold) or `not_scored` (text that is not mostly Devanagari is passed through unjudged), as the canonical JSON `glyphsift.gate/0.1`
+  `{spec, scored, script, devanagari_ppm, ppm, threshold_ppm, verdict}`. Letters are `char::is_alphabetic()` plus the blocks U+0900..U+097F, U+A8E0..U+A8FF and U+1CD0..U+1CFF;
+  `devanagari_ppm` is the floored share of block letters; no letters is script `none`, under 500,000 ppm is `other`, both `not_scored` with `ppm` null; otherwise `ppm` is exactly
+  `validate(text).score.ppm` (computed without building the per-cluster report). Rust core (`gate`, `gate_to_canonical_json`, `parse_threshold`, `GateReport`, `Error::InvalidThreshold`),
+  CLI `glyphsift gate [--threshold-ppm N] FILE|-` (exit 0 for every verdict, 2 for invalid UTF-8 or a bad threshold, 1 for I/O or input over 4 MiB), Python
+  `glyphsift.gate(text, threshold_ppm=None)` with `GATE_SPEC` and `DEFAULT_GATE_THRESHOLD_PPM` and type stubs, and WASM `gate(text, threshold_ppm?)`, `gate_spec()` and
+  `default_gate_threshold_ppm()` (also in the npm package). An unpaired surrogate is rejected by every binding (WASM: a `TypeError` through `String.prototype.isWellFormed` before the module
+  is called, because wasm-bindgen would turn it into U+FFFD; Python: `ValueError`; CLI: exit 2); a threshold outside 0..1000000 is a `RangeError` (WASM), `ValueError` (Python, core), exit 2 (CLI), and a non-integer one a `TypeError`.
+- `DEFAULT_GATE_THRESHOLD_PPM`, 975000, derived from `docs/score-vs-noise.csv` in the new [docs/gate.md](docs/gate.md): it sits in the gap between the `mixed` family at p=0.1 (lowest seed 982,847) and at
+  p=0.2 (highest seed 970,520). The doc also says what a hold means for a reader and which noise produces one (`control_leak` at p=0.1 or `virama_insert` at p=0.2 hold 285 and 287 of 288 three-line chunks; `mixed` at p=0.4 holds 274, so a fixture must be checked),
+  with the exact hold counts pinned by `crates/glyphsift-core/tests/gate_noise.rs`.
+- Tests first (red logs before green): `crates/glyphsift-core/tests/gate.rs` (the boundaries at 499,999 and 500,000 ppm, threshold equality, the canonical bytes, 4 MiB, 10,000 seeded random strings with combining marks, block edges and the 4 MiB boundary and no panic, and a re-derivation of the default threshold from the committed CSV),
+  a gate fuzz hash over 40,000 probes shared by native and WASM (`GATE_FUZZ_HASH`), `crates/glyphsift-cli/tests/gate.rs`, and `tests/determinism/gate/`: 200 synthetic cases (`scripts/make-gate-corpus.mjs`,
+  six ill-formed and one over 4 MiB) whose recorded answers native (`run_gate_native.mjs`), Python (`run_gate_python.py`) and WASM (`run_gate_wasm.mjs`) must reproduce byte for byte or reject, wired into `scripts/determinism.sh`.
+- The demo's Gate tab (D3-04): Report and Gate tabs under the text input; the Gate tab shows the verdict, the Devanagari share, the score, a threshold field (975000 by default, whole numbers 0 to 1,000,000)
+  and the canonical JSON, all as text nodes; an unpaired surrogate, a bad threshold and a refused file show plain-text messages and leave no stale verdict. `tests/demo/check_demo.mjs` now makes 234 checks (150 in CI at 5ff0c47).
+- `scripts/package-sdist.sh` and `scripts/prune-sdist-lock.py` (S1-103, D3-02): the sdist is built with maturin, its `Cargo.lock` is pruned to the packages its own workspace reaches
+  (61 entries to 36, same versions and checksums) and the unpacked sdist is built `cargo build --locked`. Tests: `tests/scripts/sdist-locked.sh`.
+- `tests/scripts/release-doc.sh` (BUG-T3-S4-24, D3-03): row 6 of `docs/release.md` cites exactly one `gates-*.log`; the first CI run of the `wheels` job is recorded; one version everywhere.
+- A `doc` CI job, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` (BUG-T2-S4-22), and a wheel contents check (`tests/python/check_wheel.py`) on every platform's wheel in the `wheels` job.
+- `scripts/throughput.mjs` also times `gate()` and `glyphsift gate`: WASM `gate()` takes 40 ms on the 1 MiB corpus against 234 ms for `validate()` (Apple M5 Pro, 48 GB; not measured on 8 GB; `evidence/sprint-5/D3/green/throughput.log`).
+
+- Fix round 1 (TD-53, BUG-T2-S5-02 / T3-S5-02 / S1-111): `scripts/lib/confine.mjs`, pagetriage's output-path confinement ported unchanged apart from its header, with
+  `tests/scripts/confine.test.mjs` (36 tests: the Windows rules through `path.win32` and an in-memory volume, real symlinks and hard links, a real junction on Windows; none skipped) and
+  `tests/scripts/release-manifest.sh` rewritten (68 checks: `MSYS=winsymlinks:nativestrict`, `[ -L ]` after every link, a junction made with MSYS argument conversion off, hard-link,
+  symlink-to-a-file-in-`dist/`, case-spelling and one-line-error cases). The `check` job runs both on ubuntu, macOS and Windows (setup-node, same pinned action as the other jobs).
+- `tests/scripts/readme-claims.sh` (BUG-T1-S5-05, T3-S5-03, T3-S5-15): the README's first Status line is the status line verbatim and equals the demo's, every 8 GB cell reads
+  "not measured on 8 GB", and the throughput figures in the README and here equal the log they cite. `tests/scripts/ci-policy.sh` sections I (the containment step) and J (`cargo doc` prints no
+  "collision"), and `tests/scripts/release-doc.sh` sections D (packaging notes) and E (output confinement), are new.
+- `docs/release.md`: "Packaging notes" (a local macOS wheel is not byte-reproducible across checkout paths, only CI-built wheels are signed and published; the sdist is a source release that
+  includes `crates/*/tests` on purpose, TD-56), "Output confinement of `release-manifest.mjs`", and the owner's push-list line "glyphsift check (windows-latest) proves the ported containment".
+
+### Changed
+
+- The workspace, every crate, `Cargo.lock`, the wheel and the npm package are version 0.1.1 (TD-43).
+- `docs/release.md` records the first CI run of the `wheels` job: run 43667702791 at 5ff0c47, read with `gh` on 18 Nov 2026, built a `manylinux_2_17` wheel (254,335 bytes), a `win_amd64` wheel (151,328), a macOS arm64
+  wheel (247,045) and an sdist (82,081), all green on 14 of 14 jobs, with what it did and did not prove. READMEs, the demo's not-yet box and the release checklist no longer say the Linux and Windows wheels are built only after the owner's push.
+- The CI `wheels` job builds its sdist with `scripts/package-sdist.sh`; the `packaging` job gives the script tests the hashed maturin (`GLYPHSIFT_TOOLS_VENV`).
+- `docs/RELEASING.md` no longer copies the `packaging` job (the copy had gone stale); it points at `ci.yml`.
+- The root README no longer contains the literal builder-path prefixes the artifact checks search for (the sdist ships a copy of it as the core crate's README).
+
+- `scripts/release-manifest.mjs` takes its output path through `confineOutput` and `writeConfined` (a temporary file opened with `wx` and renamed over the target) instead of a `startsWith` check and
+  `writeFileSync`; it is again identical to pagetriage's script except the id and the licence constants. Exit codes are unchanged: 2 for every refusal, 1 for a write error, now one line and no stack trace.
+- The README's Status section starts with the exact Sprint 5 status line (the narrative follows it); the throughput figures were corrected to the log (gate 40 ms, validate 234, score_ppm 80, check 67) and
+  the 8 GB column of every benchmark table reads "not measured on 8 GB".
+- The `glyphsift-cli` `[[bin]]` is `doc = false`: `cargo doc --workspace --no-deps --locked` documents `glyphsift-core`, `glyphsift-py` and `glyphsift-wasm` and no longer warns "output filename collision".
+
+### Fixed
+
+- Fix round 2 (BUG-T2-S5-12, BUG-T2-S5-14, T3-R1-03): the sdist ships `bench/corpus/clean.txt`, `docs/gate.md` and `docs/score-vs-noise.csv` (synthetic, own-authored; `scripts/add-sdist-files.py`) so `cargo test --locked` passes from the unpacked sdist, now checked by `tests/scripts/sdist-locked.sh` (110,435 bytes); `tests/determinism/run_gate_native.mjs` exits 1 with `cannot run <cli path>: <error>` when the CLI cannot be run instead of throwing a TypeError (`tests/scripts/gate-native-error.sh`); `docs/release.md` row 2 quotes "not measured on 8 GB".
+
+- S1-103 / BUG-T2-S4-21: the sdist could not build `--locked` from its own `Cargo.lock` (see Added).
+- BUG-T3-S4-24: `docs/release.md` row 6 cited a superseded log next to the current one (fixed at 5ff0c47, now pinned by a test).
+
+- BUG-T2-S5-02 / T3-S5-02 / S1-111: `release-manifest.mjs` refused a differently-cased `DIST/` that is the same directory, accepted a symlink to a file inside `dist/` and wrote through it, wrote through a
+  hard link to a file outside `dist/`, and printed a stack trace when `--out` used a file as a directory or a name too long (reproduced by T2 on macOS; red logs `D3-FIX1-02-*`).
+- BUG-T2-S5-08: `cargo doc` warned "output filename collision" between the `glyphsift-py` library and the `glyphsift` binary, so one crate's docs overwrote the other's.
+- T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differed from the log they cite (39 / 230 / 79 / 66 against 40 / 234 / 80 / 67); the 8 GB column said only "not measured".
+- BUG-T1-S5-05 / T3-S5-04: the README did not start with the status line the demo and `site/data/demos.json` carry.
+- BUG-T2-S5-07 and T3-S5-05 are documented, not changed (see Added: "Packaging notes").
+
+### Security
+
+- The gate adds no network access, storage or dependency. It is capped at 4 MiB like `validate`, allocates in proportion to one cluster rather than to the input, and refuses a string with an unpaired surrogate
+  rather than silently rewriting it. 10,000 random strings and the 4 MiB boundary cause no panic.
+- The release-manifest tool can no longer be pointed through a link: a symlink or junction at `--out`, even to a file inside `dist/`, a symlink or junction on the way, a dangling link, a FIFO or a
+  directory is refused (exit 2) before anything is written, and a hard link inside `dist/` to a file elsewhere has its name replaced, not its bytes written through. Not closed: a process that can already
+  write inside `dist/` can swap a directory for a link between the last check and the rename (documented in `docs/release.md`). The Windows rules are proven here against `path.win32` and an in-memory
+  volume, and on Windows itself only by CI after the owner's push.
+
+## [0.1.0] - UNRELEASED (release candidate, never tagged; superseded by 0.1.1)
 
 The first release candidate: everything below, from Sprint 1 to Sprint 4. Nothing is published, signed or tagged;
 the owner's open steps are in [docs/release.md](docs/release.md). Sprint 4 entries (14 Nov 2026, untagged, D3-01 to
