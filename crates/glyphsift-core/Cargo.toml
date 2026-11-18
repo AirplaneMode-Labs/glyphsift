@@ -21,6 +21,10 @@ corrupt = []
 name = "corrupt"
 required-features = ["corrupt"]
 
+[[test]]
+name = "gate_noise"
+required-features = ["corrupt"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true

@@ -3,6 +3,11 @@
 //!
 //! Every function returns a JSON string or an integer (or throws), so the page needs no generated TypeScript
 //! types and the bytes stay identical to the native build's `serde_json` output.
+//!
+//! `gate` (Sprint 5) takes the text as a JavaScript value and checks it itself: wasm-bindgen turns an
+//! unpaired surrogate in a `&str` argument into U+FFFD without a word, so the gate would answer for text the
+//! caller never had. It asks the engine's `String.prototype.isWellFormed` first and throws a `TypeError`
+//! before the core is called.
 
 use wasm_bindgen::prelude::*;
 
@@ -44,6 +49,132 @@ pub fn clusters(text: &str) -> Result<String, JsError> {
 pub fn clusters_json(text: &str) -> Result<String, JsError> {
     check_len(text).map_err(|e| JsError::new(&e))?;
     Ok(to_json(&glyphsift_core::clusters(text)))
+}
+
+#[wasm_bindgen]
+extern "C" {
+    /// A JavaScript `TypeError`: the right error for an argument of the wrong kind or an ill-formed string.
+    type TypeError;
+    #[wasm_bindgen(constructor)]
+    fn new(message: &str) -> TypeError;
+}
+
+#[wasm_bindgen]
+extern "C" {
+    /// A JavaScript `RangeError`: the right error for a whole number outside the allowed range.
+    type RangeError;
+    #[wasm_bindgen(constructor)]
+    fn new(message: &str) -> RangeError;
+}
+
+#[wasm_bindgen]
+extern "C" {
+    /// A string value, seen only to call `String.prototype.isWellFormed` on it.
+    type StringProbe;
+    /// `true` when the string has no unpaired surrogate. `catch` turns a missing method (an engine older
+    /// than Chrome 111 or Node 20) into an `Err`, which the gate treats as a refusal rather than guessing.
+    #[wasm_bindgen(method, catch, js_name = isWellFormed)]
+    fn is_well_formed(this: &StringProbe) -> Result<bool, JsValue>;
+}
+
+fn type_error(message: &str) -> JsValue {
+    JsValue::from(TypeError::new(message))
+}
+
+/// What is wrong with a gate threshold given as a JavaScript number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ThresholdProblem {
+    /// NaN, an infinity, or a number with a fractional part.
+    NotWhole,
+    /// A whole number outside 0..=1,000,000.
+    OutOfRange,
+}
+
+/// A gate threshold from a JavaScript number: a whole number in `0..=1_000_000`.
+fn threshold_from_number(f: f64) -> Result<u32, ThresholdProblem> {
+    if !f.is_finite() {
+        return Err(ThresholdProblem::NotWhole);
+    }
+    // From 2^53 up every double is a whole number, and none is in range.
+    if f >= 9_007_199_254_740_992.0 || f <= -9_007_199_254_740_992.0 {
+        return Err(ThresholdProblem::OutOfRange);
+    }
+    // |f| < 2^53 here, so the cast to i64 is exact for a whole number and loses the fraction otherwise.
+    let n = f as i64;
+    if n as f64 != f {
+        return Err(ThresholdProblem::NotWhole);
+    }
+    glyphsift_core::parse_threshold(n).map_err(|_| ThresholdProblem::OutOfRange)
+}
+
+/// Judge one chunk of text and return the canonical `glyphsift.gate/0.1` JSON (`docs/gate.md`): `pass`,
+/// `hold`, or `not_scored` (text that is not mostly Devanagari is passed through unjudged, `ppm` null).
+/// Identical bytes to `glyphsift gate` and the Python wheel.
+///
+/// `threshold_ppm` is a whole number from 0 to 1000000; `undefined` or `null` means the default,
+/// `default_gate_threshold_ppm()` (975000).
+///
+/// Throws a `TypeError` when `text` is not a string or is not well-formed (an unpaired surrogate), or when
+/// the threshold is not a whole number; a `RangeError` for a whole number outside 0..=1000000; an `Error`
+/// saying "too large" for input over 4 MiB. It never traps.
+#[wasm_bindgen]
+pub fn gate(
+    #[wasm_bindgen(unchecked_param_type = "string")] text: &JsValue,
+    #[wasm_bindgen(unchecked_optional_param_type = "number")] threshold_ppm: Option<JsValue>,
+) -> Result<String, JsValue> {
+    if !text.is_string() {
+        return Err(type_error("gate: text must be a string"));
+    }
+    match text.unchecked_ref::<StringProbe>().is_well_formed() {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(type_error(
+                "gate: the text is not well-formed Unicode: it contains an unpaired surrogate",
+            ));
+        }
+        Err(_) => {
+            return Err(type_error(
+                "gate: this JavaScript engine has no String.prototype.isWellFormed, so the text cannot be checked for unpaired surrogates",
+            ));
+        }
+    }
+    // A string value is always convertible, and it is well-formed, so nothing was replaced.
+    let Some(text) = text.as_string() else {
+        return Err(type_error("gate: text must be a string"));
+    };
+    let threshold = match threshold_ppm.as_ref() {
+        None => None,
+        Some(v) if v.is_null() || v.is_undefined() => None,
+        Some(v) => match v.as_f64() {
+            None => return Err(type_error("gate: threshold_ppm must be a number")),
+            Some(f) => match threshold_from_number(f) {
+                Ok(n) => Some(n),
+                Err(ThresholdProblem::NotWhole) => {
+                    return Err(type_error("gate: threshold_ppm must be a whole number"));
+                }
+                Err(ThresholdProblem::OutOfRange) => {
+                    return Err(JsValue::from(RangeError::new(
+                        "gate: threshold_ppm must be from 0 to 1000000",
+                    )));
+                }
+            },
+        },
+    };
+    glyphsift_core::gate(&text, threshold)
+        .map(|r| glyphsift_core::gate_to_canonical_json(&r))
+        .map_err(|e| JsValue::from(JsError::new(&e.to_string())))
+}
+
+/// The gate spec discriminator every gate result carries (`glyphsift.gate/0.1`).
+#[wasm_bindgen]
+pub fn gate_spec() -> String {
+    glyphsift_core::GATE_SPEC.to_owned()
+}
+
+/// The threshold `gate` uses when none is given: 975000 parts per million (derived in `docs/gate.md`).
+#[wasm_bindgen]
+pub fn default_gate_threshold_ppm() -> u32 {
+    glyphsift_core::DEFAULT_GATE_THRESHOLD_PPM
 }
 
 /// The input-size guard shared by every export that walks the whole text. The message is the one
@@ -121,6 +252,37 @@ mod tests {
         assert!(check_len(&over).is_err());
         let eight = "a".repeat(8 * 1024 * 1024);
         assert!(check_len(&eight).is_err());
+    }
+
+    #[test]
+    fn gate_thresholds_are_whole_numbers_from_0_to_1000000() {
+        for (f, want) in [
+            (0.0, Ok(0)),
+            (-0.0, Ok(0)),
+            (975_000.0, Ok(975_000)),
+            (1_000_000.0, Ok(1_000_000)),
+            (1_000_001.0, Err(ThresholdProblem::OutOfRange)),
+            (-1.0, Err(ThresholdProblem::OutOfRange)),
+            (4_294_967_296.0, Err(ThresholdProblem::OutOfRange)),
+            (9_007_199_254_740_992.0, Err(ThresholdProblem::OutOfRange)),
+            (1e21, Err(ThresholdProblem::OutOfRange)),
+            (-1e21, Err(ThresholdProblem::OutOfRange)),
+            (1.5, Err(ThresholdProblem::NotWhole)),
+            (0.1, Err(ThresholdProblem::NotWhole)),
+            (-0.5, Err(ThresholdProblem::NotWhole)),
+            (f64::NAN, Err(ThresholdProblem::NotWhole)),
+            (f64::INFINITY, Err(ThresholdProblem::NotWhole)),
+            (f64::NEG_INFINITY, Err(ThresholdProblem::NotWhole)),
+        ] {
+            assert_eq!(threshold_from_number(f), want, "{f}");
+        }
+    }
+
+    #[test]
+    fn gate_spec_and_default_match_the_core() {
+        assert_eq!(gate_spec(), "glyphsift.gate/0.1");
+        assert_eq!(gate_spec(), glyphsift_core::GATE_SPEC);
+        assert_eq!(default_gate_threshold_ppm(), 975_000);
     }
 
     #[test]

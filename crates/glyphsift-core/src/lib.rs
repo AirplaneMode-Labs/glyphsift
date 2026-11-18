@@ -4,6 +4,9 @@
 //! cluster grammar and sixteen rules (`docs/devanagari-rules.md`); `tests/cases/devanagari.toml` is
 //! the executable form of the rules.
 //!
+//! [`gate`] is the per-chunk call for a pipeline: it says pass, hold, or not scored (text that is not
+//! mostly Devanagari is passed through unjudged); `docs/gate.md` has the rules and the default threshold.
+//!
 //! Determinism contract: no hash-based collections (enforced by `clippy.toml`), no floating point,
 //! no clock, no environment, no file system, no platform `libm`. The same input gives
 //! byte-identical JSON on native, Python and WASM builds.
@@ -12,16 +15,21 @@
 
 #[cfg(feature = "corrupt")]
 pub mod corrupt;
+mod gate;
 pub mod report;
 mod rules;
 mod score;
 mod tables;
 
+pub use gate::{
+    DEFAULT_GATE_THRESHOLD_PPM, GATE_MAX_THRESHOLD_PPM, GATE_MIN_DEVANAGARI_PPM, GATE_SPEC,
+    GateReport, GateScript, GateVerdict, gate, gate_to_canonical_json, parse_threshold,
+};
 pub use report::{Cluster, Issue, IssueKind, LineSummary, REPORT_SPEC, Report, Score, Summary};
 pub use score::{MAX_WEIGHT, Weights, WeightsError, score_ppm};
 use unicode_segmentation::UnicodeSegmentation;
 
-/// Errors from [`validate`].
+/// Errors from [`validate`] and [`gate`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// The input is longer than [`MAX_INPUT_BYTES`].
@@ -31,6 +39,12 @@ pub enum Error {
         bytes: usize,
         /// The limit, [`MAX_INPUT_BYTES`].
         max: usize,
+    },
+    /// A gate threshold outside `0..=1_000_000` parts per million (a score never exceeds 1,000,000).
+    #[error("threshold {value} is outside 0..=1000000 ppm")]
+    InvalidThreshold {
+        /// The rejected value.
+        value: i64,
     },
 }
 

@@ -3,12 +3,14 @@
 //! Commands:
 //!
 //! - `check FILE|-` validates UTF-8 text and prints the canonical JSON report.
+//! - `gate [--threshold-ppm N] FILE|-` judges one chunk of text (pass, hold or not scored) and prints the
+//!   canonical `glyphsift.gate/0.1` JSON; every verdict exits 0.
 //! - `corrupt` applies a seeded noise family to clean text (the OCR-corruption generator).
 //! - `bench` runs the score-versus-noise benchmark and checks that the score falls as noise rises.
 //!
 //! Exit codes: 0 success; 1 I/O error, invalid UTF-8, input over the size limit, or (for `bench`)
-//! a violated criterion; 2 usage error (bad or missing arguments); 4 `check --fail-under` and the
-//! score is below the threshold. There is no exit code 3.
+//! a violated criterion; 2 usage error (bad or missing arguments; for `gate`, also input that is not
+//! valid UTF-8); 4 `check --fail-under` and the score is below the threshold. There is no exit code 3.
 
 mod bench;
 mod chart;
@@ -19,14 +21,17 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use glyphsift_core::corrupt::{Family, Selection, corrupt, parse_p_ppm, sites_json};
-use glyphsift_core::{MAX_INPUT_BYTES, to_canonical_json, validate};
+use glyphsift_core::{
+    DEFAULT_GATE_THRESHOLD_PPM, MAX_INPUT_BYTES, gate, gate_to_canonical_json, to_canonical_json,
+    validate,
+};
 
 #[derive(Parser)]
 #[command(
     name = "glyphsift",
     version,
     about = "Is extracted Indic text clean enough to trust?",
-    after_help = "Exit codes: 0 success; 1 I/O or UTF-8 error (or a failed bench criterion); 2 usage error; 4 check --fail-under not met."
+    after_help = "Exit codes: 0 success; 1 I/O or UTF-8 error (or a failed bench criterion); 2 usage error (for gate, also input that is not valid UTF-8); 4 check --fail-under not met."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -44,6 +49,17 @@ enum Command {
         /// below this threshold.
         #[arg(long, value_name = "PPM", value_parser = clap::value_parser!(u32).range(0..=1_000_000))]
         fail_under: Option<u32>,
+    },
+    /// Judge one chunk of text from FILE (or stdin when FILE is `-`): `pass`, `hold`, or `not_scored` (text
+    /// that is not mostly Devanagari is passed through unjudged), and print the canonical glyphsift.gate/0.1
+    /// JSON. Every verdict exits 0. Input must be valid UTF-8 (otherwise exit 2) and at most 4 MiB.
+    Gate {
+        /// Path to a UTF-8 text file, or `-` for standard input.
+        file: String,
+        /// Hold a scored chunk whose score, in parts per million, is below this. Default 975000 (derived in
+        /// docs/gate.md); 0 passes every scored chunk, 1000000 only a chunk with no issue.
+        #[arg(long, value_name = "PPM", value_parser = clap::value_parser!(u32).range(0..=1_000_000))]
+        threshold_ppm: Option<u32>,
     },
     /// Corrupt clean text from stdin with a seeded noise family and print the result.
     Corrupt {
@@ -109,11 +125,22 @@ enum Command {
     },
 }
 
+// The `gate --help` text says "975000": this fails to compile if the core's default ever moves without it.
+const _: () = assert!(DEFAULT_GATE_THRESHOLD_PPM == 975_000);
+
 const USAGE: u8 = 2;
 const IO: u8 = 1;
 
-/// Read at most `MAX_INPUT_BYTES` of UTF-8 from `file` (`-` is stdin).
-fn read_input(file: &str) -> Result<String, String> {
+/// Why an input could not be read.
+enum InputError {
+    /// The file or stdin could not be read, or the input is over the size limit.
+    Io(String),
+    /// The bytes are not valid UTF-8.
+    NotUtf8(String),
+}
+
+/// Read at most `MAX_INPUT_BYTES` of bytes from `file` (`-` is stdin).
+fn read_bytes(file: &str) -> Result<Vec<u8>, InputError> {
     let limit = MAX_INPUT_BYTES as u64 + 1;
     let mut bytes = Vec::new();
     if file == "-" {
@@ -121,18 +148,32 @@ fn read_input(file: &str) -> Result<String, String> {
             .lock()
             .take(limit)
             .read_to_end(&mut bytes)
-            .map_err(|e| format!("cannot read stdin: {e}"))?;
+            .map_err(|e| InputError::Io(format!("cannot read stdin: {e}")))?;
     } else {
         std::fs::File::open(file)
             .and_then(|f| f.take(limit).read_to_end(&mut bytes))
-            .map_err(|e| format!("cannot read {file}: {e}"))?;
+            .map_err(|e| InputError::Io(format!("cannot read {file}: {e}")))?;
     }
     if bytes.len() > MAX_INPUT_BYTES {
-        return Err(format!(
+        return Err(InputError::Io(format!(
             "{file}: input is too large: it exceeds the limit of {MAX_INPUT_BYTES} bytes"
-        ));
+        )));
     }
-    String::from_utf8(bytes).map_err(|e| format!("{file}: input is not valid UTF-8: {e}"))
+    Ok(bytes)
+}
+
+/// Read at most `MAX_INPUT_BYTES` of UTF-8 from `file` (`-` is stdin).
+fn read_text(file: &str) -> Result<String, InputError> {
+    let bytes = read_bytes(file)?;
+    String::from_utf8(bytes)
+        .map_err(|e| InputError::NotUtf8(format!("{file}: input is not valid UTF-8: {e}")))
+}
+
+/// `read_text` with every failure folded into one message, for the commands where invalid UTF-8 is an I/O error.
+fn read_input(file: &str) -> Result<String, String> {
+    read_text(file).map_err(|e| match e {
+        InputError::Io(m) | InputError::NotUtf8(m) => m,
+    })
 }
 
 fn fail(code: u8, msg: impl std::fmt::Display) -> ExitCode {
@@ -163,6 +204,25 @@ fn check(file: &str, fail_under: Option<u32>) -> ExitCode {
         }
         _ => ExitCode::SUCCESS,
     }
+}
+
+fn gate_cmd(file: &str, threshold_ppm: Option<u32>) -> ExitCode {
+    let text = match read_text(file) {
+        Ok(t) => t,
+        Err(InputError::Io(msg)) => return fail(IO, msg),
+        // `gate` is called by pipelines that must tell "not UTF-8" from "cannot read": a usage error.
+        Err(InputError::NotUtf8(msg)) => return fail(USAGE, msg),
+    };
+    let report = match gate(&text, threshold_ppm) {
+        Ok(r) => r,
+        Err(e @ glyphsift_core::Error::InvalidThreshold { .. }) => return fail(USAGE, e),
+        Err(e) => return fail(IO, e),
+    };
+    let mut out = std::io::stdout().lock();
+    if writeln!(out, "{}", gate_to_canonical_json(&report)).is_err() {
+        return fail(IO, "cannot write to stdout");
+    }
+    ExitCode::SUCCESS
 }
 
 fn corrupt_cmd(
@@ -293,6 +353,10 @@ fn bench_cmd(
 fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Check { file, fail_under } => check(&file, fail_under),
+        Command::Gate {
+            file,
+            threshold_ppm,
+        } => gate_cmd(&file, threshold_ppm),
         Command::Corrupt {
             family,
             p,

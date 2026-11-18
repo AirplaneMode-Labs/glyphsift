@@ -11,7 +11,7 @@ members = [
 default-members = ["crates/glyphsift-core", "crates/glyphsift-cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/AirplaneMode-Labs/glyphsift"
@@ -22,7 +22,7 @@ categories = ["text-processing", "internationalization"]
 rust-version = "1.98"
 
 [workspace.dependencies]
-glyphsift-core = { path = "crates/glyphsift-core", version = "0.1.0" }
+glyphsift-core = { path = "crates/glyphsift-core", version = "0.1.1" }
 serde = { version = "1.0.229", features = ["derive"] }
 # Never `preserve_order`: canonical JSON relies on fixed struct order and BTreeMap sorting.
 serde_json = "1.0.154"

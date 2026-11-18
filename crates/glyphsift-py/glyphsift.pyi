@@ -1,4 +1,4 @@
-"""Type stubs for the glyphsift Python wheel (release candidate 0.1.0, not tagged).
+"""Type stubs for the glyphsift Python wheel (release candidate 0.1.1, not tagged).
 
 The extension is a thin wrapper over glyphsift-core: every function takes `str` and returns plain
 Python values. The report is canonical JSON, byte-identical to `glyphsift check` and to the WASM build
@@ -38,4 +38,25 @@ def clusters(text: str) -> list[str]:
     Raises:
         ValueError: when ``text`` is longer than 4 MiB (4194304 bytes of UTF-8), with the same
             "too large" message as ``validate``.
+    """
+
+GATE_SPEC: str
+"""The spec string every gate result carries: ``"glyphsift.gate/0.1"``."""
+
+DEFAULT_GATE_THRESHOLD_PPM: int
+"""The threshold ``gate`` uses when none is given: 975000 (derived in docs/gate.md)."""
+
+def gate(text: str, threshold_ppm: int | None = None) -> str:
+    """Judge one chunk of text and return the canonical JSON gate result (``glyphsift.gate/0.1``).
+
+    The verdict is ``"pass"``, ``"hold"`` (a Devanagari chunk scoring below the threshold) or
+    ``"not_scored"`` (text that is not mostly Devanagari is passed through unjudged, with ``ppm`` null).
+    Parse the result with ``json.loads``. ``threshold_ppm`` is an ``int`` from 0 to 1000000; ``None``
+    means ``DEFAULT_GATE_THRESHOLD_PPM``.
+
+    Raises:
+        ValueError: when ``text`` is longer than 4 MiB (the message contains "too large"), when
+            ``threshold_ppm`` is outside 0..1000000, or (as ``UnicodeEncodeError``) when ``text`` contains
+            a lone surrogate.
+        TypeError: when ``threshold_ppm`` is not an ``int`` (a ``bool`` or a ``float`` is refused).
     """
