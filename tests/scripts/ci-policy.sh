@@ -18,6 +18,13 @@
 #  F. every checkout has persist-credentials: false; every job sets its own permissions;
 #  G. the wheels job: matrix ubuntu, windows and macos; contents: read; manylinux_2_17 through zig on ubuntu;
 #     an sdist; an install with --no-index and a smoke call.
+#  H. the doc job (BUG-T2-S4-22): rustdoc warnings are errors, on the whole workspace.
+#  I. fix round 1 (TD-53): the check job, on ubuntu, macos and windows with bash, runs tests/scripts/confine.test.mjs and
+#     tests/scripts/release-manifest.sh (the --out containment, Windows rules included), with Node set up by the pinned
+#     setup-node action.
+#  J. fix round 1 (BUG-T2-S5-08): `cargo doc --workspace --no-deps --locked` prints no "output filename collision" (the CLI bin
+#     is `doc = false`, so the glyphsift-py lib and the glyphsift bin no longer write the same index.html). The live run is
+#     skipped, with a line saying so, only when cargo is not installed; CI_POLICY_NO_CARGO_DOC=1 skips it explicitly.
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 WF=${WF:-$REPO/.github/workflows}
@@ -79,14 +86,15 @@ expect_eq "demo-browser installs Playwright with npm ci --prefix tools/playwrigh
 expect_eq "demo-browser points PLAYWRIGHT_DIR at tools/playwright in both browser steps" 2 "$(printf '%s\n' "$DB" | grep -cE 'PLAYWRIGHT_DIR: tools/playwright$')"
 PK=$(job_text "$CI" packaging | grep -vE '^[[:space:]]*#')
 expect_eq "packaging installs tools with the hashed requirements file" 1 "$(printf '%s\n' "$PK" | grep -cE 'pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt')"
-expect_eq "packaging hands the venv to package-python.sh (GLYPHSIFT_TOOLS_VENV)" 1 "$(printf '%s\n' "$PK" | grep -c 'GLYPHSIFT_TOOLS_VENV')"
+# Sprint 5 (S1-103): the script tests now build an sdist (tests/scripts/sdist-locked.sh), so that step needs the hashed maturin too.
+expect_eq "packaging hands the venv to package-python.sh and to the script tests (GLYPHSIFT_TOOLS_VENV)" 2 "$(printf '%s\n' "$PK" | grep -c 'GLYPHSIFT_TOOLS_VENV')"
 
 # ---- C. --locked -----------------------------------------------------------------------------------
 echo "== C. cargo and maturin calls say --locked"
 # (a `name:` line and an echo or printf line only mention a command; the command itself is checked)
 CARGO_RE='(cargo (build|test|check|clippy|run|tree|install|doc|package)( |$)|maturin (build|develop)( |$)|MATURIN\[@\]\}"? (build|develop)( |$))'
 locked_misses() { code_lines "$1" | grep -E "$CARGO_RE" | grep -vE '^[[:space:]]*((- )?name:|echo |printf )' | grep -vE -- '--locked'; }
-for f in "$CI" "$REPO"/scripts/build-wasm.sh "$REPO"/scripts/package-npm.sh "$REPO"/scripts/package-python.sh "$REPO"/scripts/determinism.sh; do
+for f in "$CI" "$REPO"/scripts/build-wasm.sh "$REPO"/scripts/package-npm.sh "$REPO"/scripts/package-python.sh "$REPO"/scripts/package-sdist.sh "$REPO"/scripts/determinism.sh; do
   n=$(locked_misses "$f" | wc -l | tr -d ' ')
   expect_eq "$(basename "$f"): every cargo or maturin build, test, check, run or install line has --locked" 0 "$n"
   if [ "$n" -ne 0 ]; then locked_misses "$f" | sed 's/^/    missing --locked: /'; fi
@@ -125,10 +133,59 @@ else
   expect_eq "wheels: contents: read" 1 "$(printf '%s\n' "$W" | grep -cE '^      contents: read')"
   expect_eq "wheels: ubuntu builds manylinux_2_17 through zig, with --locked" 1 "$(printf '%s\n' "$W" | grep -cE 'maturin build --release --locked --zig --compatibility manylinux_2_17 -m crates/glyphsift-py/Cargo.toml')"
   expect_eq "wheels: the other platforms build with maturin build --release --locked" 1 "$(printf '%s\n' "$W" | grep -cE 'maturin build --release --locked -m crates/glyphsift-py/Cargo.toml')"
-  expect_eq "wheels: an sdist is built, and Cargo.lock is checked unchanged after it" 2 "$(printf '%s\n' "$W" | grep -cE 'maturin sdist -m crates/glyphsift-py/Cargo.toml$|git diff --exit-code -- Cargo.lock$')"
-  expect_eq "wheels: no 'maturin sdist --locked' (the flag does not exist)" 0 "$(printf '%s\n' "$W" | grep -cE 'maturin sdist.*--locked')"
+  # S1-103: the sdist comes from scripts/package-sdist.sh, which prunes the lock and builds it --locked; a bare
+  # `maturin sdist` shipped a Cargo.lock the unpacked sdist could not build --locked from.
+  expect_eq "wheels: the sdist is built by scripts/package-sdist.sh (S1-103)" 1 "$(printf '%s\n' "$W" | grep -cE '^[[:space:]]*scripts/package-sdist\.sh$')"
+  expect_eq "wheels: no bare 'maturin sdist'" 0 "$(printf '%s\n' "$W" | grep -cE 'maturin sdist')"
+  expect_eq "wheels: Cargo.lock is still checked unchanged after the sdist" 1 "$(printf '%s\n' "$W" | grep -cE 'git diff --exit-code -- Cargo.lock$')"
+  expect_eq "wheels: the sdist is written to target/wheels, where the upload step looks" 1 "$(printf '%s\n' "$W" | grep -cE 'SDIST_OUT=target/wheels')"
+  expect_eq "wheels: every platform's wheel goes through tests/python/check_wheel.py (stubs, licences, README wording)" 1 "$(printf '%s\n' "$W" | grep -cE 'python -I tests/python/check_wheel\.py target/wheels/')"
   expect_eq "wheels: the wheel is installed with --no-index" 1 "$(printf '%s\n' "$W" | grep -cE 'pip install --no-index --no-deps')"
   expect_eq "wheels: a smoke call checks ppm 1000000" 1 "$(printf '%s\n' "$W" | grep -c '1000000')"
+fi
+
+# ---- H. the doc job (BUG-T2-S4-22, conventions table, Sprint 5) ---------------------------------------
+echo "== H. doc job: rustdoc warnings are errors"
+DJ=$(job_text "$CI" doc)
+if [ -z "$DJ" ]; then
+  fail "no 'doc' job in ci.yml"
+else
+  DC=$(printf '%s\n' "$DJ" | grep -vE '^[[:space:]]*#')
+  expect_eq "doc: runs on ubuntu-latest" 1 "$(printf '%s\n' "$DC" | grep -cE 'runs-on: ubuntu-latest')"
+  expect_eq "doc: contents: read" 1 "$(printf '%s\n' "$DC" | grep -cE '^      contents: read')"
+  expect_eq "doc: RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps --locked" 1 "$(printf '%s\n' "$DC" | grep -cF 'RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked')"
+fi
+
+# ---- I. the containment tests run in the check job on every OS ---------------------------------------
+echo "== I. check job: confine.test.mjs and release-manifest.sh on ubuntu, macos and windows (bash)"
+CK=$(job_text "$CI" check)
+if [ -z "$CK" ]; then
+  fail "no 'check' job in ci.yml"
+else
+  CKC=$(printf '%s\n' "$CK" | grep -vE '^[[:space:]]*#')
+  for os in ubuntu-latest macos-latest windows-latest; do expect_eq "check matrix has $os" 1 "$(printf '%s\n' "$CKC" | grep -cE "os: \[.*$os")"; done
+  expect_eq "check: fail-fast is false" 1 "$(printf '%s\n' "$CKC" | grep -cE 'fail-fast: false')"
+  expect_eq "check: runs node --test tests/scripts/confine.test.mjs" 1 "$(printf '%s\n' "$CKC" | grep -cE '^[[:space:]]*(run: )?node --test tests/scripts/confine\.test\.mjs$')"
+  expect_eq "check: runs bash tests/scripts/release-manifest.sh" 1 "$(printf '%s\n' "$CKC" | grep -cE '^[[:space:]]*(run: )?bash tests/scripts/release-manifest\.sh$')"
+  expect_eq "check: sets up Node 22 with the pinned setup-node" 1 "$(printf '%s\n' "$CK" | grep -cE 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7\.1\.0')"
+  expect_eq "check: the workflow default shell is bash (Git Bash on windows-latest)" 1 "$(awk '/^defaults:/{d=1; next} d && /^    shell: bash[[:space:]]*$/{print "1"; exit} d && /^[a-z]/{exit}' "$CI" | head -1)"
+  # the two steps are not conditional on the OS: nothing may skip them on windows-latest
+  expect_eq "check: the containment steps carry no 'if:' that could skip an OS" 0 "$(printf '%s\n' "$CK" | awk '/Release-manifest --out containment/{on=1} on && /if:/{print} on && /^      - (uses|run|name):/ && !/Release-manifest --out containment/{on=0}' | grep -c .)"
+fi
+expect_eq "run-all.sh runs confine.test.mjs (a missing node is a failure)" 1 "$(grep -c 'confine.test.mjs' "$REPO/tests/scripts/run-all.sh" | awk '{print ($1 >= 1) ? 1 : 0}')"
+
+# ---- J. cargo doc has no output filename collision ----------------------------------------------------
+echo "== J. cargo doc prints no output filename collision (BUG-T2-S5-08)"
+expect_eq "the glyphsift bin target in glyphsift-cli is doc = false" 1 "$(awk '/^\[\[bin\]\]/{b=1; next} /^\[/{b=0} b && /^doc = false[[:space:]]*$/{print "1"; exit}' "$REPO/crates/glyphsift-cli/Cargo.toml" | head -1)"
+if [ "${CI_POLICY_NO_CARGO_DOC:-0}" = 1 ]; then
+  echo "na   - live cargo doc: skipped on request (CI_POLICY_NO_CARGO_DOC=1); the static doc = false check above still ran"
+elif ! command -v cargo >/dev/null 2>&1; then
+  echo "na   - live cargo doc: not applicable here (cargo is not installed); the static doc = false check above still ran"
+else
+  DOCOUT=$(cd "$REPO" && RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked 2>&1); DOCRC=$?
+  expect_eq "cargo doc --workspace --no-deps --locked exits 0 with -D warnings" 0 "$DOCRC"
+  expect_eq "the cargo doc output contains no 'collision'" 0 "$(printf '%s\n' "$DOCOUT" | grep -ci 'collision')"
+  if printf '%s\n' "$DOCOUT" | grep -qi 'collision'; then printf '%s\n' "$DOCOUT" | grep -i -B1 -A3 'collision' | head -8 | sed 's/^/    /'; fi
 fi
 
 finish
