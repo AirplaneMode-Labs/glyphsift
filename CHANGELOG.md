@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The wheel contents check compared tags as strings and failed on the Linux wheel only (CI run 44325740893 at b3ea291: `wheel and sdist (ubuntu-latest)`, one failure, `WHEEL records the same
+  platform tag as the filename`; the macOS and Windows legs were green). A manylinux wheel's filename carries a compressed tag set (PEP 425), `cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64`, and
+  its `WHEEL` file one `Tag:` line per expanded tag (`Tag: cp39-abi3-manylinux2014_x86_64`, `Tag: cp39-abi3-manylinux_2_17_x86_64`, as maturin 1.16.0 wrote them in the Linux wheel of run 43667702791),
+  so the literal `Tag: cp39-abi3-<compressed name>` the check searched for is never there. `tests/python/check_wheel.py` now expands the filename's tag set (cross product of the dot-separated python, abi and
+  platform parts) and the `Tag` headers of `WHEEL` and requires the two sets to be equal: no tag missing, none extra, line order irrelevant. It is not a substring match: the old test also passed a
+  `WHEEL` with an extra `Tag:` line, a longer platform that begins like the filename's, and the tag text inside another header (`X-Tag:`, or a `Tag:` inside a header's value); the new one rejects all four, and prints the difference when it fails.
+  The check also takes the file name with `os.path.basename`, so a Windows path with backslashes parses.
+- Tests first (red log, then green): `tests/python/test_check_wheel.py` (25 tests: synthetic wheels with a macOS, a `win_amd64` and a compressed manylinux name and the real `WHEEL` texts, run through the real
+  script, plus the cases that must still fail, and direct tests of `expand_tags`, `wheel_file_tags` and `tag_mismatch`), run by `tests/scripts/check-wheel-tags.sh`, so by `tests/scripts/run-all.sh` and the
+  `packaging` job. Against the old script the three compressed-name cases (the manylinux name, a reordered `WHEEL` and a CRLF `WHEEL`) and the four loose-match cases fail on macOS, which is how the Linux-only fault is reproduced without a Linux wheel.
+
 ## [0.1.1] - 2026-11-18 (untagged)
 
 Sprint 5 (18 Nov 2026, untagged), glyphsift **0.1.1**: the gate call (TD-42), the sdist fix (S1-103), the first CI read of the `wheels` job and
