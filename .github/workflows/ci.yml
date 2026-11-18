@@ -42,6 +42,9 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Default members: core + cli. The CLI turns on the core's `corrupt` feature, so this runs the
@@ -54,6 +57,16 @@ jobs:
       - run: cargo check --locked -p glyphsift-core --target wasm32-unknown-unknown
       - run: cargo check --locked -p glyphsift-wasm --target wasm32-unknown-unknown
       - run: cargo check --locked -p glyphsift-py
+      # Sprint 5, fix round 1 (TD-53): the --out containment of scripts/release-manifest.mjs, ported from pagetriage after the
+      # security review reproduced a hard-link overwrite outside dist/ here. confine.test.mjs runs the Windows path rules
+      # (path.win32 and an in-memory volume) and then real links on this OS; release-manifest.sh runs the real script with
+      # MSYS=winsymlinks:nativestrict (Git Bash), asserts [ -L ] after every link, and on windows-latest makes a real junction.
+      # A link that cannot be made FAILS the step; nothing is skipped on any of the three systems. Not the whole of run-all.sh:
+      # its other scripts need the wasm and wheel builds of the Linux-only packaging job.
+      - name: Release-manifest --out containment (path.win32 model, real links, hard links; a real junction on Windows)
+        run: |
+          node --test tests/scripts/confine.test.mjs
+          bash tests/scripts/release-manifest.sh
       - name: The committed benchmark CSV still satisfies the monotonicity criterion
         run: cargo run --locked -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
       - name: Licence sweep and dependency features
@@ -69,8 +82,9 @@ jobs:
 
   # The determinism gate: the samples in tests/determinism must give byte-identical reports on native,
   # Python and WASM, and the WASM build must survive the fuzz set, a 1 MiB input and a 5,000-mark run
-  # without a trap (tests/wasm/run_wasm_safety.mjs). Passing on all three operating systems also means
-  # they agree.
+  # without a trap (tests/wasm/run_wasm_safety.mjs). Since Sprint 5 it also covers the gate call: the 200 cases
+  # in tests/determinism/gate give the recorded bytes (or `rejected`) on native, Python and WASM. Passing on all
+  # three operating systems also means they agree.
   # Windows uses the Windows branch of scripts/install-wasm-tools.sh (pinned digests); first green
   # Windows run on 9 Nov 2026.
   determinism:
@@ -128,6 +142,26 @@ jobs:
         run: scripts/install-wasm-tools.sh
       - run: scripts/build-demo.sh
 
+  # rustdoc with warnings as errors on the whole workspace (BUG-T2-S4-22; the doc job of the conventions table, Sprint 5).
+  # Linux only. glyphsift-py needs a python3 for its build script, as in the check job.
+  doc:
+    name: rustdoc, warnings are errors (ubuntu-latest)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
   # Packaging dry runs: the npm tarball and the Python wheel are built from this commit, installed into
   # fresh environments (npm: an empty directory and an empty cache, scripts off, offline; Python: a
   # python3 venv with pip and a uv venv, offline, no deps), each followed by a real call; the wheel's
@@ -136,7 +170,8 @@ jobs:
   # published, tagged or signed from CI. Linux only (the wheels job below builds the per-platform
   # wheels). Every tool this job installs is pinned by hash (S1-079): uv, maturin and mypy from
   # tools/ci/requirements.txt with `pip install --require-hashes --only-binary=:all:`. Known gap: the pip
-  # that setup-python ships is not pinned. Configured, not yet run in CI.
+  # that setup-python ships is not pinned. First run: green in run 43667702791 at 5ff0c47 (15 Nov 2026, read on 18 Nov).
+  # Since Sprint 5 its script tests also build the sdist --locked from its own Cargo.lock (tests/scripts/sdist-locked.sh).
   packaging:
     name: packaging dry runs (wheel, npm tarball, release manifest)
     runs-on: ubuntu-latest
@@ -173,7 +208,9 @@ jobs:
         env:
           GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
         run: scripts/package-python.sh
-      - name: Script tests (release manifest tool, lockfile and requirements hashes, CI policy, package-npm.sh default scratch)
+      - name: Script tests (release manifest tool, lockfile and requirements hashes, CI policy, package-npm.sh default scratch, sdist --locked, release doc)
+        env:
+          GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
         run: tests/scripts/run-all.sh
       - name: CLI installs with builder paths remapped and holds none (cargo install --path)
         run: |
@@ -185,7 +222,7 @@ jobs:
   # The built demo and the installed npm package, driven in the runner's own Chrome (Playwright with
   # channel "chrome"; no browser is downloaded). Playwright 1.65.0 comes from the committed
   # tools/playwright/package-lock.json with `npm ci --ignore-scripts`, so every package is pinned by
-  # integrity hash (S1-079). Linux only and not a required check. Configured, not yet run in CI.
+  # integrity hash (S1-079). Linux only and not a required check. First run: green in run 43667702791 at 5ff0c47 (15 Nov 2026).
   demo-browser:
     name: demo and npm package in Chrome (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -223,13 +260,15 @@ jobs:
   # Wheels and the sdist, one build per platform, published nowhere. The jobs install their tools by hash
   # (tools/ci/requirements.txt, `pip install --require-hashes --no-deps --only-binary=:all:`), build with
   # --locked, install the wheel into a fresh venv with --no-index, make one real call (the score of a clean
-  # Hindi word is 1000000 ppm) and keep the files as a workflow artifact for 7 days. maturin sdist compiles nothing
-  # and has no --locked flag (checked locally with maturin 1.16.0), so that step is followed by a check that
-  # Cargo.lock did not change. A workflow artifact is
+  # Hindi word is 1000000 ppm) and keep the files as a workflow artifact for 7 days. The sdist comes from
+  # scripts/package-sdist.sh (S1-103): `maturin sdist` compiles nothing, has no --locked flag (maturin 1.16.0) and
+  # shipped the whole workspace's Cargo.lock beside a two-member workspace, so the unpacked sdist could not build
+  # --locked; the script prunes that lock to the sdist's own workspace and then builds the unpacked sdist --locked.
+  # The step is still followed by a check that the repository's Cargo.lock did not change. A workflow artifact is
   # not a release: there is no registry, release or Pages step and no secret. Linux builds the
   # manylinux_2_17 wheel through zig (the ziglang package from the hashed requirements) and the sdist.
-  # Not a required check. Configured, not yet run: only CI after the owner's push proves the manylinux
-  # and win_amd64 wheels and the sdist (docs/release.md, "CI-only proofs").
+  # Not a required check. First run: green on all three operating systems in run 43667702791 at 5ff0c47
+  # (15 Nov 2026; docs/release.md, "First CI run of the wheels job"); the sdist step is new in Sprint 5.
   wheels:
     name: wheel and sdist (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -265,11 +304,12 @@ jobs:
           export PATH="$PWD/$TOOLS_BIN:$PATH"
           . scripts/remap-paths.sh
           maturin build --release --locked --zig --compatibility manylinux_2_17 -m crates/glyphsift-py/Cargo.toml
-      - name: Build the sdist (ubuntu) and check that Cargo.lock did not change
+      - name: Build the sdist (ubuntu), build it --locked from its own Cargo.lock, and check that the repository's Cargo.lock did not change
         if: matrix.os == 'ubuntu-latest'
         run: |
           export PATH="$PWD/$TOOLS_BIN:$PATH"
-          maturin sdist -m crates/glyphsift-py/Cargo.toml
+          export SDIST_OUT=target/wheels
+          scripts/package-sdist.sh
           git diff --exit-code -- Cargo.lock
       - name: Build the wheel (windows, macos)
         if: matrix.os != 'ubuntu-latest'
@@ -279,6 +319,10 @@ jobs:
           maturin build --release --locked -m crates/glyphsift-py/Cargo.toml
       - name: Builder-path gate on the wheel (no home, checkout or temp path inside)
         run: python -I scripts/check-no-builder-paths.py target/wheels/*.whl
+      - name: Wheel contents check (type stubs, py.typed, LICENSE, NOTICE, README wording, sizes) on this platform's wheel
+        run: |
+          VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          python -I tests/python/check_wheel.py target/wheels/glyphsift-"$VERSION"-*.whl "$VERSION"
       - name: Install the wheel into a fresh venv with no index and make a real call
         run: |
           ls -l target/wheels
