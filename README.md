@@ -11,10 +11,16 @@ crate and package names `glyphsift` until the handles are reserved; nothing is p
 
 ## Status
 
-Sprint 5 (18 Nov 2026): Working: everything from Sprint 4, plus a Gate tab that gives a pasted chunk of Devanagari text one of three answers, pass, hold or not scored (text that is not mostly Devanagari is passed through and not scored), with the score, the Devanagari share and a threshold you can change (975000 ppm by default), as the same canonical JSON the command line and the Python wheel print, computed in WebAssembly in the tab; text with an unpaired surrogate is refused in plain text; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).
+Sprint 6 (19 Nov 2026): Working: everything from Sprint 5, plus a short page on what glyphsift measures, linked from the demo and built only from the committed benchmark: the score falls as synthetic noise rises (0 of 60 series rise), the gate threshold is 975000 ppm, and native, Python and WebAssembly give the same bytes on 13 samples and 200 gate cases; the shipped source package now runs its corrupt-feature tests; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).
 
-In more detail, for the Sprint 5 release candidate: glyphsift **0.1.1 is a release candidate, not tagged** (0.1.0 was never tagged; 0.1.1 supersedes
-it). New in Sprint 5: the **gate call** (TD-42), `gate(text, threshold_ppm)`: for one chunk of extracted text it answers `pass`,
+In more detail, for the Sprint 6 release candidate: glyphsift **0.1.2 is a release candidate, not tagged** (0.1.0 and 0.1.1 were never tagged; 0.1.2
+supersedes them, TD-69). New in Sprint 6, none of it a change to the scoring (the benchmark CSV and the reports are byte-identical): a short page,
+[docs/what-glyphsift-measures.md](docs/what-glyphsift-measures.md), that says what the score is and quotes only numbers read from committed files (a test,
+`tests/docs_numbers.py`, re-reads each one), linked from the demo footer as text; the shipped source package now runs its two corrupt-feature test files
+(`cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` from the unpacked sdist: S1-118, BUG-T2-S5-15 and -16, with
+`docs/corruption-generator.md` added to the files it carries); and the native determinism leg and `scripts/build-wasm.sh` read their build output from
+`${CARGO_TARGET_DIR:-target}` (BUG-T2-S5-14, `tests/scripts/cargo-target-dir.sh`). The measures page says what is not claimed: Devanagari only, unpublished,
+synthetic text only, no claim about Hindi answer quality, and no 8 GB figure (not measured on 8 GB). Sprint 5 brought: the **gate call** (TD-42), `gate(text, threshold_ppm)`: for one chunk of extracted text it answers `pass`,
 `hold` (a Devanagari chunk scoring below the threshold, 975000 ppm by default) or `not_scored` (text that is not mostly
 Devanagari is passed through unjudged), as the same canonical JSON `glyphsift.gate/0.1` from the Rust core, the CLI
 (`glyphsift gate`), the Python wheel and the WASM build, byte-identical on a 200-case corpus, with the rules and the derivation
@@ -37,7 +43,7 @@ Not published yet: the npm scope @airplanemode and the PyPI and crates.io names 
 From a clone of this repository (Rust 1.98 comes from `rust-toolchain.toml`):
 
 ```sh
-# Command line: installs the `glyphsift` binary (0.1.1) under <dir>/bin. The RUSTFLAGS prefix keeps your home
+# Command line: installs the `glyphsift` binary (0.1.2) under <dir>/bin. The RUSTFLAGS prefix keeps your home
 # and checkout paths out of the binary (optional; scripts/remap-paths.sh sets the same flags for the build scripts)
 RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/glyphsift" cargo install --path crates/glyphsift-cli --locked --root <dir>
 
@@ -46,34 +52,34 @@ RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.ru
 # uv, maturin and mypy from tools/ci/requirements.txt, pinned by hash: python -m pip install --require-hashes
 # --no-deps --only-binary=:all: -r tools/ci/requirements.txt, then GLYPHSIFT_TOOLS_VENV=<that venv>)
 . scripts/remap-paths.sh && uvx maturin@1.16.0 build --release --locked -m crates/glyphsift-py/Cargo.toml -o target/wheels
-python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl
-uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl
+python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl
+uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl
 
 # npm package @airplanemode/glyphsift (WASM, Node and browser): packed, then installed offline into an empty directory
 scripts/install-wasm-tools.sh    # wasm-bindgen 0.2.129 and binaryen from digest-pinned release binaries (default ~/.local/glyphsift-tools)
-scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.1.tgz
-mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.1.tgz --ignore-scripts --offline --no-audit --no-fund
+scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.2.tgz
+mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.2.tgz --ignore-scripts --offline --no-audit --no-fund
 
 # The source distribution: builds with maturin, prunes its Cargo.lock to its own workspace, and proves cargo build --locked from it
-scripts/package-sdist.sh      # dist/sdist/glyphsift-0.1.1.tar.gz
+scripts/package-sdist.sh      # dist/sdist/glyphsift-0.1.2.tar.gz
 
 # The demo: demo/dist/ (runs build-wasm.sh first)
 scripts/build-demo.sh
 ```
 
-What was proven, and where: the wheel is `glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
+What was proven, and where: the wheel is `glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
 `macosx_11_0_arm64`, and it installed with `python3 -m venv` plus `pip install --no-index --no-deps` and with
 `uv venv` plus `uv pip install --offline --no-index --no-deps`, each followed by a `python -I` call that printed
-750000 for `score_ppm('कखग\ufffd')` and checked `gate()` (`evidence/sprint-5/D3/green/package-python.log`). **Linux and Windows wheels and an sdist were built by CI**
+750000 for `score_ppm('कखग\ufffd')` and checked `gate()` (`evidence/sprint-6/D3/green/package-python.log`, rebuilt for 0.1.2). **Linux and Windows wheels and an sdist were built by CI**
 (run 43667702791 at 5ff0c47, the `wheels` job, read on 18 Nov 2026: a `manylinux_2_17` wheel through zig, a `win_amd64` wheel and an
 sdist, each wheel installed into a fresh venv with `--no-index` and answering `ppm 1000000`; they are workflow artifacts kept for
 7 days, not releases, and `docs/release.md` lists what that run proved and what it did not). The sdist built by `scripts/package-sdist.sh` builds
 `cargo build --locked` from its own pruned `Cargo.lock` (61 lock entries pruned to the 36 its workspace needs, same versions and
-checksums: `evidence/sprint-5/D3/green/D3-02.log`). The npm tarball installed offline from an empty
+checksums: `evidence/sprint-6/D3/green/package-sdist.log`; `tests/scripts/sdist-locked.sh` also runs `cargo test --locked --features corrupt` from the unpacked tree and counts the corrupt tests that ran). The npm tarball installed offline from an empty
 cache with install scripts off; `npm ls` showed exactly that one package, and a Node call and a bundler-free
-page in installed Chrome gave the report `glyphsift check` and the verdict `glyphsift gate` print (`evidence/sprint-5/D3/green/package-npm.log`). The CLI
+page in installed Chrome gave the report `glyphsift check` and the verdict `glyphsift gate` print (`evidence/sprint-6/D3/green/package-npm.log`). The CLI
 installed with `cargo install --path` and ran with every documented exit code
-(`evidence/sprint-5/D3/green/cli-install.log`). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
+(0.1.1, `evidence/sprint-5/D3/green/cli-install.log`; not repeated for 0.1.2). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
 no source map, no install script and no file over 5 MB. The source packages `cargo package --list` would upload
 do include each crate's `tests/` (`glyphsift-core` ships `tests/cases/devanagari.toml`, invented strings, and `tests/*.rs`;
 `glyphsift-cli` ships `tests/*.rs`) so the crates can be tested from the registry; that is intended. Third-party crates
@@ -123,7 +129,7 @@ printf 'hello' | glyphsift gate - --threshold-ppm 900000
   OCR-noise family to clean text on standard input (`--list-families` prints the 19 names and `mixed`).
 - `glyphsift bench --corpus <path> --seeds 1,2,3 --csv <path> --svg <path>` runs the score-versus-noise
   benchmark and writes the CSV and the chart; `glyphsift bench --verify <csv>` re-checks an existing CSV.
-- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.1) exit 0.
+- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.2) exit 0.
 
 Exit codes, the same for every command:
 
@@ -240,10 +246,10 @@ removed and no weight changed, so reports from 0.2 consumers keep their shape.
 
 Live demo: <https://airplanemode-labs.github.io/glyphsift/>. Built from `main` by
 `.github/workflows/pages.yml` on every push, with a box titled "What this demo does not do yet". It
-runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The live page shows Sprint 4,
-pushed on 15 Nov 2026. The Sprint 5 changes, the Gate tab below, are committed locally and not pushed: the live page changes only
-after the owner pushes and the workflow runs. The Sprint 5 demo was proven on a local build served under `/glyphsift/`:
-`evidence/sprint-5/D3/green/D3-04.log`.) The footer links the third-party
+runs entirely in the browser: no upload, no analytics, no third-party scripts or fonts. (The live page shows Sprint 5
+(read on 19 Nov 2026). The Sprint 6 changes, the measures page linked in the footer and the new status line, are committed locally and not
+pushed: the live page changes only after the owner pushes and the workflow runs. The Sprint 6 demo was proven on a local build served under
+`/glyphsift/`: `evidence/sprint-6/D3/green/D3-04-demo.log`, 243 checks, 0 console errors.) The footer links the third-party
 notices as `NOTICE.txt`, which Pages serves as `text/plain` so that it opens in the browser instead of downloading
 (BUG-T1-S3-R2-01); it carries the MIT texts of the WebAssembly crates that are not offered under Apache-2.0, among
 them zmij (its licence file has no copyright line, so the notice names the author from its `Cargo.toml`)

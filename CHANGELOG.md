@@ -4,11 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.2] - 2026-11-19 (untagged)
+
+Sprint 6 (19 Nov 2026, untagged), glyphsift **0.1.2** (TD-69). 0.1.0 and 0.1.1 were never tagged; 0.1.2 supersedes them. Nothing is published, signed or tagged. The scoring, the weights, the
+report spec (`glyphsift.report/0.2`), the gate rules and the benchmark CSV and SVG did not change: `bench --verify` passes and the reports are byte-identical.
+
+### Added
+
+- `docs/what-glyphsift-measures.md` (D3-03): a short page on what the score is, built only from committed files: the benchmark CSV (420 rows; 0 of 60 series rise as noise rises), the gate
+  threshold (975000 ppm, with the gap it sits in), and the byte-identical native, Python and WASM results on 13 samples and 200 gate cases. Every number cites its file and command, and
+  `tests/docs_numbers.py` (run by `tests/scripts/docs-numbers.sh`) re-reads each one from its file and fails if a cited CSV value is changed. Its limits: Devanagari only, unpublished, synthetic text only,
+  no claim about Hindi answer quality, not measured on 8 GB. The demo build serves it as `what-glyphsift-measures.txt` and the footer links it.
+- `tests/scripts/cargo-target-dir.sh` (BUG-T2-S5-14): proves, in a scratch checkout with no `target/`, that the native gate leg and `scripts/build-wasm.sh` work with `CARGO_TARGET_DIR` set (absolute and relative).
+
+- S1-106 and COM0/LPT0 (T2-NOTE-COM0): `scripts/lib/confine.mjs` ports pagetriage's output-containment change (Windows device names including `COM0` and `LPT0`, doubled and `path.win32` forms) with the same case list (`tests/scripts/confine.test.mjs`, 43 tests). Proven on a model; real NTFS after the push.
+
+### Changed
+
+- Version 0.1.2 everywhere (workspace, crates, `Cargo.lock`, wheel, npm package).
+- Demo: a Sprint 6 status line, a footer link to the measures page and two lines in the "What this demo does not do yet" box; no CSP change.
 
 ### Fixed
 
-- The wheel contents check compared tags as strings and failed on the Linux wheel only (CI run 44325740893 at b3ea291: `wheel and sdist (ubuntu-latest)`, one failure, `WHEEL records the same
+- BUG-T2-S6-06: `scripts/package-npm.sh` honours `CARGO_TARGET_DIR` (new section in `tests/scripts/cargo-target-dir.sh`).
+- BUG-T3-S6-02: banned-word cleanup in `tests/docs_numbers.py` (clean-room wording rule).
+- BUG-T3-S6-R2-08: `docs/release.md` quotes the wheel size in KiB, since exact wheel bytes vary with the checkout path.
+- S1-118, BUG-T2-S5-15 and BUG-T2-S5-16: the sdist shipped `crates/glyphsift-core/tests/corrupt.rs` and `gate_noise.rs` (`required-features = ["corrupt"]`), which `cargo test` skipped silently, and
+  `corrupt.rs` fails when run because `docs/corruption-generator.md` was not shipped. `scripts/add-sdist-files.py` now adds that file (four repository-root files in all) and
+  `tests/scripts/sdist-locked.sh` runs `cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` from the unpacked sdist and requires both test binaries to have run with at least one test passed
+  (28 and 3 tests). The CLI's own corrupt test (`crates/glyphsift-cli/tests/corrupt.rs`) is not in the sdist, because maturin ships only `glyphsift-core` and `glyphsift-py`; the test asserts that too.
+- BUG-T2-S5-14 and BUG-T2-S5-16: `tests/determinism/run_gate_native.mjs` (the native determinism leg), `tests/demo/check_demo.mjs` and `scripts/build-wasm.sh` looked in a literal `target/`; they now use
+  `${CARGO_TARGET_DIR:-target}`, so with the variable set the leg tests the binary the script just built instead of a stale one. The gate script prints `cli: <path>` so the binary used is visible.
+- `docs/release.md` row 6 cites the log that contains the sdist's `cargo test` run (`evidence/sprint-6/D3/gates-s6.log`), not a log without one.
+- Carried from Sprint 5, fixed after its wrap-up (CI run 44325740893, wheel tag check): the wheel contents check compared tags as strings and failed on the Linux wheel only (CI run 44325740893 at b3ea291: `wheel and sdist (ubuntu-latest)`, one failure, `WHEEL records the same
   platform tag as the filename`; the macOS and Windows legs were green). A manylinux wheel's filename carries a compressed tag set (PEP 425), `cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64`, and
   its `WHEEL` file one `Tag:` line per expanded tag (`Tag: cp39-abi3-manylinux2014_x86_64`, `Tag: cp39-abi3-manylinux_2_17_x86_64`, as maturin 1.16.0 wrote them in the Linux wheel of run 43667702791),
   so the literal `Tag: cp39-abi3-<compressed name>` the check searched for is never there. `tests/python/check_wheel.py` now expands the filename's tag set (cross product of the dot-separated python, abi and
@@ -18,6 +46,10 @@ All notable changes to this project are documented here. The format follows
 - Tests first (red log, then green): `tests/python/test_check_wheel.py` (25 tests: synthetic wheels with a macOS, a `win_amd64` and a compressed manylinux name and the real `WHEEL` texts, run through the real
   script, plus the cases that must still fail, and direct tests of `expand_tags`, `wheel_file_tags` and `tag_mismatch`), run by `tests/scripts/check-wheel-tags.sh`, so by `tests/scripts/run-all.sh` and the
   `packaging` job. Against the old script the three compressed-name cases (the manylinux name, a reordered `WHEEL` and a CRLF `WHEEL`) and the four loose-match cases fail on macOS, which is how the Linux-only fault is reproduced without a Linux wheel.
+
+### Security
+
+- The determinism evidence can no longer pass on a stale binary when `CARGO_TARGET_DIR` is set (S1-118 part a), and the sdist's shipped tests now run (part b). No third-party code or dependency changed.
 
 ## [0.1.1] - 2026-11-18 (untagged)
 

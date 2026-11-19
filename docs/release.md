@@ -2,20 +2,21 @@
 
 One row per item of the definition of done that every Airplane Mode Labs release must meet. A row is
 Done only when the Evidence column names a file or command that proves it today; anything else is
-Open. Nothing may be tagged while a Blocker-for-tag row is Open. The release is 0.1.1, a release candidate: the
-workspace version is 0.1.1 (0.1.0 was never tagged and 0.1.1 supersedes it, TD-43), the notes live in
-[CHANGELOG.md](../CHANGELOG.md) (`## [Unreleased]` until the architect dates them as `## [0.1.1] - 2026-11-18 (untagged)`), and
+Open. Nothing may be tagged while a Blocker-for-tag row is Open. The release is 0.1.2, a release candidate: the
+workspace version is 0.1.2 (0.1.0 and 0.1.1 were never tagged and 0.1.2 supersedes them, TD-43 and TD-69), the notes live in
+[CHANGELOG.md](../CHANGELOG.md) (`## [0.1.2] - 2026-11-19 (untagged)`), and
 the tag commit (step 1 below) only changes that heading to a date.
 
-Status as of 2026-11-18 (Sprint 5). Evidence paths under `evidence/sprint-3/D3/`, `evidence/sprint-4/D3/` and
+Status as of 2026-11-19 (Sprint 6; the Sprint 5 text below is kept where it still holds). Evidence paths under `evidence/sprint-3/D3/`, `evidence/sprint-4/D3/` and
 `evidence/sprint-5/D3/` are copied there from the sprint scratch folders by the architect at wrap-up. Nothing is
 published, signed or tagged, and the npm scope `@airplanemode` and the PyPI and crates.io names `glyphsift`,
 `glyphsift-core` and `glyphsift-cli` are not reserved. The owner pushed Sprints 3 and 4 on 15 Nov 2026 (glyphsift at
 5ff0c47): CI run 43667702791 was green on all 14 jobs and the live demo shows Sprint 4 (read on 18 Nov 2026; the section
-"First CI run of the wheels job" records what that run proved). Sprint 5 (the gate call, the sdist fix, version 0.1.1) is
-committed locally and not pushed, so no CI run covers it and the live demo changes only after the owner's push. No row below
-flips to Done in Sprint 5: every one needs the owner (the push and a CI read of the Sprint 5 commit, the 8 GB laptop, the real
-key, the tag, the registries). What Sprint 4 and Sprint 5 closed, and what only CI can prove, are in the tables after the rows.
+"First CI run of the wheels job" records what that run proved). Sprint 5 (the gate call, the sdist fix, version 0.1.1) was pushed and its CI was read on 18 Nov 2026 (the live demo shows Sprint 5, read on
+19 Nov 2026), except for two cancelled macOS legs in other repositories; Sprint 6 (version 0.1.2, the measures page, the sdist's corrupt tests,
+`CARGO_TARGET_DIR`) is committed locally and not pushed, so no CI run covers it and the live demo changes only after the owner's push.
+No row below flips to Done in Sprint 6: every one needs the owner (the push and a CI read of the Sprint 6 commit, the 8 GB laptop, the real
+key, the tag, the registries). What Sprint 4, Sprint 5 and Sprint 6 closed, and what only CI can prove, are in the tables after the rows.
 
 | # | Definition-of-done item | Status | Evidence | Owner | Blocker-for-tag |
 |---|---|---|---|---|---|
@@ -23,11 +24,11 @@ key, the tag, the registries). What Sprint 4 and Sprint 5 closed, and what only 
 | 2 | Benchmark on an 8 GB laptop recorded in the README | Open | Owner must: run `node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift` and the browser run on the 8 GB Windows no-GPU laptop (steps under "Owner must", row 2). README [Benchmarks](../README.md#benchmarks) carries Apple-silicon figures (`evidence/sprint-3/D3/throughput.log`, and for the gate rows added in Sprint 5 `evidence/sprint-5/D3/green/throughput.log`, from `scripts/throughput.mjs`) next to an "8 GB Windows no-GPU laptop" column that reads "not measured on 8 GB". No figure for that machine exists and none was invented. The procedure is below | owner | yes |
 | 3 | README limitations section | Done | README [Limitations](../README.md#limitations): structural checks only, synthetic text only, Devanagari only, what the joiner and tag rules do and do not flag, the benchmark proves a narrow thing, nothing published, one wheel platform, nothing signed, CI not yet run on the Sprint 3 changes, target hardware unmeasured. The wheel and npm READMEs carry their own Limitations sections | D3 | no |
 | 4 | Signed artifacts and manifest | Open | Owner must: `cargo run -p cp-sign -- keygen --out ./keys` offline, then sign `dist/release-manifest.json` with `cp-sign sign` (row 4 below). Tooling exists, signing does not. `scripts/release-manifest.mjs` writes an unsigned `airplanemode.manifest/0.1` listing the wheel and the npm tarball with their SHA-256 and size (tests: `tests/scripts/release-manifest.sh`, 42 checks, `red-D3-09.log` then `green-D3-09.log`; the script differs from pagetriage's only in two constants, `diff-release-manifest.log`). A dry run with the public RFC 8032 test key through `cp-sign` verified with `--allow-test-key` and was refused without it (`dry-run-sign.log`). That signature proves the tooling only: it is not a release signature, and no signed manifest or key is in this repository. A real key does not exist yet | owner, D6 (tooling) | yes |
-| 5 | CHANGELOG and semver tag | Open | Owner must: after rows 1, 2, 4, 6, 7 are Done, `git tag v0.1.1 && git push origin v0.1.1` (tag procedure below). [CHANGELOG.md](../CHANGELOG.md) carries the Sprint 5 changes under `## [Unreleased]` (the architect dates them as `## [0.1.1] - 2026-11-18 (untagged)` at wrap-up) and, below them, the `## [0.1.0]` entry for Sprints 1 to 4, which was never tagged. The tag does not exist (`git tag` prints nothing) and must not be created until every row above and below is Done. The workspace version is 0.1.1 (`tests/scripts/release-doc.sh` checks that every crate, `Cargo.lock`, the wheel and the npm package.json carry the same one) | owner | yes |
-| 6 | Package installable from a clean machine | Open (installs proven locally on macOS arm64; CI built the other platforms; nothing published) | Owner must: reserve the names, publish, then run the install commands of the "After the owner publishes" block (row 6 below) on a clean machine. Installed offline from locally built 0.1.1 artifacts on macOS arm64, each followed by a real call: the wheel `glyphsift-0.1.1-cp39-abi3-macosx_11_0_arm64.whl` (platform tag `macosx_11_0_arm64`, 254,147 bytes) into a `python3 -m venv` (`pip install --no-index --no-deps`) and into a `uv venv` (`uv pip install --offline --no-index --no-deps`), `score_ppm('कखग\ufffd')` printing 750000 and `gate()` answering (`evidence/sprint-5/D3/green/package-python.log`; the stubs pass `mypy --strict`); the tarball `airplanemode-glyphsift-0.1.1.tgz` (121,009 bytes) from `npm pack` into a fresh empty directory with an empty cache (`npm i <tgz> --ignore-scripts --offline`; `npm ls` shows one package), a Node call byte-equal to `glyphsift check` and to `glyphsift gate`, and a bundler-free page in installed Chrome with 0 console errors (`evidence/sprint-5/D3/green/package-npm.log`); the CLI with `cargo install --path crates/glyphsift-cli --locked` and every documented exit code on the installed binary, `gate` included (`evidence/sprint-5/D3/green/cli-install.log`); and the sdist `glyphsift-0.1.1.tar.gz` (110,435 bytes after fix round 2, which added three repository-root files the gate tests read; it carries the README as the core crate's README), whose `Cargo.lock` is pruned to its own workspace (61 entries to 36, same versions and checksums) so that `cargo build --locked` succeeds, and `cargo test --locked` passes, from the unpacked tree (S1-103 and BUG-T2-S5-12: `evidence/sprint-5/D3/green/D3-FIX1-package-sdist.log` and `tests/scripts/sdist-locked.sh`). The sizes and SHA-256 of all of them, with the toolchain versions, are in `evidence/sprint-5/D3/gates-s5.log`, the one log this row cites for artifact sizes. The wheel, the tarball, the sdist and each crate carry `LICENSE` and `NOTICE`, no test data in the wheel or the tarball, no lifecycle script and nothing over 5 MB. CI built 0.1.0 artifacts for three platforms at 5ff0c47 (see "First CI run of the wheels job" below); the 0.1.1 ones do not exist until CI builds them from the pushed commit. Not closed: nothing is published, the names are not reserved, no CI-built wheel has been installed on a machine other than its own runner, and no clean machine has installed from a registry | owner | yes |
+| 5 | CHANGELOG and semver tag | Open | Owner must: after rows 1, 2, 4, 6, 7 are Done, `git tag v0.1.2 && git push origin v0.1.2` (tag procedure below). [CHANGELOG.md](../CHANGELOG.md) carries the Sprint 5 changes under `## [Unreleased]` (the architect dates them as `## [0.1.2] - 2026-11-18 (untagged)` at wrap-up) and, below them, the `## [0.1.0]` entry for Sprints 1 to 4, which was never tagged. The tag does not exist (`git tag` prints nothing) and must not be created until every row above and below is Done. The workspace version is 0.1.2 (`tests/scripts/release-doc.sh` checks that every crate, `Cargo.lock`, the wheel and the npm package.json carry the same one) | owner | yes |
+| 6 | Package installable from a clean machine | Open (installs proven locally on macOS arm64; CI built the other platforms; nothing published) | Owner must: reserve the names, publish, then run the install commands of the "After the owner publishes" block (row 6 below) on a clean machine. Installed offline from locally built 0.1.2 artifacts on macOS arm64, each followed by a real call: the wheel `glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl` (platform tag `macosx_11_0_arm64`, about 248 KiB; the exact byte count varies by a few bytes with the checkout path, because the compiled extension is not byte-identical across build paths, so exact bytes are reproducible only from the same path (BUG-T3-S6-R2-08, TD-81 style)) into a `python3 -m venv` (`pip install --no-index --no-deps`) and into a `uv venv` (`uv pip install --offline --no-index --no-deps`), `score_ppm('कखग\ufffd')` printing 750000 and `gate()` answering (`evidence/sprint-6/D3/green/package-python.log`; the stubs pass `mypy --strict`); the tarball `airplanemode-glyphsift-0.1.2.tgz` (120,963 bytes) from `npm pack` into a fresh empty directory with an empty cache (`npm i <tgz> --ignore-scripts --offline`; `npm ls` shows one package), a Node call byte-equal to `glyphsift check` and to `glyphsift gate`, and a bundler-free page in installed Chrome with 0 console errors (`evidence/sprint-6/D3/green/package-npm.log`); the CLI with `cargo install --path crates/glyphsift-cli --locked` and every documented exit code on the installed binary, `gate` included (`evidence/sprint-5/D3/green/cli-install.log` for 0.1.1, not repeated for 0.1.2 (the CLI source is unchanged apart from the version`); and the sdist `glyphsift-0.1.2.tar.gz` (115,881 bytes; it carries four repository-root files its tests read, the fourth added in Sprint 6 for S1-118, and the README as the core crate's README), whose `Cargo.lock` is pruned to its own workspace (61 entries to 36, same versions and checksums) so that `cargo build --locked` succeeds, and `cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` passes, from the unpacked tree, with `tests/corrupt.rs` (28 tests) and `tests/gate_noise.rs` (3 tests) shown to have run (S1-103, BUG-T2-S5-12, S1-118: `evidence/sprint-6/D3/green/package-sdist.log` and `tests/scripts/sdist-locked.sh`). The sizes and SHA-256 of all of them, with the toolchain versions, are in `evidence/sprint-6/D3/gates-s6.log`, the one log this row cites for artifact sizes. The wheel, the tarball, the sdist and each crate carry `LICENSE` and `NOTICE`, no test data in the wheel or the tarball, no lifecycle script and nothing over 5 MB. CI built 0.1.0 artifacts for three platforms at 5ff0c47 (see "First CI run of the wheels job" below); the 0.1.2 ones do not exist until CI builds them from the pushed commit. Not closed: nothing is published, the names are not reserved, no CI-built wheel has been installed on a machine other than its own runner, and no clean machine has installed from a registry | owner | yes |
 | 7 | Short write-up | Open | Owner must: write and publish the write-up from the measured figures once row 2 has numbers (row 7 below). No write-up exists. It is written from the measured numbers once row 2 closes; the demo page at <https://airplanemode-labs.github.io/glyphsift/> is the natural home. Only a draft from existing evidence may precede the owner's tag and publish | owner | yes |
 
-Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.1 today would not be honest.
+Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.2 today would not be honest.
 
 ## Sprint 4 carry-overs closed here (D3)
 
@@ -57,6 +58,23 @@ Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.1 today would no
 | T3-S5-05, TD-56: the sdist ships `crates/*/tests` | Decided, no packaging change: the sdist is a source release and includes the tests on purpose ("Packaging notes" below) | `tests/scripts/release-doc.sh` section D |
 | T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differ from the log they cite; the 8 GB column says only "not measured" | Fixed: every figure equals `evidence/sprint-5/D3/green/throughput.log` (gate 40 ms, validate 234, score_ppm 80, check 67, native gate 17) and every 8 GB cell reads "not measured on 8 GB" | `tests/scripts/readme-claims.sh` sections B and C |
 | BUG-T1-S5-05 / T3-S5-04: the README's first Status line is not the status line the demo and `site/data/demos.json` carry | Fixed: the first line of the README's Status section is the status line verbatim, the narrative follows it | `tests/scripts/readme-claims.sh` section A |
+
+## Sprint 6 carry-overs closed here (D3)
+
+| Item | Status | Evidence |
+|---|---|---|
+| S1-118 (a), BUG-T2-S5-16: the native determinism leg ignored `CARGO_TARGET_DIR` and could test a stale binary | Fixed: `tests/determinism/run_gate_native.mjs` looks in `${CARGO_TARGET_DIR:-target}/release` and prints `cli: <path>`; `scripts/determinism.sh` needed no other change (its `cargo run` already honoured the variable) | `tests/scripts/cargo-target-dir.sh`: red (the leg failed with ENOENT on a scratch checkout) then green, `red/D3-01-ctd.log`, `green/D3-01-ctd.log` |
+| BUG-T2-S5-14 rest: `scripts/build-wasm.sh` ignored `CARGO_TARGET_DIR` | Fixed: the raw wasm is read from `${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/wasm/`; the same test builds the web and nodejs packages from a scratch checkout with the variable set | same test, same logs |
+| S1-118 (b), BUG-T2-S5-15: two shipped test files never ran, one fails when run | Fixed: the sdist test runs `--features corrupt` and counts both binaries (`corrupt.rs` 28 tests, `gate_noise.rs` 3); the failing one needed `docs/corruption-generator.md`, now shipped. The CLI's corrupt test is not in the sdist, with the reason above | `tests/scripts/sdist-locked.sh` (33 checks); `red/D3-01-sdist.log` (2 checks failed: the files did not run) then `green/D3-01-sdist.log`, `green/sdist-locked-final.log` |
+| BUG-T2-S5-16 (the second half): row 6 cited a log with no `cargo test` | Fixed: row 6 cites `evidence/sprint-6/D3/gates-s6.log`, which holds the sdist's `cargo test --features corrupt` run and the artifact sizes; `tests/scripts/release-doc.sh` section F pins it | `tests/scripts/release-doc.sh` |
+| `docs/what-glyphsift-measures.md` (D3-03) | New: every number is re-read from the committed file it cites by `tests/docs_numbers.py`; it fails if a cited CSV value is changed (mutation run: `green/D3-03-mutation.log`). It is the only text the outreach drafts may quote | `green/D3-03.log`, `red/D3-03.log` |
+| Version 0.1.2 (TD-69) | Workspace, every crate, `Cargo.lock`, the wheel and the npm package carry it | `tests/scripts/release-doc.sh`, `gates-s6.log` |
+
+Not closed in Sprint 6, and the owner's push list for it (nobody re-runs CI; each line names the job that proves the change):
+
+- glyphsift | packaging dry runs (wheel, npm tarball, release manifest) | proves S1-118: the step "Script tests" runs `tests/scripts/sdist-locked.sh`, whose log must show `tests/corrupt.rs ran in the unpacked sdist and 28 tests passed` and the same for `gate_noise.rs` with 3, and `tests/scripts/cargo-target-dir.sh` (BUG-T2-S5-14) passing. The `wheels` job (display name "wheel and sdist (ubuntu-latest)") builds the sdist with `scripts/package-sdist.sh` and builds it `--locked`, but does not run `cargo test`.
+- glyphsift | determinism (windows-latest) | proves BUG-T2-S5-14 on Windows: the native leg's log prints `cli: ...\target\release\glyphsift.exe` (the default directory, unchanged) and ends `gate native: 200 cases match`.
+- glyphsift | fmt, clippy, test, wasm32, pyo3 (windows-latest) | proves S1-106 and COM0/LPT0: the step "Release-manifest --out containment" runs `confine.test.mjs` (43 tests, 0 skipped, the Sprint 6 cases included) on a real NTFS runner. Landed in D3-02 (`red/D3-02.log`, `green/D3-02.log`); the case list equals pagetriage's (`logs/confine-caselist-diff.txt` is empty).
 
 ## First CI run of the wheels job (read on 18 Nov 2026)
 
@@ -114,12 +132,15 @@ match, for no gain while nothing is published from a Mac. The Linux and Windows 
 
 **The sdist is a source release and deliberately includes `crates/*/tests`** (TD-56; T3-S5-05). The sdist
 carries seven test files, 111,928 bytes before compression in the 0.1.1 sdist (the Rust test sources and the 35,270-byte synthetic case
-table `crates/glyphsift-core/tests/cases/devanagari.toml`), and it ships three repository-root files the gate tests read, at the same relative paths:
-`bench/corpus/clean.txt`, `docs/gate.md` and `docs/score-vs-noise.csv` (BUG-T2-S5-12; all three are synthetic and own-authored;
-maturin cannot include a path outside the Python project, so `scripts/add-sdist-files.py` appends them). A person who
-receives the sdist can therefore run `cargo test --locked` and see the 154-case table and the gate tests pass without
-cloning the repository: `tests/scripts/sdist-locked.sh` runs `cargo test --locked --no-fail-fast -p glyphsift-core` in the
-unpacked sdist and requires 0 failed with no `--skip` (before the fix 3 of 14 gate tests failed). No file in it is
+table `crates/glyphsift-core/tests/cases/devanagari.toml`), and it ships four repository-root files its tests read, at the same relative paths:
+`bench/corpus/clean.txt`, `docs/gate.md`, `docs/score-vs-noise.csv` and `docs/corruption-generator.md` (BUG-T2-S5-12 and, for the last, S1-118; all four are
+synthetic and own-authored; maturin cannot include a path outside the Python project, so `scripts/add-sdist-files.py` appends them). A person who
+receives the sdist can therefore run `cargo test --locked --features corrupt` and see the 154-case table, the gate tests and the corruption-generator tests pass
+without cloning the repository: `tests/scripts/sdist-locked.sh` runs `cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` in the
+unpacked sdist, requires 0 failed with no `--skip` (before the Sprint 5 fix 3 of 14 gate tests failed), and requires `tests/corrupt.rs` and `tests/gate_noise.rs`
+to have run with at least one test passed each. Those two files declare `required-features = ["corrupt"]`, so a plain `cargo test` skips them silently: that
+was S1-118 / BUG-T2-S5-15, and `corrupt.rs` also failed when run because `docs/corruption-generator.md` was not shipped. The CLI crate, and so its own corrupt test
+(`crates/glyphsift-cli/tests/corrupt.rs`), is not in the sdist: maturin ships only `glyphsift-core` and `glyphsift-py`, and the same script asserts it. No file in it is
 a real document, a key or a model. `scripts/package-sdist.sh` builds the unpacked sdist `--locked` from its own pruned lock
 (S1-103). If a later release wants a smaller sdist, the exclusion belongs in `crates/glyphsift-core`'s
 `Cargo.toml` and in `pyproject.toml`'s maturin `include` list, with `tests/scripts/sdist-locked.sh` changed first.
@@ -138,8 +159,8 @@ Rules, in the order they are applied:
 1. `--out` is not empty and has no NUL; no component is `..` (a backslash counts as a separator for this test on every OS).
 2. On Windows only, on the text as typed: no `\\?\` or `\\.\` prefix; no UNC path (`\\server\share`, also `//server/share` and the
    admin share of the local drive); no drive-relative path (`C:name`, `C:dir\name`, `C:`), whose meaning depends on a per-drive
-   working directory; no `:` after the drive (an alternate data stream); no reserved device name (`CON PRN AUX NUL COM1-9 LPT1-9
-   CONIN$ CONOUT$`, any case, with or without an extension); no component ending in `.` or a space (Windows strips them); no
+   working directory; no `:` after the drive (an alternate data stream); no reserved device name (`CON PRN AUX NUL COM0-9 LPT0-9
+   CONIN$ CONOUT$`, plus the superscript digits 1 to 3 after COM and LPT; COM0 and LPT0 since Sprint 6, T2-NOTE-COM0; any case, with or without an extension); no component ending in `.` or a space (Windows strips them); no
    character Windows forbids in a file name.
 3. `dist/` and the deepest existing ancestor of `--out` are resolved with `fs.realpathSync.native`: on Windows that expands 8.3 short
    names, gives each name its on-disk case and follows every symlink and junction, including a reparse point that `lstat` does not
@@ -148,9 +169,13 @@ Rules, in the order they are applied:
 4. If `--out` itself exists it must be a regular file. A symbolic link or junction is refused whatever it points at (a file inside
    `dist/` included), and so is a directory, a FIFO, a socket or a device. A regular file or a dangling link at `dist/` itself is
    a one-line refusal.
-5. Containment: `relative(distReal, final)` must be non-empty, not absolute (another drive) and not `..` or `..` plus a separator;
-   a file called `..foo` is fine. Elsewhere than Windows the comparison is exact, so a difference in spelling can refuse a path
-   but never accept one.
+5. Containment is two tests and both must pass (S1-106, Sprint 6). (a) `relative(distReal, final)` must be non-empty, not absolute
+   (another drive) and not `..` or `..` plus a separator; a file called `..foo` is fine. (b) `final` must start with `distReal` plus a
+   separator, compared exactly. `path.win32.relative` ignores case, but after step 3 both sides carry the on-disk spelling, so a case
+   difference left over is a different directory (an NTFS directory with per-directory case sensitivity, `fsutil file
+   setCaseSensitiveInfo`, WSL). On an ordinary case-insensitive volume every spelling of `dist/` resolves to the one on-disk name, so
+   (b) accepts what (a) accepts. Elsewhere than Windows both tests are exact, so a difference in spelling can refuse a path but never
+   accept one.
 6. The bytes go to a temporary name (`.release-manifest-<random>.tmp`) opened with the `wx` flag inside the resolved parent, are
    flushed and are renamed over the target, after the parent has been resolved and checked a second time. `rename` replaces a
    link at the target instead of following it, and replaces a hard link's name without opening its inode: a file in `dist/` that is a
@@ -160,9 +185,9 @@ Rules, in the order they are applied:
 What is not closed: between the second check and the `rename` another process that can already write inside `dist/` could replace a
 directory by a link. This is a local tool run by the owner on their own checkout, so that process would have to be the owner's own
 account; the window is narrowed, not removed. `dist/` itself may be a link (the check is relative to what it resolves to). On a
-case-sensitive volume a differently-cased spelling of `dist/` is another directory and is refused.
+case-sensitive directory a differently-cased spelling of `dist/` is another directory and is refused (test (b); proven on a model, not on a real case-sensitive NTFS directory: the Windows runner cannot make one without WSL).
 
-How the Windows rules are proven here and where they are not. This Mac cannot run Windows. On macOS the same files give 36 unit
+How the Windows rules are proven here and where they are not. This Mac cannot run Windows. On macOS the same files give 43 unit
 tests (the Windows rules through `path.win32`, an in-memory volume with 8.3 aliases, a hidden junction and a case-insensitive
 directory, then real symlinks and hard links; 0 skipped) and 68 script checks, and the red logs show the differently-cased `dist/`
 refusal that pagetriage saw on `windows-latest` reproduced on this case-insensitive APFS volume. What only Windows proves: that `ln -s`
@@ -182,7 +207,7 @@ ubuntu-latest, macos-latest and windows-latest; it exists in no earlier run).
 | the `doc` job (`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked`) is green on `ubuntu-latest` | passes locally on macOS with the same flags |
 | the gate determinism leg (200 cases, `scripts/determinism.sh`) is byte-identical on Ubuntu, macOS and Windows, including `isWellFormed` in Node 22 | this Mac only; Windows runs the corpus through Git Bash and `glyphsift.exe` |
 | the demo's Gate tab passes `tests/demo/check_demo.mjs` (234 checks) in the runner's Chrome | passes in installed Chrome on this Mac |
-| glyphsift check (windows-latest) proves the ported `--out` containment: `confine.test.mjs` (36 tests, none skipped) and `release-manifest.sh` with native symlinks asserted by `[ -L ]`, hard links, and a real junction made with MSYS conversion off | this Mac cannot run Windows; macOS ran the same two files (36 tests, 68 checks, 0 skipped) and reproduced the differently-cased `dist/` refusal, the write-through and the stack traces against the old script |
+| glyphsift check (windows-latest) proves the ported `--out` containment, including the Sprint 6 COM0/LPT0 and exact-case changes: `confine.test.mjs` (43 tests, none skipped) and `release-manifest.sh` with native symlinks asserted by `[ -L ]`, hard links, and a real junction made with MSYS conversion off | this Mac cannot run Windows; macOS ran the same two files (43 tests, 68 checks, 0 skipped) and reproduced the differently-cased `dist/` refusal, the write-through and the stack traces against the old script |
 | the whole three-OS matrix for the Sprint 5 commit is green | nothing of Sprint 5 has been pushed |
 
 Known gaps in the hashed installs (each in a job that publishes nothing and uses no secrets, `contents: read`):
@@ -266,10 +291,10 @@ cargo run -p cp-sign -- keyid --pub ./keys/key.pub     # record the keyId in the
 Then, after the artifacts exist (rows 5 and 6 steps), in the glyphsift checkout:
 
 ```sh
-scripts/build-wasm.sh && scripts/package-npm.sh          # dist/npm/airplanemode-glyphsift-0.1.1.tgz
+scripts/build-wasm.sh && scripts/package-npm.sh          # dist/npm/airplanemode-glyphsift-0.1.2.tgz
 scripts/package-python.sh    # maturin@1.16.0 pinned, builder paths remapped; the wheel lands in dist/wheels
 SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) node scripts/release-manifest.mjs --out dist/release-manifest.json \
-  dist/npm/airplanemode-glyphsift-0.1.1.tgz dist/wheels/glyphsift-0.1.1-*.whl
+  dist/npm/airplanemode-glyphsift-0.1.2.tgz dist/wheels/glyphsift-0.1.2-*.whl
 cargo run -p cp-sign -- sign --key ./keys/key.secret dist/release-manifest.json --out dist/release-manifest.signed.json
 cargo run -p cp-sign -- verify --pub ./keys/key.pub dist/release-manifest.signed.json
 shasum -a 256 dist/npm/*.tgz dist/wheels/*.whl     # each value must equal the manifest's sha256 for that file
@@ -281,7 +306,7 @@ Publish `release-manifest.signed.json` and `key.pub` next to the artifacts ([REL
 **Row 5, CHANGELOG and semver tag.**
 
 Owner must: once rows 1, 2, 4, 6 and 7 are Done and CI is green on the tag commit, follow the tag procedure below
-from step 1, ending with `git tag v0.1.1` (the owner only) and `git push origin v0.1.1`.
+from step 1, ending with `git tag v0.1.2` (the owner only) and `git push origin v0.1.2`.
 
 **Row 6, installable from a clean machine.**
 
@@ -303,8 +328,8 @@ Owner must: reserve the names, build and publish, then prove the install from a 
    **After the owner publishes**
 
    ```sh
-   python3 -m venv v && v/bin/pip install glyphsift==0.1.1 && v/bin/python -I -c "import glyphsift; print(glyphsift.score_ppm('कखग\ufffd'))"
-   mkdir t && cd t && npm init -y && npm i @airplanemode/glyphsift@0.1.1 && node -e 'console.log(require("@airplanemode/glyphsift").score_ppm("कखग\ufffd"))'
+   python3 -m venv v && v/bin/pip install glyphsift==0.1.2 && v/bin/python -I -c "import glyphsift; print(glyphsift.score_ppm('कखग\ufffd'))"
+   mkdir t && cd t && npm init -y && npm i @airplanemode/glyphsift@0.1.2 && node -e 'console.log(require("@airplanemode/glyphsift").score_ppm("कखग\ufffd"))'
    cargo install glyphsift-cli && glyphsift --version
    ```
 
@@ -320,16 +345,16 @@ publish it (the demo page is the natural home), and mark row 7 Done.
 
 Taken from [RELEASING.md](RELEASING.md); do not start it while any Blocker-for-tag row is Open.
 
-1. **Date the release.** In `CHANGELOG.md` change `## [0.1.1] - 2026-11-18 (untagged)` to
-   `## [0.1.1] - YYYY-MM-DD`. The workspace version is already 0.1.1 (`Cargo.toml`, `[workspace.package]`); the
+1. **Date the release.** In `CHANGELOG.md` change `## [0.1.2] - 2026-11-19 (untagged)` to
+   `## [0.1.2] - YYYY-MM-DD`. The workspace version is already 0.1.2 (`Cargo.toml`, `[workspace.package]`); the
    wheel and the npm package take it from there. This is the tag commit; nothing else goes in it.
 2. **Run the gate** on that commit: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
    `cargo test --locked`, `scripts/determinism.sh`, `scripts/package-python.sh`, `scripts/package-npm.sh`,
    `tests/scripts/run-all.sh`. CI must be green on Linux, macOS and Windows for the commit, the `wheels` job included.
-3. **Tag** `v0.1.1` on that commit and push the tag.
+3. **Tag** `v0.1.2` on that commit and push the tag.
 4. **crates.io.** `cargo publish -p glyphsift-core`, then (once the index has it) `cargo publish -p glyphsift-cli`.
 5. **PyPI.** Upload the wheels for every platform: `twine upload dist/wheels/*`.
-6. **npm.** `npm publish dist/npm/airplanemode-glyphsift-0.1.1.tgz --access public`.
+6. **npm.** `npm publish dist/npm/airplanemode-glyphsift-0.1.2.tgz --access public`.
 7. **Sign.** Write the manifest (`node scripts/release-manifest.mjs --out dist/release-manifest.json <artifacts>`), sign it
    with `cp-sign` and the real key on the offline key machine (see "Owner must", row 4), and publish the signed
    manifest with the release.
