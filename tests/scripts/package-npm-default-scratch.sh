@@ -37,7 +37,9 @@ trap cleanup EXIT
 
 # The native CLI that package-npm.sh compares the Node output with. Build it once, here, so that part 2's
 # layout copy does not need a Rust build.
-CLI=${CLI:-$REPO/target/release/glyphsift}
+case "${CARGO_TARGET_DIR:-}" in
+  "") TGT_DIR=$REPO/target ;; /*|[A-Za-z]:*) TGT_DIR=$CARGO_TARGET_DIR ;; *) TGT_DIR=$REPO/$CARGO_TARGET_DIR ;; esac
+CLI=${CLI:-$TGT_DIR/release/glyphsift}
 if [ ! -x "$CLI" ]; then
   ( cd "$REPO" && cargo build -q --release --locked -p glyphsift-cli ) || { echo "error: cargo build of the CLI failed" >&2; exit 1; }
 fi

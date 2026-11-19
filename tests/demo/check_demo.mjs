@@ -29,7 +29,8 @@ const arg = (name, fallback) => {
   return i >= 0 ? process.argv[i + 1] : fallback;
 };
 const dist = resolve(root, arg("--dist", "demo/dist"));
-const cli = resolve(root, arg("--cli", "target/release/glyphsift"));
+// BUG-T2-S5-14: the default CLI is where cargo wrote it, ${CARGO_TARGET_DIR:-target}/release.
+const cli = resolve(root, arg("--cli", join(process.env.CARGO_TARGET_DIR || "target", "release", `glyphsift${process.platform === "win32" ? ".exe" : ""}`)));
 const evidencePath = arg("--evidence", "");
 const shotsDir = arg("--shots", "");
 const pwDir = process.env.PLAYWRIGHT_DIR;
@@ -161,6 +162,15 @@ if (ready) {
   const noticeRes = await fetch(`${origin}${BASE}NOTICE.txt`);
   const noticeType = noticeRes.headers.get("content-type") ?? "";
   check(noticeRes.status === 200 && noticeType.startsWith("text/plain"), "NOTICE.txt is served with a text/plain content type", noticeType);
+  // Sprint 6 (D3-03/-04): the measures page is served as text/plain (a bare .md would be a download) and the footer links it.
+  check((await page.locator('footer a[href="what-glyphsift-measures.txt"]').count()) === 1, "the footer links what-glyphsift-measures.txt");
+  const measRes = await fetch(`${origin}${BASE}what-glyphsift-measures.txt`);
+  const measType = measRes.headers.get("content-type") ?? "";
+  const measText = await measRes.text();
+  check(measRes.status === 200 && measType.startsWith("text/plain"), "what-glyphsift-measures.txt is served with a text/plain content type", measType);
+  check(measText.startsWith("# What glyphsift measures") && measText.includes("975000 ppm") && measText.includes("Devanagari only") && measText.includes("not measured on 8 GB"), "the served measures page is the committed docs/what-glyphsift-measures.md (title, threshold, limits)");
+  check(measText === readFileSync(join(root, "docs", "what-glyphsift-measures.md"), "utf8"), "the served measures page is byte-identical to docs/what-glyphsift-measures.md");
+  check((await get(`${BASE}what-glyphsift-measures.md`)) === 404, "there is no .md copy next to the .txt");
   check((await get(`${BASE}LICENSE`)) === 200, "LICENSE is served under /glyphsift/");
   check((await get(`${BASE}NOTICE`)) === 404, "there is no extensionless NOTICE next to NOTICE.txt");
   const noticeText = await noticeRes.text();
@@ -192,7 +202,7 @@ if (ready) {
     check(build.sha === head, "a local build's id is this checkout's HEAD", head.slice(0, 12));
   }
   // T1-S4-R1-05: a static #sprint-status line equal to the status-line text recorded in site/data/demos.json.
-  const SPRINT_STATUS = "Sprint 5 (18 Nov 2026): Working: everything from Sprint 4, plus a Gate tab that gives a pasted chunk of Devanagari text one of three answers, pass, hold or not scored (text that is not mostly Devanagari is passed through and not scored), with the score, the Devanagari share and a threshold you can change (975000 ppm by default), as the same canonical JSON the command line and the Python wheel print, computed in WebAssembly in the tab; text with an unpaired surrogate is refused in plain text; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).";
+  const SPRINT_STATUS = "Sprint 6 (19 Nov 2026): Working: everything from Sprint 5, plus a short page on what glyphsift measures, linked from the demo and built only from the committed benchmark: the score falls as synthetic noise rises (0 of 60 series rise), the gate threshold is 975000 ppm, and native, Python and WebAssembly give the same bytes on 13 samples and 200 gate cases; the shipped source package now runs its corrupt-feature tests; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).";
   const sprintStatus = (await text("#sprint-status")).trim();
   check(sprintStatus === SPRINT_STATUS, "the #sprint-status line is exactly the agreed text", sprintStatus.slice(0, 80));
   check((await page.locator("#sprint-status script, script:not([src])").count()) === 0, "the page has no inline script");
@@ -202,6 +212,9 @@ if (ready) {
   // Sprint 5 (D3-04): Tamil is the planned second script; the gate passes other scripts through unscored; nothing is
   // published (CI built Linux and Windows wheels, run 43667702791, but they are workflow artifacts); no 8 GB figure.
   for (const word of ["tamil planned for v0.2", "bengali later", "not scored", "not measured on 8 gb", "run 43667702791"]) check(notYet.includes(word), `the not-yet box says "${word}"`);
+  // Sprint 6 (D3-04): the measures page is linked and its limits are in the box; the Tamil line stays a design note (TD-80).
+  for (const word of ["what glyphsift measures", "synthetic", "no claim"]) check(notYet.includes(word), `the not-yet box says "${word}" (Sprint 6)`);
+  check(!notYet.includes("sprint 5"), "the not-yet box does not describe itself as Sprint 5");
   check(!notYet.includes("built only by ci after the owner's push"), "the not-yet box no longer says the Linux and Windows wheels are built only after the owner's push");
   for (const word of ["heatmap", "drag", "drop"]) check(!notYet.includes(word), `the not-yet box no longer lists "${word}" (the demo does it now)`);
   check(!notYet.includes("not implemented") && !notYet.includes("unimplemented"), "the not-yet box no longer claims validate() is missing");

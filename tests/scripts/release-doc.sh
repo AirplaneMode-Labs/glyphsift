@@ -63,8 +63,8 @@ echo "== C. one version everywhere"
 VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 [ -n "$VERSION" ] || { fail "the workspace version is readable"; finish; exit $?; }
 ok "the workspace version is $VERSION"
-# Sprint 5 (TD-43) sets glyphsift to 0.1.1; the next version bump edits this line, on purpose.
-expect_eq "the workspace version is the Sprint 5 version" "0.1.1" "$VERSION"
+# Sprint 6 (TD-69) sets glyphsift to 0.1.2; the next version bump edits this line, on purpose.
+expect_eq "the workspace version is the Sprint 6 version" "0.1.2" "$VERSION"
 for c in crates/*/Cargo.toml; do
   if grep -qx 'version.workspace = true' "$c"; then ok "$c takes the workspace version"; else fail "$c takes the workspace version"; fi
 done
@@ -107,11 +107,14 @@ pn "TD-56" "which decision records it (TD-56)"
 expect_eq "no 'byte-reproducible' claim for local wheels outside the packaging notes (README, RELEASING.md)" 0 "$(grep -hiE 'wheels? .*(are|is) (byte-)?reproducible|reproducible wheels?' README.md docs/RELEASING.md | grep -vciE 'not (byte-)?reproducible')"
 
 # Fix round 2 (BUG-T2-S5-12): the sentence about `cargo test --locked` from the sdist is true, and tests/scripts/sdist-locked.sh checks it.
-pn "ships three repository-root files" "that the sdist ships the three repository-root files the gate tests read"
-pn '`bench/corpus/clean.txt`, `docs/gate.md` and `docs/score-vs-noise.csv`' "which three files"
-pn "synthetic and own-authored" "that the three files are synthetic and own-authored"
+pn "ships four repository-root files" "that the sdist ships the four repository-root files its tests read (S1-118)"
+pn '`bench/corpus/clean.txt`, `docs/gate.md`, `docs/score-vs-noise.csv` and `docs/corruption-generator.md`' "which four files"
+pn "synthetic and own-authored" "that the four files are synthetic and own-authored"
 pn "scripts/add-sdist-files.py" "which script adds them"
-pn '`cargo test --locked --no-fail-fast -p glyphsift-core`' "the exact command tests/scripts/sdist-locked.sh runs from the unpacked sdist"
+pn '`cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt`' "the exact command tests/scripts/sdist-locked.sh runs from the unpacked sdist (S1-118)"
+pn "S1-118" "which finding it closes (S1-118)"
+pn "BUG-T2-S5-15" "BUG-T2-S5-15 (the shipped corrupt tests never ran)"
+pn 'is not in the sdist: maturin ships only `glyphsift-core` and `glyphsift-py`' "why the CLI corrupt test is absent from the sdist"
 expect_eq "row 6 no longer cites the pre-fix-round-2 sdist size 95,605" 0 "$(printf '%s\n' "$ROW6" | grep -c '95,605')"
 expect_eq "row 6 mentions the sdist's cargo test" 1 "$(printf '%s\n' "$ROW6" | grep -c 'cargo test --locked')"
 
@@ -120,6 +123,20 @@ ROW2=$(grep -E '^\| 2 \|' "$REL")
 expect_eq "row 2 quotes \"not measured on 8 GB\" for the 8 GB column" 1 "$(printf '%s\n' "$ROW2" | grep -cF 'reads "not measured on 8 GB"')"
 expect_eq "row 2 no longer says the column reads just \"not measured\"" 0 "$(printf '%s\n' "$ROW2" | grep -cF 'reads "not measured".')"
 
+echo "== F. Sprint 6: CARGO_TARGET_DIR, the sdist's corrupt tests and the log row 6 cites (S1-118, BUG-T2-S5-14/-15/-16)"
+expect_eq "row 6 cites evidence/sprint-6/D3/gates-s6.log" 1 "$(printf '%s\n' "$ROW6" | grep -c 'evidence/sprint-6/D3/gates-s6.log')"
+expect_eq "row 6 names the sdist's corrupt-feature test run" 1 "$(printf '%s\n' "$ROW6" | grep -c -- '--features corrupt')"
+S6=$(awk '/^## Sprint 6 carry-overs closed here/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
+if [ -n "$S6" ]; then ok "docs/release.md has the section 'Sprint 6 carry-overs closed here'"; else fail "docs/release.md has the section 'Sprint 6 carry-overs closed here'"; fi
+s6() { if printf '%s\n' "$S6" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the Sprint 6 section says $2"; else fail "the Sprint 6 section says $2 ($1)"; fi; }
+s6 "S1-118" "S1-118"
+s6 "BUG-T2-S5-14" "BUG-T2-S5-14 (build-wasm.sh and the native leg honour CARGO_TARGET_DIR)"
+s6 "BUG-T2-S5-15" "BUG-T2-S5-15"
+s6 "BUG-T2-S5-16" "BUG-T2-S5-16"
+s6 "tests/scripts/cargo-target-dir.sh" "which test proves CARGO_TARGET_DIR"
+s6 "docs/what-glyphsift-measures.md" "where the measures page is"
+s6 "glyphsift | packaging dry runs (wheel, npm tarball, release manifest) | proves S1-118" "the owner's push-list line for S1-118 (the job that runs the sdist test)"
+s6 "glyphsift | determinism (windows-latest) | proves BUG-T2-S5-14" "the owner's push-list line for the Windows native leg"
 echo "== E. output confinement is documented"
 OC=$(awk '/^## Output confinement of/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$OC" ]; then ok "docs/release.md has the section 'Output confinement of release-manifest.mjs'"; else fail "docs/release.md has the section 'Output confinement of release-manifest.mjs'"; fi
@@ -135,5 +152,17 @@ oc "glyphsift check (windows-latest) proves the ported containment" "the owner's
 expect_eq "scripts/lib/confine.mjs names its source (pagetriage) in its header" 1 "$(head -5 scripts/lib/confine.mjs 2>/dev/null | grep -c 'pagetriage')"
 expect_eq "scripts/release-manifest.mjs imports confineOutput and writeConfined" 1 "$(grep -cE '^import \{[^}]*confineOutput[^}]*writeConfined[^}]*\} from "\./lib/confine\.mjs";' scripts/release-manifest.mjs)"
 expect_eq "scripts/release-manifest.mjs no longer writes with writeFileSync" 0 "$(grep -c 'writeFileSync' scripts/release-manifest.mjs)"
+
+echo "== F. BUG-T3-S6-R2-08: the wheel size is quoted in KiB, not as a path-dependent byte count"
+expect_eq "docs/release.md does not quote the exact wheel byte count 254,197" 0 "$(grep -c '254,197' "$REL")"
+if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | grep -qE 'about 24[0-9] KiB'; then ok "the wheel size is given in KiB"; else fail "the wheel size is given in KiB (about 24x KiB)"; fi
+if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | grep -qF 'varies by a few bytes with the checkout path'; then ok "the document says the wheel bytes vary with the checkout path"; else fail "the document says the wheel bytes vary with the checkout path"; fi
+expect_eq "the stable sdist figure 115,881 is kept" 1 "$(grep -c '115,881' "$REL" | awk '{print ($1>=1)?1:0}')"
+
+echo "== G. BUG-T3-S6-R2-01: the CHANGELOG [0.1.2] cites the confinement port and the target-dir fix"
+CL=$(sed -n '/^## \[0.1.2\]/,/^## \[0.1.1\]/p' CHANGELOG.md)
+for id in S1-106 COM0 BUG-T2-S6-06 cargo-target-dir.sh BUG-T3-S6-02 "real NTFS after the push"; do
+  if printf '%s\n' "$CL" | grep -qF -- "$id"; then ok "CHANGELOG [0.1.2] cites $id"; else fail "CHANGELOG [0.1.2] cites $id"; fi
+done
 
 finish

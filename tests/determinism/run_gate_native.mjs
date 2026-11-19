@@ -2,7 +2,7 @@
 // tests/determinism/gate must print, byte for byte, the line recorded in expected.jsonl; a case recorded as
 // `rejected` (an ill-formed string handed over as WTF-8, or input over 4 MiB) must exit 1 or 2 and print nothing.
 //
-//   cargo build --release -p glyphsift-cli && node tests/determinism/run_gate_native.mjs [--cli target/release/glyphsift]
+//   cargo build --release -p glyphsift-cli && node tests/determinism/run_gate_native.mjs [--cli target/release/glyphsift]   (default: ${CARGO_TARGET_DIR:-target}/release/glyphsift)
 //
 // A CLI that cannot be run exits 1 with `cannot run <cli path>: <error message>` (tests/scripts/gate-native-error.sh).
 // Also asserts what the corpus is for: exactly 200 cases, and every outcome (pass, hold, not_scored, rejected) is
@@ -14,7 +14,11 @@ import { loadCases, loadExpected, tally, textOf, wtf8 } from "./gate/corpus.mjs"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const i = process.argv.indexOf("--cli");
-const cli = resolve(root, i >= 0 ? process.argv[i + 1] : `target/release/glyphsift${process.platform === "win32" ? ".exe" : ""}`);
+// BUG-T2-S5-14: without --cli the binary is looked for in ${CARGO_TARGET_DIR:-target}/release, as cargo wrote it (a relative
+// CARGO_TARGET_DIR is relative to the repository root, where the scripts run cargo).
+const targetDir = process.env.CARGO_TARGET_DIR || "target";
+const cli = resolve(root, i >= 0 ? process.argv[i + 1] : join(targetDir, "release", `glyphsift${process.platform === "win32" ? ".exe" : ""}`));
+console.log(`cli: ${cli}`);
 
 const cases = loadCases();
 const expected = loadExpected();

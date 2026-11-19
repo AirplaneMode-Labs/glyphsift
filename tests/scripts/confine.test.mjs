@@ -194,6 +194,17 @@ function winVolume() {
   return { fs: v, pathMod: nodePath.win32, platform: "win32", root: R, outside: O };
 }
 
+// A Windows volume on which the repository directory has per-directory case sensitivity switched on
+// (`fsutil file setCaseSensitiveInfo <dir> enable`, as WSL does): there `dist` and `DIST` are two
+// different directories, while every path rule is still the win32 one (S1-106). Both are present,
+// each with a file, and `sub` exists only under the lower-case one.
+function winCaseSensitiveVolume() {
+  const R = "C:\\Users\\runneradmin\\w\\repo";
+  const v = new FakeFs({ pathMod: nodePath.win32, ci: false });
+  v.add(`${R}\\dist\\sub`).add(`${R}\\dist\\real.json`, "file").add(`${R}\\DIST\\other.json`, "file").add(`${R}\\Dist.d`);
+  return { fs: v, pathMod: nodePath.win32, platform: "win32", root: R, outside: R };
+}
+
 function posixVolume() {
   const R = "/work/repo";
   const O = "/work/outside";
@@ -396,6 +407,73 @@ test("win32 rules do not depend on the platform string being 'linux' or 'darwin'
   accepted(p, "dist/x.json.", "/work/repo/dist/x.json.");
   accepted(p, "dist/a<b|c", "/work/repo/dist/a<b|c");
   accepted(p, "dist/NUL .txt", "/work/repo/dist/NUL .txt");
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Sprint 6: COM0 and LPT0 (T2-NOTE-COM0) and per-directory case sensitivity (S1-106), path.win32 forms only
+// ---------------------------------------------------------------------------------------------------------
+test("win32 rule 5, Sprint 6: COM0 and LPT0 are reserved device names, with any extension and in any case", () => {
+  const w = winVolume();
+  const re = /reserved device name/;
+  for (const out of [
+    "dist\\COM0", "dist\\com0", "dist\\Com0.json", "dist\\LPT0", "dist\\lpt0.txt", "dist\\Lpt0.tar.gz",
+    "dist\\sub\\COM0.log", "dist\\sub\\lPt0", "COM0\\x.json", "dist\\COM0 .txt", `${WR}\\dist\\LPT0.json`,
+    "dist/COM0", "dist/lpt0.bak", "dist\\com0.json.bak", // the stem before the first dot is what counts
+  ]) refused(w, out, re);
+});
+
+test("win32 rule 5, Sprint 6: every superscript form of COM and LPT is reserved, with any extension and in any case", () => {
+  const w = winVolume();
+  const re = /reserved device name/;
+  for (const out of [
+    "dist\\COM\u00b9", "dist\\com\u00b2.json", "dist\\Com\u00b3.txt", "dist\\LPT\u00b9", "dist\\lpt\u00b2.log", "dist\\Lpt\u00b3.tar.gz",
+    "dist\\sub\\COM\u00b9.x", "LPT\u00b3\\x.json",
+  ]) refused(w, out, re);
+});
+
+test("win32 rule 5, Sprint 6: names that only look like the reserved ones are accepted", () => {
+  const w = winVolume();
+  for (const name of ["com00.json", "lpt00", "com0x", "lpt0_", "com10", "lpt10.txt", "xcom0", "com", "lpt", "com\u2074"]) {
+    accepted(w, `dist\\${name}`, `${WR}\\dist\\${name}`);
+  }
+});
+
+test("win32 S1-106: on a case-sensitive directory a different-case dist is another directory and is refused", () => {
+  const c = winCaseSensitiveVolume();
+  // the lower-case dist is the one that is checked against; DIST and Dist are other directories
+  accepted(c, "dist\\x.json", `${c.root}\\dist\\x.json`);
+  accepted(c, "dist\\sub\\x.json", `${c.root}\\dist\\sub\\x.json`);
+  accepted(c, "dist\\real.json", `${c.root}\\dist\\real.json`);
+  refused(c, "DIST\\x.json", INSIDE); // exists, different directory
+  refused(c, "DIST\\other.json", INSIDE); // an existing file in the other directory
+  refused(c, "Dist\\x.json", INSIDE); // does not exist at all, still not dist\
+  refused(c, "dIsT\\sub\\x.json", INSIDE);
+  refused(c, `${c.root}\\DIST\\x.json`, INSIDE);
+  refused(c, "Dist.d\\x.json", INSIDE); // a sibling whose name only starts like dist
+});
+
+test("win32 S1-106: on a case-insensitive volume every spelling of dist is still the same directory", () => {
+  const w = winVolume();
+  accepted(w, "DIST\\x.json", `${WR}\\dist\\x.json`);
+  accepted(w, "Dist\\sub\\x.json", `${WR}\\dist\\sub\\x.json`);
+  accepted(w, `${WR.toUpperCase()}\\DIST\\x.json`, `${WR}\\dist\\x.json`);
+  accepted(w, `${WR.toLowerCase()}\\dist\\SUB\\x.json`, `${WR}\\dist\\sub\\x.json`);
+});
+
+test("win32 S1-106: a sibling directory whose name starts with dist is not dist (exact prefix, with a separator)", () => {
+  const w = winVolume();
+  w.fs.add(`${WR}\\dist2`).add(`${WR}\\dist.old`);
+  refused(w, "dist2\\x.json", INSIDE);
+  refused(w, "dist.old\\x.json", INSIDE);
+  refused(w, `${WR}\\dist2\\x.json`, INSIDE);
+});
+
+test("win32 S1-106: the same cases on posix stay exact (case matters there by itself)", () => {
+  const p = posixVolume();
+  p.fs.add("/work/repo/DIST");
+  accepted(p, "dist/x.json", "/work/repo/dist/x.json");
+  refused(p, "DIST/x.json", INSIDE);
+  refused(p, "Dist/x.json", INSIDE);
 });
 
 // ---------------------------------------------------------------------------------------------------------
