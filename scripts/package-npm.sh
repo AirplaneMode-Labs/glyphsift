@@ -36,7 +36,8 @@ for t in web nodejs; do
 done
 VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 [ -n "$VERSION" ] || { echo "error: no workspace version in Cargo.toml" >&2; exit 1; }
-CLI=${CLI:-target/release/glyphsift}
+# CARGO_TARGET_DIR (absolute, or relative to this directory as cargo reads it) decides where the build wrote the CLI (BUG-T2-S6-06).
+CLI=${CLI:-${CARGO_TARGET_DIR:-target}/release/glyphsift}
 [ -x "$CLI" ] || cargo build -q --release --locked -p glyphsift-cli
 
 OUT=dist/npm

@@ -9,7 +9,7 @@
 # entries (no version or checksum changes), and this script then proves the result: it unpacks the sdist in scratch,
 # runs `cargo build --locked -p glyphsift-py` there and checks that Cargo.lock came out byte-identical. It does not
 # publish anything, and `maturin sdist` compiles nothing itself. scripts/add-sdist-files.py then adds bench/corpus/clean.txt,
-# docs/gate.md and docs/score-vs-noise.csv (synthetic, own-authored) that the shipped gate tests read.
+# docs/gate.md, docs/score-vs-noise.csv and docs/corruption-generator.md (synthetic, own-authored) that the shipped tests read.
 #
 # Environment: SDIST_OUT (default dist/sdist, relative to the repository, or absolute) is where glyphsift-<version>.tar.gz
 # is written; any glyphsift-*.tar.gz already there is removed first. SDIST_VERIFY=0 skips the cargo build (the script
@@ -55,7 +55,7 @@ SDIST=$OUT/glyphsift-$VERSION.tar.gz
 echo "== prune the sdist's Cargo.lock to the packages its own workspace needs"
 python3 -I scripts/prune-sdist-lock.py "$SDIST"
 
-echo "== add the three repository-root files the glyphsift-core tests read (BUG-T2-S5-12)"
+echo "== add the four repository-root files the glyphsift-core tests read (BUG-T2-S5-12, S1-118)"
 python3 -I scripts/add-sdist-files.py "$SDIST"
 
 if [ "${SDIST_VERIFY:-1}" != 0 ]; then

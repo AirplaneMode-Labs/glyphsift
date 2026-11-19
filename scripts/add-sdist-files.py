@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Add the three repository-root files the glyphsift-core tests read to a maturin sdist (BUG-T2-S5-12).
+"""Add the four repository-root files the glyphsift-core tests read to a maturin sdist (BUG-T2-S5-12, S1-118).
 
     python3 -I scripts/add-sdist-files.py <sdist.tar.gz>
 
 maturin cannot include a path outside the Python project (`include` patterns may not contain `..`), and the sdist ships
 crates/glyphsift-core/tests, whose gate tests read bench/corpus/clean.txt, docs/gate.md and docs/score-vs-noise.csv
-relative to the repository root. Without them 3 of the 14 gate tests fail from the unpacked sdist. This script appends
-exactly those three files, at the same relative paths under the sdist's top-level directory, with fixed metadata
+relative to the repository root. Without them 3 of the 14 gate tests fail from the unpacked sdist. Since S1-118 the sdist
+test also runs `--features corrupt`, which switches on tests/corrupt.rs; its docs-versus-code test reads
+docs/corruption-generator.md, so that file is shipped too (the other shipped test file that needs the feature,
+tests/gate_noise.rs, reads only the three above). The CLI crate, and so its own corrupt test, is not in the sdist: maturin
+ships only glyphsift-core and glyphsift-py, which is the stated reason that test is absent. This script appends
+exactly those four files, at the same relative paths under the sdist's top-level directory, with fixed metadata
 (mode 0644, mtime 0, owner root), and rewrites the sdist in place with a gzip header without a timestamp. All three are
 synthetic and own-authored. Exit 0 on success, 1 on anything unexpected (a file missing, already present in the sdist,
 more than one top-level directory), with the sdist left untouched.
@@ -17,7 +21,7 @@ import os
 import sys
 import tarfile
 
-FILES = ["bench/corpus/clean.txt", "docs/gate.md", "docs/score-vs-noise.csv"]
+FILES = ["bench/corpus/clean.txt", "docs/gate.md", "docs/score-vs-noise.csv", "docs/corruption-generator.md"]
 
 
 def main(argv):

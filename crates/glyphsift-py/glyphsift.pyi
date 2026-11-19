@@ -1,4 +1,4 @@
-"""Type stubs for the glyphsift Python wheel (release candidate 0.1.1, not tagged).
+"""Type stubs for the glyphsift Python wheel (release candidate 0.1.2, not tagged).
 
 The extension is a thin wrapper over glyphsift-core: every function takes `str` and returns plain
 Python values. The report is canonical JSON, byte-identical to `glyphsift check` and to the WASM build

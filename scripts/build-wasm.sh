@@ -34,7 +34,8 @@ command -v wasm-opt >/dev/null || { echo "error: wasm-opt not found (brew instal
 # shellcheck source=scripts/remap-paths.sh
 . scripts/remap-paths.sh
 cargo build --locked --profile wasm --target wasm32-unknown-unknown -p glyphsift-wasm
-RAW=target/wasm32-unknown-unknown/wasm/glyphsift_wasm.wasm
+# BUG-T2-S5-14: cargo writes under ${CARGO_TARGET_DIR:-target}; a relative value is relative to this directory (the repository root).
+RAW="${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/wasm/glyphsift_wasm.wasm"
 
 # Post-link features rustc emits for wasm32-unknown-unknown; the profile strips the target_features
 # section, so wasm-opt cannot detect them. This is also the browser baseline (bulk memory, sign

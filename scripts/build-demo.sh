@@ -2,7 +2,8 @@
 # Assemble the static demo into demo/dist/ for GitHub Pages (https://airplanemode-labs.github.io/glyphsift/).
 #   1. scripts/build-wasm.sh  -> dist/wasm/web/{glyphsift.js,glyphsift_bg.wasm}
 #   2. copy demo/{index.html,app.js,styles.css,samples.js} and the two web-target files into demo/dist/
-#   2b. copy LICENSE, and NOTICE (which ends with scripts/demo-notice-extra.txt) as NOTICE.txt, into demo/dist/
+#   2b. copy LICENSE, and NOTICE (which ends with scripts/demo-notice-extra.txt) as NOTICE.txt, and
+#       docs/what-glyphsift-measures.md as what-glyphsift-measures.txt, into demo/dist/
 #   3. write demo/dist/build.json {id, sha, source, dirty}: id = first 16 hex of sha256(glyphsift.js ++ glyphsift_bg.wasm),
 #      sha = $GITHUB_SHA when it is a full 40-hex commit id (source "ci"), otherwise this checkout's HEAD (source "local",
 #      dirty true when the tree has uncommitted or untracked files), or "" when there is no git checkout; the page shows
@@ -36,6 +37,8 @@ cp "$WEB/glyphsift.js" "$WEB/glyphsift_bg.wasm" "$OUT/pkg/"
 # a link to a bare NOTICE downloads it instead of showing it (BUG-T1-S3-R2-01). There is no bare NOTICE.
 cp LICENSE "$OUT/LICENSE"
 cp NOTICE "$OUT/NOTICE.txt"
+# Sprint 6 (D3-04): the measures page, byte for byte, as .txt for the same reason (a bare .md is served as a download).
+cp docs/what-glyphsift-measures.md "$OUT/what-glyphsift-measures.txt"
 
 sha256_of_stream() {
   if command -v shasum >/dev/null 2>&1; then shasum -a 256 | cut -d' ' -f1
