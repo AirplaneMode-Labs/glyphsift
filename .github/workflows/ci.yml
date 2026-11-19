@@ -67,6 +67,15 @@ jobs:
         run: |
           node --test tests/scripts/confine.test.mjs
           bash tests/scripts/release-manifest.sh
+      # After Sprint 6 (CI run 44580204699): tests/scripts/sdist-locked.sh passed on a Mac and failed on the Linux runner because this
+      # file's top-level CARGO_TERM_COLOR=always colours the `Running` word in a log file and its awk searched for the plain text.
+      # sdist-locked.sh itself still runs only in the Linux packaging job (it needs the hashed maturin and builds the sdist). Its parser
+      # (strip_ansi, cargo_bin_passed in tests/scripts/lib.sh) is proved here on all three systems: on fixtures shaped like each runner's
+      # lines (Windows spells the Running line with backslashes and .exe), then on this runner's own coloured `cargo test` log.
+      - name: Cargo test log parser (each runner's line format, then this runner's own CARGO_TERM_COLOR=always log)
+        env:
+          GLYPHSIFT_LIVE_CARGO_LOG: "1"
+        run: bash tests/scripts/cargo-test-log.sh
       - name: The committed benchmark CSV still satisfies the monotonicity criterion
         run: cargo run --locked -q -p glyphsift-cli --release -- bench --verify docs/score-vs-noise.csv
       - name: Licence sweep and dependency features

@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+After the Sprint 6 push (CI run 44580204699 at 84b5c3d). Tests and CI only: no crate, report, score, gate rule or packaged file changed, and `Cargo.lock` and the version stay as they are.
+
+### Fixed
+
+- S1-118 follow-up, the one red job of that run (`packaging dry runs`, Linux): `tests/scripts/sdist-locked.sh` printed `FAIL - tests/corrupt.rs ran in the unpacked sdist (passed: 'none')` and the same for `gate_noise.rs` although
+  `cargo test` exited 0 with 0 failed. Cause: `ci.yml` sets `CARGO_TERM_COLOR=always`, and cargo then colours the status word of each `Running` line even in a log file
+  (`ESC[1mESC[92m     RunningESC[0m tests/corrupt.rs (...)`), so the awk that looked for the literal `Running tests/corrupt.rs` found no line and printed nothing. The shell on the Mac has no such variable, so the log was plain there.
+  Reproduced on macOS by running the committed script with `CARGO_TERM_COLOR=always` (the same two FAIL lines, `31 passed, 2 failed`). The Windows runner would have failed the same literal even without colour: its Running line is
+  `tests\corrupt.rs (target\debug\deps\corrupt-<hash>.exe)`. The log is now read through `strip_ansi`, `cargo_bin_passed` and `cargo_failed_total` in `tests/scripts/lib.sh`, which drop colour codes and CRs, accept both path spellings, take the
+  binary's own `test result: ok.` line only (a binary that did not run, crashed before its summary, ran 0 tests or failed never counts as passed), and the script prints the Running and summary lines when a binary is not found, so a next red names its cause.
+  The check is not weaker: with `--features corrupt` removed from the script, cargo skips both binaries and it still fails for both.
+- No other script of this repository reads cargo or libtest output by its text (`ci-policy.sh` greps `cargo doc` output for the word `collision`, which colour cannot split).
+
+### Added
+
+- `tests/scripts/cargo-test-log.sh` (tests first, red then green): the self-test of that parser on the line format of each runner (Linux and macOS colour, Windows backslashes, `.exe` and CRLF, libtest's own colour, a skipped binary, 0 tests, a FAILED
+  summary, a crash before the summary, a binary whose name begins like another) and on the S6 awk, which it shows finds nothing in the coloured line. With `GLYPHSIFT_LIVE_CARGO_LOG=1` it also runs `cargo test` for the two feature-gated binaries on the machine it is on and
+  parses that real log; the CI `check` job runs it with that variable on ubuntu, macos and windows (new step "Cargo test log parser"), so the parser is proved on each operating system's real output, not only on fixtures.
+  `tests/scripts/run-all.sh` picks it up (14 script tests). `sdist-locked.sh` itself still runs only in the Linux `packaging` job.
+
 ## [0.1.2] - 2026-11-19 (untagged)
 
 Sprint 6 (19 Nov 2026, untagged), glyphsift **0.1.2** (TD-69). 0.1.0 and 0.1.1 were never tagged; 0.1.2 supersedes them. Nothing is published, signed or tagged. The scoring, the weights, the
