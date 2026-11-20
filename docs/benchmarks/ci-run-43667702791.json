@@ -1,0 +1,100 @@
+{
+  "schema": "glyphsift.benchmark/1",
+  "benchmark": "ci-run-artifact-sizes",
+  "date": "2026-11-15T02:25:18Z",
+  "commit": "5ff0c47ec1fcb0b8d1c80f0029aa89ab78e03d2e",
+  "build_inputs_modified": false,
+  "worktree_clean": true,
+  "machine": "GitHub-hosted CI runners (ubuntu-latest, windows-latest, macos-latest)",
+  "environment": {
+    "runner_images": {
+      "ubuntu-latest": "ubuntu-26.04 20261111.196.1",
+      "windows-latest": "windows-2025-vs2026 20261103.298.1",
+      "macos-latest": "macos-26-arm64 20261102.0473.1"
+    },
+    "read_with": "gh version 2.102.0 (2026-09-30)"
+  },
+  "method": "Not a benchmark that this repository's scripts run: these are the sizes that CI run 43667702791 (workflow ci, event push, branch main, conclusion success) printed for the files it built, copied from its job logs (the `ls -l` line of each built wheel and sdist, the `packed ... (N bytes)` line of the npm tarball, the `wheel: ... (N bytes)` line of the packaging job) and from the upload step's `Final size is N bytes` line, which equals size_in_bytes in the run's artifact list. They are the sizes of 0.1.0 files at the Sprint 4 head 5ff0c47, not of the current 0.1.3 build, and they are the sizes on the runner (a wheel built on another machine from the same sources differs by a few bytes: docs/release.md, Packaging notes). `date` is when the run started. The logs are kept by GitHub for a limited time and the three workflow artifacts expire on 2026-11-22, so this file is the lasting record. Read on 2026-11-20.",
+  "command": "gh api repos/AirplaneMode-Labs/glyphsift/actions/runs/43667702791 ; gh api repos/AirplaneMode-Labs/glyphsift/actions/runs/43667702791/artifacts ; gh run view 43667702791 --repo AirplaneMode-Labs/glyphsift --job <job_id> --log   (job ids are in data.jobs)",
+  "data": {
+    "run_id": 43667702791,
+    "run_url": "https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/43667702791",
+    "run_started_at": "2026-11-15T02:25:18Z",
+    "run_updated_at": "2026-11-15T02:29:43Z",
+    "jobs": [
+      {
+        "job_id": 132670667630,
+        "job": "wheel and sdist (ubuntu-latest)",
+        "runner": "ubuntu-latest",
+        "built_files": [
+          {
+            "name": "glyphsift-0.1.0-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            "bytes": 254335
+          },
+          {
+            "name": "glyphsift-0.1.0.tar.gz",
+            "bytes": 82081
+          }
+        ],
+        "workflow_artifact": {
+          "name": "glyphsift-wheels-ubuntu-latest",
+          "id": 14142099638,
+          "size_bytes": 335583,
+          "created_at": "2026-11-15T02:26:03Z",
+          "expires_at": "2026-11-22T02:26:02Z"
+        }
+      },
+      {
+        "job_id": 132670667625,
+        "job": "wheel and sdist (windows-latest)",
+        "runner": "windows-latest",
+        "built_files": [
+          {
+            "name": "glyphsift-0.1.0-cp39-abi3-win_amd64.whl",
+            "bytes": 151328
+          }
+        ],
+        "workflow_artifact": {
+          "name": "glyphsift-wheels-windows-latest",
+          "id": 14143116094,
+          "size_bytes": 150241,
+          "created_at": "2026-11-15T02:26:41Z",
+          "expires_at": "2026-11-22T02:26:40Z"
+        }
+      },
+      {
+        "job_id": 132670667797,
+        "job": "wheel and sdist (macos-latest)",
+        "runner": "macos-latest",
+        "built_files": [
+          {
+            "name": "glyphsift-0.1.0-cp39-abi3-macosx_11_0_arm64.whl",
+            "bytes": 247045
+          }
+        ],
+        "workflow_artifact": {
+          "name": "glyphsift-wheels-macos-latest",
+          "id": 14143446266,
+          "size_bytes": 245793,
+          "created_at": "2026-11-15T02:29:24Z",
+          "expires_at": "2026-11-22T02:29:22Z"
+        }
+      },
+      {
+        "job_id": 132670667651,
+        "job": "packaging dry runs (wheel, npm tarball, release manifest)",
+        "runner": "ubuntu-latest",
+        "built_files": [
+          {
+            "name": "airplanemode-glyphsift-0.1.0.tgz",
+            "bytes": 112296
+          },
+          {
+            "name": "glyphsift-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl",
+            "bytes": 270214
+          }
+        ]
+      }
+    ]
+  }
+}

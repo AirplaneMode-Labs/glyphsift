@@ -1,0 +1,48 @@
+{
+  "schema": "glyphsift.benchmark/1",
+  "benchmark": "score-vs-noise",
+  "date": "2026-11-20T03:58:15Z",
+  "commit": "3c0bb4dcc0a53bb5d87c4971d1c6e1e30b109e39",
+  "build_inputs_modified": false,
+  "worktree_clean": false,
+  "machine": "Apple M5 Pro, 48 GB",
+  "environment": {
+    "os": "macOS 27.2.1",
+    "node": "v22.22.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "glyphsift": "glyphsift 0.1.3"
+  },
+  "method": "The 288-line synthetic corpus bench/corpus/clean.txt is corrupted by each of the 19 noise families and by `mixed` at 7 noise levels with seeds 1 to 3, and every result is scored. The output is deterministic integers, so every run gives the same bytes: this file records that three fresh runs of the command below were byte-identical to the committed docs/score-vs-noise.csv and .svg, that `glyphsift bench --verify` printed `verdict: PASS` for it, and the wall-clock time of each run (process start included). The raw result is docs/benchmarks/score-vs-noise.csv, a byte-identical copy of docs/score-vs-noise.csv (which the tests, the chart and the source package read).",
+  "command": "target/release/glyphsift bench --corpus bench/corpus/clean.txt --seeds 1,2,3 --csv docs/score-vs-noise.csv --svg docs/score-vs-noise.svg",
+  "data": {
+    "raw_file": "docs/benchmarks/score-vs-noise.csv",
+    "rows": 420,
+    "csv_sha256": "cac89041a00e4541e8e1acc42c77c39431591992ab2041fe56b994e98af8453e",
+    "svg_sha256": "17252f44527df5332f29779d18078dc93e1c2c905cc1dfb529d95071313aad9e",
+    "corpus": "bench/corpus/clean.txt",
+    "corpus_sha256": "f4dba3328dcbdb44a9e358f79bed135e802b933c2e0470088a0852463b0535fc",
+    "families": 20,
+    "p_levels": [
+      "0",
+      "0.01",
+      "0.02",
+      "0.05",
+      "0.1",
+      "0.2",
+      "0.4"
+    ],
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "fresh_runs_byte_identical": true,
+    "bench_verify": "PASS",
+    "bench_wall_clock_ms_runs": [
+      546,
+      648,
+      615
+    ],
+    "bench_wall_clock_ms_best": 546
+  }
+}

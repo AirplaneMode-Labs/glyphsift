@@ -1,0 +1,28 @@
+{
+  "schema": "glyphsift.benchmark/1",
+  "benchmark": "wasm-linearity",
+  "date": "2026-11-20T03:58:40Z",
+  "commit": "3c0bb4dcc0a53bb5d87c4971d1c6e1e30b109e39",
+  "build_inputs_modified": false,
+  "worktree_clean": false,
+  "machine": "Apple M5 Pro, 48 GB",
+  "environment": {
+    "os": "macOS 27.2.1",
+    "node": "v22.22.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)"
+  },
+  "method": "validate() in Node on dist/wasm/nodejs, on a text that is one consonant followed by 2,500 and by 5,000 dependent vowel signs (one cluster, one double_matra issue per extra sign). Each size is timed over 7 rounds of 20 calls, and the fastest round is divided by 20 (ms_per_call_*); ratio is the large size over the small one, rounded to two decimals. A linear validator gives 2, a quadratic one 4; the check fails at 3 or more. Measured after one warm-up round.",
+  "command": "node tests/wasm/run_wasm_safety.mjs --bench-json docs/benchmarks/wasm-linearity-m5pro-48gb.json",
+  "data": {
+    "marks_small": 2500,
+    "marks_large": 5000,
+    "calls_per_round": 20,
+    "rounds": 7,
+    "ms_per_call_small": 1.253,
+    "ms_per_call_large": 2.494,
+    "ratio": 1.99,
+    "linear_ratio": 2,
+    "quadratic_ratio": 4,
+    "limit": 3
+  }
+}

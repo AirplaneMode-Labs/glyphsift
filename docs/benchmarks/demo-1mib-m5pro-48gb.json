@@ -1,0 +1,25 @@
+{
+  "schema": "glyphsift.benchmark/1",
+  "benchmark": "demo-1mib",
+  "date": "2026-11-20T03:58:56Z",
+  "commit": "3c0bb4dcc0a53bb5d87c4971d1c6e1e30b109e39",
+  "build_inputs_modified": false,
+  "worktree_clean": false,
+  "machine": "Apple M5 Pro, 48 GB",
+  "environment": {
+    "os": "macOS 27.2.1",
+    "node": "v22.22.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "chrome": "157.0.8103.80"
+  },
+  "method": "The built demo (scripts/build-demo.sh) served under /glyphsift/ and driven in installed Google Chrome, headless, through Playwright. The text area's value is set directly to exactly 1,048,576 bytes (the synthetic sentence 'नमस्ते दुनिया।' repeated, padded with spaces) and an input event is dispatched; the time is wall clock (Date.now) from that event until the score is shown, which includes the validate() call in WebAssembly and rendering the report with its heatmap capped at 20,000 clusters. One run, not a best of five, in a tab that has already scored the demo's samples.",
+  "command": "PLAYWRIGHT_DIR=$PWD/tools/playwright node tests/demo/check_demo.mjs --cli target/release/glyphsift --bench-json docs/benchmarks/demo-1mib-m5pro-48gb.json",
+  "data": {
+    "input_bytes": 1048576,
+    "paste_validate_render_ms": 1602,
+    "runs": 1,
+    "heatmap_cluster_cap": 20000,
+    "browser": "Google Chrome 157.0.8103.80",
+    "headless": true
+  }
+}

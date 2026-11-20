@@ -1,0 +1,157 @@
+{
+  "schema": "glyphsift.benchmark/1",
+  "benchmark": "gate-holds",
+  "date": "2026-11-20T03:58:32Z",
+  "commit": "3c0bb4dcc0a53bb5d87c4971d1c6e1e30b109e39",
+  "build_inputs_modified": false,
+  "worktree_clean": false,
+  "machine": "Apple M5 Pro, 48 GB",
+  "environment": {
+    "os": "macOS 27.2.1",
+    "node": "v22.22.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)"
+  },
+  "method": "The clean corpus bench/corpus/clean.txt is corrupted as the score benchmark does (the whole text at once, seeds 1 to 3), split back into lines, and cut into chunks of 1, 3 or 8 consecutive lines; every chunk goes through gate() with the default threshold (975000 ppm). `hold` is the number of held chunks over the three seeds at each noise level; `chunks` is the number of chunks over the three seeds. The rows are the ones the cargo test prints, and that test fails unless docs/gate.md holds exactly those rows: table `by_family` is the first table of docs/gate.md (five families, chunks of three lines), `by_chunk_size` the second (the mixed family at one, three and eight lines per chunk).",
+  "command": "cargo test --locked -p glyphsift-core --features corrupt --test gate_noise the_doc_tables_are_these_exact_hold_counts -- --nocapture",
+  "data": {
+    "corpus": "bench/corpus/clean.txt",
+    "corpus_sha256": "f4dba3328dcbdb44a9e358f79bed135e802b933c2e0470088a0852463b0535fc",
+    "threshold_ppm": 975000,
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "p_levels": [
+      "0",
+      "0.01",
+      "0.02",
+      "0.05",
+      "0.1",
+      "0.2",
+      "0.4"
+    ],
+    "rows": [
+      {
+        "table": "by_family",
+        "family": "mixed",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          3,
+          4,
+          24,
+          81,
+          168,
+          274
+        ]
+      },
+      {
+        "table": "by_family",
+        "family": "matra_double",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          5,
+          13,
+          55,
+          131,
+          265,
+          288
+        ]
+      },
+      {
+        "table": "by_family",
+        "family": "virama_insert",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          11,
+          31,
+          129,
+          239,
+          287,
+          288
+        ]
+      },
+      {
+        "table": "by_family",
+        "family": "control_leak",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          33,
+          108,
+          237,
+          285,
+          288,
+          288
+        ]
+      },
+      {
+        "table": "by_family",
+        "family": "mixed_script",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          3,
+          22,
+          100,
+          194,
+          274,
+          288
+        ]
+      },
+      {
+        "table": "by_chunk_size",
+        "family": "mixed",
+        "lines_per_chunk": 1,
+        "chunks": 864,
+        "hold": [
+          0,
+          28,
+          54,
+          146,
+          261,
+          445,
+          694
+        ]
+      },
+      {
+        "table": "by_chunk_size",
+        "family": "mixed",
+        "lines_per_chunk": 3,
+        "chunks": 288,
+        "hold": [
+          0,
+          3,
+          4,
+          24,
+          81,
+          168,
+          274
+        ]
+      },
+      {
+        "table": "by_chunk_size",
+        "family": "mixed",
+        "lines_per_chunk": 8,
+        "chunks": 108,
+        "hold": [
+          0,
+          0,
+          0,
+          1,
+          14,
+          76,
+          104
+        ]
+      }
+    ]
+  }
+}
