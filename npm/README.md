@@ -6,18 +6,18 @@ score from 0 to 1 as an integer in parts per million, per-line scores, no model 
 canonical JSON report as the Rust CLI and the Python wheel, byte for byte. Part of
 [Airplane Mode Labs](https://github.com/AirplaneMode-Labs).
 
-Status: 0.1.2, release candidate, not tagged.
+Status: 0.1.3, release candidate, not tagged.
 
 ## Install
 
 Not published yet: the npm scope @airplanemode and the PyPI and crates.io names are not reserved. The commands below were proven from locally built artifacts on macOS arm64 (an npm pack tarball installed offline into a fresh empty directory, a wheel installed into a fresh venv); publishing to the registries is the owner's step.
 
-The tarball proven here is `airplanemode-glyphsift-0.1.2.tgz`, made by `npm pack` from the wasm-bindgen
+The tarball proven here is `airplanemode-glyphsift-0.1.3.tgz`, made by `npm pack` from the wasm-bindgen
 output. It has no dependencies, so it installs offline from an empty cache, with install scripts off:
 
 ```sh
 npm init -y
-npm i ./airplanemode-glyphsift-0.1.2.tgz --ignore-scripts --offline --no-audit --no-fund
+npm i ./airplanemode-glyphsift-0.1.3.tgz --ignore-scripts --offline --no-audit --no-fund
 ```
 
 Build the tarball from a clone of the repository (needs `wasm-bindgen` 0.2.129 and `wasm-opt`; see

@@ -16,7 +16,10 @@
 # followed, before use); PLAYWRIGHT_DIR (tools/playwright
 # after `npm ci --prefix tools/playwright --ignore-scripts`, or any directory with playwright@1.65.0
 # installed) enables the browser check; CLI (default target/release/glyphsift) is
-# the native binary the Node and browser output is compared with.
+# the native binary the Node and browser output is compared with. PACKAGE_NPM_PACK_ONLY=1 (Sprint 7, scripts/release/rehearse.sh)
+# stops after the builder-path gate with the tarball written and prints its path: the release rehearsal installs and calls the tarball
+# itself, in its own fresh project on each operating system, and the native CLI is not needed for that. PYTHON (default python3) names
+# the interpreter for the builder-path gate: a Windows runner has `python`, not always `python3`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Physical paths only (BUG-T2-S3-19-R2): npm writes the tarball's file: dependency relative to the real
@@ -36,10 +39,6 @@ for t in web nodejs; do
 done
 VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 [ -n "$VERSION" ] || { echo "error: no workspace version in Cargo.toml" >&2; exit 1; }
-# CARGO_TARGET_DIR (absolute, or relative to this directory as cargo reads it) decides where the build wrote the CLI (BUG-T2-S6-06).
-CLI=${CLI:-${CARGO_TARGET_DIR:-target}/release/glyphsift}
-[ -x "$CLI" ] || cargo build -q --release --locked -p glyphsift-cli
-
 OUT=dist/npm
 rm -rf "./$OUT"
 mkdir -p "$OUT/package"
@@ -80,7 +79,16 @@ tar -tzf "$TARBALL" | sed 's/^/  /'
 case "$TARBALL" in /*) TGZ=$TARBALL ;; *) TGZ=$PWD/$TARBALL ;; esac
 
 echo "== builder-path gate: no packed file may contain /Users/, /home/ or /private/tmp"
-python3 -I scripts/check-no-builder-paths.py "$TGZ"
+"${PYTHON:-python3}" -I scripts/check-no-builder-paths.py "$TGZ"
+
+if [ "${PACKAGE_NPM_PACK_ONLY:-0}" = 1 ]; then
+  echo "packed only (PACKAGE_NPM_PACK_ONLY=1): $TGZ"
+  exit 0
+fi
+
+# CARGO_TARGET_DIR (absolute, or relative to this directory as cargo reads it) decides where the build wrote the CLI (BUG-T2-S6-06).
+CLI=${CLI:-${CARGO_TARGET_DIR:-target}/release/glyphsift}
+[ -x "$CLI" ] || cargo build -q --release --locked -p glyphsift-cli
 
 SCRATCH=${SCRATCH:-$(mktemp -d)}
 mkdir -p "$SCRATCH"

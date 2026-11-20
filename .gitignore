@@ -39,3 +39,8 @@ coverage/
 
 # npm pack tarballs
 *.tgz
+
+# release rehearsal output (Sprint 7): artefacts, the test-key manifest and the report; never committed
+/dist-release/
+/dist-release-report/
+*.crate

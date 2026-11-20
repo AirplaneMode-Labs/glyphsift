@@ -24,3 +24,10 @@ tests/determinism/expected/* -text
 
 # Demo test fixtures include invalid UTF-8, a BOM and CRLF on purpose; git must never normalise them.
 tests/demo/fixtures/* -text
+
+# Sprint 7: the release tool is vendored from AirplaneMode-Labs/runtime spec/tools byte for byte (spec release 0.6.1), together with the shared release vectors
+# and the pin that records their digests. Release manifests and SHA256SUMS are hashed and signed, so git must never convert these (core.autocrlf=true on a
+# Windows checkout would change the sha256 that scripts/release/VENDORED.json pins).
+scripts/release/release-tool.mjs -text
+scripts/release/vectors/** -text
+scripts/release/VENDORED.json -text
