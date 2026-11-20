@@ -196,6 +196,12 @@ MUTATIONS = [
     ("release-rehearsal: a plain pip install of the tools", "wf", C, in_job("release-rehearsal", sub("-m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt", "-m pip install maturin"))),
     ("release-rehearsal: id-token granted", "wf", C, in_job("release-rehearsal", sub("    permissions:\n      contents: read\n", "    permissions:\n      contents: read\n      id-token: write\n"))),
     ("ci: a secret", "wf", C, in_job("release-rehearsal", sub("    env:\n      TOOLS_BIN:", "    env:\n      TOKEN: ${{ secrets.X }}\n      TOOLS_BIN:"))),
+    # ---- O: every toolchain step installs what rust-toolchain.toml lists (pagetriage CI run 44651022212) ----------------------------
+    ("O: release-rehearsal toolchain step without components", "wf", C, in_job("release-rehearsal", sub("          components: rustfmt, clippy\n", ""))),
+    ("O: release-rehearsal toolchain step without the wasm32 target", "wf", C, in_job("release-rehearsal", sub("          targets: wasm32-unknown-unknown\n", ""))),
+    ("O: the publish job's toolchain step without components", "wf", P, in_job("publish", sub("          components: rustfmt, clippy\n", ""))),
+    ("O: a toolchain step on another channel than rust-toolchain.toml", "wf", P, sub('          toolchain: "1.98"\n', '          toolchain: "1.99"\n')),
+    ("O: the Pages toolchain step without components", "wf", "pages.yml", sub("          components: rustfmt, clippy\n", "")),
 ]
 
 

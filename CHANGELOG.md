@@ -77,6 +77,9 @@ owner-requested addition; it has no row in the plan documents and creates no gat
   then sets EXEPATH to `C:\Program Files\Git\bin` (`spawnSync C:\Program Files\Git\bin\bin\bash.exe ENOENT`). It now tries both spellings, then `ProgramFiles\Git`, never the System32 WSL launcher and never a bare
   `bash`. The scrubbed environment also lost `PYTHON=python` (so `scripts/package-npm.sh` would have used `python3`, which the Windows runner does not have) and the Windows system variables the linker lookup
   reads; `PYTHON` and a fixed list of those variables are kept, still with no `GITHUB_*`, `RUNNER_*` or token. Both Windows rules are checked on any host by the harness self-test (`path.win32`).
+- Sprint 7 CI fix round 2 (architect): every `dtolnay/rust-toolchain` step in `ci.yml`, `publish.yml` and `pages.yml` now installs the components (`rustfmt`, `clippy`) and the target
+  (`wasm32-unknown-unknown`) that `rust-toolchain.toml` lists, so no `cargo` call starts a rustup implicit install (the path that died with "detected conflict: 'bin/cargo-clippy'" in pagetriage's
+  CI run 44651022212). `ci-policy.sh` check O holds all 11 steps to `rust-toolchain.toml`, and five new mutations in `ci-policy-mutations.py` turn it red.
 
 ### Security
 

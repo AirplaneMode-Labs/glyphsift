@@ -42,6 +42,8 @@
 #  J. fix round 1 (BUG-T2-S5-08): `cargo doc --workspace --no-deps --locked` prints no "output filename collision" (the CLI bin
 #     is `doc = false`, so the glyphsift-py lib and the glyphsift bin no longer write the same index.html). The live run is
 #     skipped, with a line saying so, only when cargo is not installed; CI_POLICY_NO_CARGO_DOC=1 skips it explicitly.
+#  O. every dtolnay/rust-toolchain step of every workflow installs the channel, components and targets that rust-toolchain.toml lists, so no `cargo`
+#     call starts a rustup implicit install (pagetriage CI run 44651022212: 'detected conflict: bin/cargo-clippy' on Linux and macOS; the same rule there).
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 WF=${WF:-$REPO/.github/workflows}
@@ -521,6 +523,43 @@ if [ -f "$PUB" ]; then
   expect_eq "publish.yml: no continue-on-error anywhere (a failed check must stop the publish)" 0 "$(code_lines "$PUB" | grep -c 'continue-on-error')"
   expect_eq "publish.yml publish job: no step-level if: (every step runs, in order, or the job stops)" 0 "$(job_text "$PUB" publish | grep -vE '^[[:space:]]*#' | grep -cE '^        if:')"
   expect_eq "publish.yml build job: the only step-level if: is the ubuntu-only wasm tool install" "if: matrix.os == 'ubuntu-latest'" "$(job_text "$PUB" build | grep -vE '^[[:space:]]*#' | grep -E '^        if:' | sed -E 's/^[[:space:]]+//' | tr '\n' '|' | sed 's/|$//')"
+fi
+
+# ---- O. the toolchain steps install everything rust-toolchain.toml lists (pagetriage CI run 44651022212) ---------------------
+# rust-toolchain.toml makes every `cargo` call in a checkout ensure its channel, components and targets. A dtolnay/rust-toolchain step that installs less leaves
+# the first `cargo` call to top the toolchain up through rustup's IMPLICIT install, which is not process-safe (rust-lang/rustup#988): in pagetriage it died with
+# "detected conflict: 'bin/cargo-clippy'" on ubuntu-latest and macos-latest. A toolchain that is complete before the first cargo call has nothing left to install.
+echo "== O. every dtolnay/rust-toolchain step installs the channel, components and targets of rust-toolchain.toml"
+TCF=${TOOLCHAIN_FILE:-$REPO/rust-toolchain.toml}
+if [ ! -f "$TCF" ]; then fail "rust-toolchain.toml exists"; else
+  # tc_norm: a TOML scalar or array, or a workflow `with:` value, as a sorted space-separated set without quotes or brackets
+  tc_norm() { tr -d '"[]' | tr ', ' '\n\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//'; }
+  tc_key() { sed -n "s/^$1[[:space:]]*=[[:space:]]*//p" "$TCF" | head -1 | tc_norm; }
+  WANT_CH=$(tc_key channel); WANT_CO=$(tc_key components); WANT_TA=$(tc_key targets)
+  [ -n "$WANT_CH" ] && ok "rust-toolchain.toml names channel '$WANT_CH', components '$WANT_CO', targets '$WANT_TA'" || fail "rust-toolchain.toml has a channel"
+  # one line per dtolnay step of the workflow file $1: <file>|<toolchain>|<components>|<targets>, '-' where the step does not set the input (END, not gawk's
+  # ENDFILE: the awk of macOS has none)
+  rt_steps() { awk '
+    function flush() { if (on) { n = split(FILENAME, a, "/"); printf "%s|%s|%s|%s\n", a[n], tc, co, ta }; on = 0 }
+    /^[[:space:]]*#/ { next }
+    { match($0, /^ */); ind = RLENGTH }
+    /uses:[[:space:]]*dtolnay\/rust-toolchain@/ { flush(); on = 1; tc = "-"; co = "-"; ta = "-"; next }
+    on && NF && ind <= 6 { flush() }
+    on && /^ +toolchain:/ { v = $0; sub(/^ +toolchain:[[:space:]]*/, "", v); tc = v; next }
+    on && /^ +components:/ { v = $0; sub(/^ +components:[[:space:]]*/, "", v); co = v; next }
+    on && /^ +targets:/ { v = $0; sub(/^ +targets:[[:space:]]*/, "", v); ta = v; next }
+    END { flush() }
+  ' "$1"; }
+  NSTEPS=0; BADTC=0
+  while IFS='|' read -r f tc co ta; do
+    NSTEPS=$((NSTEPS+1))
+    [ "$co" = - ] && co=""; [ "$ta" = - ] && ta=""; [ "$tc" = - ] && tc=""
+    gc=$(printf '%s' "$tc" | tc_norm); go=$(printf '%s' "$co" | tc_norm); gt=$(printf '%s' "$ta" | tc_norm)
+    if [ "$gc" != "$WANT_CH" ] || [ "$go" != "$WANT_CO" ] || [ "$gt" != "$WANT_TA" ]; then
+      echo "  $f, dtolnay step $NSTEPS: toolchain '$gc', components '$go', targets '$gt' (rust-toolchain.toml: '$WANT_CH', '$WANT_CO', '$WANT_TA')"; BADTC=$((BADTC+1)); fi
+  done < <(for wf in "$WF"/*.yml; do rt_steps "$wf"; done)
+  if [ "$NSTEPS" -ge 1 ]; then ok "found $NSTEPS dtolnay/rust-toolchain steps"; else fail "at least one dtolnay/rust-toolchain step is found in the workflows"; fi
+  expect_eq "every dtolnay/rust-toolchain step sets toolchain, components and targets to what rust-toolchain.toml lists (an incomplete toolchain starts a rustup implicit install at the first cargo call)" 0 "$BADTC"
 fi
 
 finish
