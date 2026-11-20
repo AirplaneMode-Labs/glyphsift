@@ -25,7 +25,7 @@
         this page's own files.
       </p>
       <p class="status" id="build-line">Build <code>…</code></p>
-      <p class="status" id="sprint-status">Sprint 6 (19 Nov 2026): Working: everything from Sprint 5, plus a short page on what glyphsift measures, linked from the demo and built only from the committed benchmark: the score falls as synthetic noise rises (0 of 60 series rise), the gate threshold is 975000 ppm, and native, Python and WebAssembly give the same bytes on 13 samples and 200 gate cases; the shipped source package now runs its corrupt-feature tests; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).</p>
+      <p class="status" id="sprint-status">Sprint 7 (20 Nov 2026): Working: everything from Sprint 6, plus the release path rehearsed in code: version 0.1.3 builds its npm tarball, wheel, source package and two packaged crates the way a release would, a new CI job (first run after the push) installs each built file into a fresh project and checks a clean and a corrupted Devanagari sample against the committed reports, a test-signed rehearsal manifest verifies only with an explicit flag, and a two-minute quick start for the command line, Python and Node is run by a test; the score, the gate and the benchmark did not change (0 of 60 series rise). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only), a published package or wheel, a signing key or a tag, 8 GB figures (not measured on 8 GB).</p>
     </header>
 
     <main>
@@ -69,6 +69,12 @@
             Nothing is published yet: the Python wheel and the npm package were built and installed locally on
             macOS arm64 only, and are on no registry. CI built Linux and Windows wheels and an sdist (run 43667702791),
             but those are workflow artifacts, not releases.
+          </li>
+          <li>
+            No signing key, no tag and no reserved package names: since Sprint 7 the release path is rehearsed in CI
+            (build, install each built file into a fresh place, sign and verify a rehearsal manifest), with a public test key only,
+            and the first run of that job happens after the next push. A real release would be signed offline by the owner; until then
+            there is no signed package to install.
           </li>
           <li>No figure on this page was measured on an 8 GB laptop: not measured on 8 GB.</li>
         </ul>
