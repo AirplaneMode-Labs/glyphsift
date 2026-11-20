@@ -83,13 +83,13 @@ while IFS= read -r line; do
     '|'*)
       cells=$(printf '%s' "$line" | awk -F'|' '{for (i=2;i<NF;i++){c=$i; gsub(/^[ \t]+|[ \t]+$/,"",c); print c}}')
       last=$(printf '%s\n' "$cells" | tail -1)
-      if printf '%s' "$line" | grep -qE '^\|[ :|-]+\|$'; then continue; fi          # the |---|---| separator row
-      if [ "$TABLE_8GB" = "0" ] && printf '%s' "$last" | grep -q '8 GB'; then TABLE_8GB=1; continue; fi   # the header row of an 8 GB table
+      if printf '%s' "$line" | gq -E '^\|[ :|-]+\|$'; then continue; fi          # the |---|---| separator row
+      if [ "$TABLE_8GB" = "0" ] && printf '%s' "$last" | gq '8 GB'; then TABLE_8GB=1; continue; fi   # the header row of an 8 GB table
       if [ "$TABLE_8GB" = "1" ]; then
         NCELL=$((NCELL+1))
         if [ "$last" != "not measured on 8 GB" ]; then BAD8=$((BAD8+1)); echo "    8 GB cell reads '$last': $(printf '%s' "$line" | cut -c1-80)"; fi
       fi
-      if printf '%s\n' "$cells" | grep -qx 'not measured'; then BAREROW=$((BAREROW+1)); echo "    bare 'not measured' cell: $(printf '%s' "$line" | cut -c1-80)"; fi
+      if printf '%s\n' "$cells" | gq -x 'not measured'; then BAREROW=$((BAREROW+1)); echo "    bare 'not measured' cell: $(printf '%s' "$line" | cut -c1-80)"; fi
       ;;
     *) TABLE_8GB=0 ;;
   esac

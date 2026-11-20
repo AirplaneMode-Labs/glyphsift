@@ -11,20 +11,25 @@
 //   sh quickstart:run            run with bash in that directory; its standard output is collected
 //   text quickstart:expect       the exact standard output of the run blocks, compared with LF-normalised lines and trailing whitespace trimmed
 //   sh (a plain block)           may hold only the git clone line
-// Windows (process.platform === 'win32'): the shell is Git Bash, `.venv/bin/` is read as `.venv/Scripts/` and `python3` as `python` (the README says so in one sentence).
+// Windows (process.platform === 'win32'): the shell is Git Bash (found from EXEPATH or the Git install folder, never the System32 WSL launcher; see gitBashCandidates), `.venv/bin/`
+// is read as `.venv/Scripts/` and `python3` as `python` (the README says so in one sentence).
 //
 // Static pre-check (a failure is exit 1 before anything runs): in every block except the git clone line, none of: http://, https://, curl, wget,
 // Invoke-WebRequest, a pipe into sh or bash, sudo, npx, allowTestKeys, --allow-test-key, --trust-test-key, rfc8032, 'unsafe-', a Content-Security-Policy edit. A plain
 // sh block that is anything but one git clone line, an unknown quickstart: tag, or a section without setup, install, file, run and expect blocks fails too.
-// Each block runs with a scrubbed environment: PATH, HOME (USERPROFILE on Windows), TEMP and TMP, SYSTEMROOT on Windows, REPO, npm_config_offline=true, a fresh
-// npm_config_cache, PIP_NO_INDEX=1, PIP_DISABLE_PIP_VERSION_CHECK=1. No GITHUB_* variable and no CI.
+// Each block runs with a scrubbed environment (buildEnv, checked by the self-test): PATH, HOME (USERPROFILE on Windows), TEMP and TMP, SYSTEMROOT on Windows, REPO,
+// npm_config_offline=true, a fresh npm_config_cache, PIP_NO_INDEX=1, PIP_DISABLE_PIP_VERSION_CHECK=1, PYTHON (the caller's, else `python` on Windows, where python3 is not
+// installed and scripts/package-npm.sh reads ${PYTHON:-python3}), and on Windows the system variables in WIN_SYSTEM_VARS (ProgramFiles(x86), ProgramData, windir, ComSpec,
+// PATHEXT ...: the linker lookup and Node read them). No GITHUB_* variable and no CI.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SECTION = "## Try it in two minutes";
+const WIN_SYSTEM_VARS = ["windir", "ComSpec", "PATHEXT", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData", "CommonProgramFiles", "CommonProgramFiles(x86)", "CommonProgramW6432",
+  "ALLUSERSPROFILE", "APPDATA", "LOCALAPPDATA", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "OS"];
 const TAGS = new Set(["setup", "install", "run", "expect"]);
 const FORBIDDEN = [
   [/http:\/\//i, "http://"],
@@ -110,6 +115,54 @@ export function preCheck(readme) {
 
 const normalise = (s) => s.replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/\s+$/, "")).join("\n").replace(/\n+$/, "");
 
+/**
+ * Candidate paths of the Git for Windows bash.exe, best first (always path.win32 spelling, so that the self-test can run them on any host).
+ * EXEPATH is the Git root when Git Bash is started from git-bash.exe, but the directory of the launcher (C:\Program Files\Git\bin) when it is started as
+ * C:\Program Files\Git\bin\bash.exe, which is how a GitHub Actions `shell: bash` step starts it (CI run 44651027362): both are handled, then the install folders.
+ */
+export function gitBashCandidates(procEnv) {
+  const out = [];
+  const add = (c) => { if (!out.includes(c)) out.push(c); };
+  if (procEnv.EXEPATH) {
+    if (win32.basename(procEnv.EXEPATH).toLowerCase() === "bin") add(win32.join(procEnv.EXEPATH, "bash.exe"));
+    else add(win32.join(procEnv.EXEPATH, "bin", "bash.exe"));
+  }
+  for (const pf of [procEnv.ProgramW6432, procEnv.ProgramFiles, procEnv["ProgramFiles(x86)"]]) if (pf) add(win32.join(pf, "Git", "bin", "bash.exe"));
+  if (procEnv.LOCALAPPDATA) add(win32.join(procEnv.LOCALAPPDATA, "Programs", "Git", "bin", "bash.exe"));
+  return out;
+}
+
+/** The first candidate that exists, or null. Never the System32 launcher (WSL) and never a bare `bash` looked up on PATH. */
+export function findGitBash(procEnv, exists) {
+  for (const c of gitBashCandidates(procEnv)) if (exists(c)) return c;
+  return null;
+}
+
+/** The scrubbed environment of every block (see the header). `win` picks the path flavour, so the self-test can build the Windows one anywhere. */
+export function buildEnv(procEnv, win, root, scratch, cache) {
+  const P = win ? win32 : posix;
+  const sep = win ? ";" : ":";
+  const env = { PATH: procEnv.PATH ?? "", REPO: win ? root.replace(/\\/g, "/") : root, npm_config_offline: "true", npm_config_cache: cache, PIP_NO_INDEX: "1", PIP_DISABLE_PIP_VERSION_CHECK: "1", TEMP: scratch, TMP: scratch, TMPDIR: scratch };
+  // The real HOME (USERPROFILE on Windows) is kept: scripts/remap-paths.sh remaps $HOME/.cargo and $HOME/.rustup out of the builds, and the builder-path gate of
+  // scripts/package-npm.sh fails if a /home/<user> or C:\\Users path survives; a scratch HOME would hide the real cargo directory from the remap.
+  const realHome = procEnv.HOME ?? procEnv.USERPROFILE ?? scratch;
+  if (win) {
+    env.USERPROFILE = procEnv.USERPROFILE ?? realHome; env.SYSTEMROOT = procEnv.SYSTEMROOT ?? "C:\\Windows"; env.HOME = procEnv.HOME ?? realHome;
+    // System variables that the MSVC linker lookup, cmd and Node read; none of them carries a secret or a CI setting.
+    for (const k of WIN_SYSTEM_VARS) if (procEnv[k] !== undefined) env[k] = procEnv[k];
+  } else env.HOME = realHome;
+  // The interpreter the scripts use (scripts/package-npm.sh reads ${PYTHON:-python3}): CI sets PYTHON=python on Windows, where python3 is not installed.
+  if (procEnv.PYTHON) env.PYTHON = procEnv.PYTHON; else if (win) env.PYTHON = "python";
+  // a tool venv for maturin, when CI or the developer gave one (the hashed venv of tools/ci/requirements.txt): its bin directory goes first on PATH
+  const tv = procEnv.GLYPHSIFT_TOOLS_VENV;
+  if (tv) env.PATH = [P.join(tv, win ? "Scripts" : "bin"), env.PATH].join(sep);
+  // Rust and Node tools live under HOME (cargo, rustup) on a developer machine: keep them reachable without keeping the rest of the environment
+  if (procEnv.CARGO_HOME) env.CARGO_HOME = procEnv.CARGO_HOME; else if (procEnv.HOME) env.CARGO_HOME = P.join(procEnv.HOME, ".cargo");
+  if (procEnv.RUSTUP_HOME) env.RUSTUP_HOME = procEnv.RUSTUP_HOME; else if (procEnv.HOME) env.RUSTUP_HOME = P.join(procEnv.HOME, ".rustup");
+  if (env.CARGO_HOME) env.PATH = [P.join(env.CARGO_HOME, "bin"), env.PATH].join(sep);
+  return env;
+}
+
 function selfTest() {
   let bad = 0;
   const check = (ok, what) => { console.log(`${ok ? "ok   " : "FAIL "} ${what}`); if (!ok) bad += 1; };
@@ -142,6 +195,33 @@ function selfTest() {
   check(preCheck("# nothing\n").some((m) => m.includes("no '## Try it in two minutes' section")), "a README without the section is refused");
   check(normalise("a  \r\nb\n\n") === "a\nb", "the comparison normalises CRLF, trailing whitespace and trailing blank lines");
   check(normalise("a\nb") !== normalise("a\nc"), "the comparison still tells different output apart");
+
+  // Windows, checked on any host with path.win32 (CI run 44651027362, release-rehearsal on windows-latest: "spawnSync C:\Program Files\Git\bin\bin\bash.exe ENOENT").
+  // The runner's step shell is C:\Program Files\Git\bin\bash.EXE and Git Bash sets EXEPATH to the directory of that launcher, not to the Git root.
+  const GIT_BASH = "C:\\Program Files\\Git\\bin\\bash.exe";
+  const onlyThere = (...files) => (p) => files.includes(p);
+  check(findGitBash({ EXEPATH: "C:\\Program Files\\Git\\bin" }, onlyThere(GIT_BASH)) === GIT_BASH, "Windows: EXEPATH naming the bin directory (what the runner's shell sets) finds bin\\bash.exe, not bin\\bin\\bash.exe");
+  check(findGitBash({ EXEPATH: "C:\\Program Files\\Git" }, onlyThere(GIT_BASH)) === GIT_BASH, "Windows: EXEPATH naming the Git root finds bin\\bash.exe");
+  check(findGitBash({ ProgramFiles: "C:\\Program Files" }, onlyThere(GIT_BASH)) === GIT_BASH, "Windows: without EXEPATH, the Git folder under ProgramFiles is used");
+  check(findGitBash({ EXEPATH: "C:\\Program Files\\Git\\bin", ProgramFiles: "C:\\Program Files" }, () => false) === null, "Windows: no Git Bash on disk gives null (a clear failure), not a bare 'bash' from PATH");
+  check(findGitBash({ EXEPATH: "C:\\Program Files\\Git\\bin" }, onlyThere("C:\\Windows\\System32\\bash.exe")) === null, "Windows: the System32 bash.exe (the WSL launcher) is never chosen");
+  check(gitBashCandidates({ EXEPATH: "C:\\Program Files\\Git\\bin" }).every((c) => !/\\bin\\bin\\/.test(c)), "Windows: no candidate path repeats the bin directory");
+
+  // The environment of the blocks. CI sets PYTHON=python on Windows (python3 is not there) and scripts/package-npm.sh reads ${PYTHON:-python3}: a scrubbed
+  // environment must keep that choice, or the setup block fails on Windows at the builder-path gate.
+  const ci = { PATH: "C:\\Windows\\system32;C:\\hostedtoolcache\\Python", HOME: "C:\\Users\\runneradmin", USERPROFILE: "C:\\Users\\runneradmin", SYSTEMROOT: "C:\\Windows", CARGO_HOME: "C:\\Users\\runneradmin\\.cargo",
+    GLYPHSIFT_TOOLS_VENV: "D:\\a\\_temp/tools-venv", PYTHON: "python", GITHUB_TOKEN: "not-a-real-token", GITHUB_ACTIONS: "true", CI: "true", RUNNER_TEMP: "D:\\a\\_temp", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "x",
+    "ProgramFiles(x86)": "C:\\Program Files (x86)", ProgramData: "C:\\ProgramData", windir: "C:\\Windows", ComSpec: "C:\\Windows\\system32\\cmd.exe", PATHEXT: ".COM;.EXE", SOME_OTHER_VARIABLE: "kept out" };
+  const wEnv = buildEnv(ci, true, "D:\\a\\glyphsift\\glyphsift", "D:\\a\\_temp\\gs", "D:\\a\\_temp\\gs\\npm-cache");
+  check(wEnv.PYTHON === "python", "Windows: PYTHON=python reaches the blocks");
+  check(buildEnv({ ...ci, PYTHON: undefined }, true, "D:\\r", "D:\\s", "D:\\c").PYTHON === "python", "Windows: PYTHON defaults to python (python3 is not on the runner) when the caller set none");
+  check(buildEnv({ PATH: "/usr/bin", HOME: "/home/u" }, false, "/r", "/s", "/c").PYTHON === undefined, "POSIX: PYTHON stays unset, so the scripts use python3");
+  check(buildEnv({ PATH: "/usr/bin", HOME: "/home/u", PYTHON: "python3.12" }, false, "/r", "/s", "/c").PYTHON === "python3.12", "POSIX: a PYTHON the caller set is kept");
+  check(Object.keys(wEnv).every((k) => !/^(GITHUB_|RUNNER_|ACTIONS_|CI$)/i.test(k) && !/TOKEN/i.test(k)), "Windows: no GITHUB_*, RUNNER_*, ACTIONS_*, CI or *TOKEN* variable reaches the blocks");
+  check(wEnv["ProgramFiles(x86)"] === "C:\\Program Files (x86)" && wEnv.ProgramData === "C:\\ProgramData" && wEnv.windir === "C:\\Windows" && wEnv.ComSpec !== undefined && wEnv.PATHEXT === ".COM;.EXE", "Windows: the system variables the MSVC linker and Node look up are kept (ProgramFiles(x86), ProgramData, windir, ComSpec, PATHEXT)");
+  check(wEnv.SOME_OTHER_VARIABLE === undefined, "Windows: any other variable is still scrubbed");
+  check(wEnv.PATH.startsWith("C:\\Users\\runneradmin\\.cargo\\bin;D:\\a\\_temp\\tools-venv\\Scripts;C:\\Windows\\system32;"), "Windows: PATH is the cargo bin, the tool venv's Scripts directory, then the caller's PATH");
+  check(wEnv.REPO === "D:/a/glyphsift/glyphsift", "Windows: REPO is spelled with forward slashes for bash");
   console.log(bad === 0 ? "quickstart self-test: all checks passed" : `quickstart self-test: ${bad} FAILED`);
   return bad === 0 ? 0 : 1;
 }
@@ -168,24 +248,13 @@ function main() {
   mkdirSync(cache);
   const rel = relative(realpathSync(root), work);
   if (!(rel.startsWith("..") || isAbsolute(rel))) { console.log("FAIL the work directory is inside the clone"); process.exit(1); }
-  const env = { PATH: process.env.PATH ?? "", REPO: win ? root.replace(/\\/g, "/") : root, npm_config_offline: "true", npm_config_cache: cache, PIP_NO_INDEX: "1", PIP_DISABLE_PIP_VERSION_CHECK: "1", TEMP: scratch, TMP: scratch, TMPDIR: scratch };
-  // The real HOME (USERPROFILE on Windows) is kept: scripts/remap-paths.sh remaps $HOME/.cargo and $HOME/.rustup out of the builds, and the builder-path gate of
-  // scripts/package-npm.sh fails if a /home/<user> or C:\\Users path survives; a scratch HOME would hide the real cargo directory from the remap.
-  const realHome = process.env.HOME ?? process.env.USERPROFILE ?? scratch;
-  if (win) { env.USERPROFILE = process.env.USERPROFILE ?? realHome; env.SYSTEMROOT = process.env.SYSTEMROOT ?? "C:\\Windows"; env.HOME = process.env.HOME ?? realHome; } else env.HOME = realHome;
-  // a tool venv for maturin, when CI or the developer gave one (the hashed venv of tools/ci/requirements.txt): its bin directory goes first on PATH
-  const tv = process.env.GLYPHSIFT_TOOLS_VENV;
-  if (tv) env.PATH = [join(tv, win ? "Scripts" : "bin"), env.PATH].join(win ? ";" : ":");
-  // Rust and Node tools live under HOME (cargo, rustup) on a developer machine: keep them reachable without keeping the rest of the environment
-  if (process.env.CARGO_HOME) env.CARGO_HOME = process.env.CARGO_HOME; else if (process.env.HOME) env.CARGO_HOME = join(process.env.HOME, ".cargo");
-  if (process.env.RUSTUP_HOME) env.RUSTUP_HOME = process.env.RUSTUP_HOME; else if (process.env.HOME) env.RUSTUP_HOME = join(process.env.HOME, ".rustup");
-  if (env.CARGO_HOME) env.PATH = [join(env.CARGO_HOME, "bin"), env.PATH].join(win ? ";" : ":");
+  const env = buildEnv(process.env, win, root, scratch, cache);
 
   const blocks = extractBlocks(readme).map((b) => ({ ...b, ...classify(b) }));
   let out = "";
   let failures = 0;
-  // On Windows the System32 folder may hold a WSL launcher also called bash.exe: use the Git for Windows bash of the shell this test runs in (EXEPATH is set by Git Bash).
-  const bashExe = win && process.env.EXEPATH ? join(process.env.EXEPATH, "bin", "bash.exe") : "bash";
+  const bashExe = win ? findGitBash(process.env, existsSync) : "bash";
+  if (bashExe === null) { console.log(`FAIL no Git Bash found (looked at: ${gitBashCandidates(process.env).join(", ")}); the blocks are run in Git Bash on Windows`); process.exit(1); }
   const bash = (script, cwd, label) => {
     const r = spawnSync(bashExe, ["-euo", "pipefail", "-c", fix(script)], { cwd, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
     if (r.status !== 0) {

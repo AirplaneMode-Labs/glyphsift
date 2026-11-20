@@ -28,7 +28,7 @@ echo "== B. the prose of the section"
 SEC=$(awk '/^## Try it in two minutes$/{on=1; print; next} on && /^## /{exit} on{print}' README.md)
 if [ -n "$SEC" ]; then ok "README.md has '## Try it in two minutes'"; else fail "README.md has '## Try it in two minutes'"; finish; exit 1; fi
 expect_eq "the section comes right after '## Status' and before '## Install'" "Status Try it in two minutes Install" "$(grep -E '^## (Status|Try it in two minutes|Install)$' README.md | sed 's/^## //' | tr '\n' ' ' | sed 's/ $//')"
-prose() { if printf '%s\n' "$SEC" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the section says $2"; else fail "the section says $2 ($1)"; fi; }
+prose() { if printf '%s\n' "$SEC" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the section says $2"; else fail "the section says $2 ($1)"; fi; }
 prose "no model" "that no model is involved"
 prose "downloads Rust crates from crates.io once (57 registry crates in \`Cargo.lock\`)" "that the setup block downloads Rust crates from crates.io once, with the count (BUG-T1-S7-11)"
 prose "the install and run blocks run offline with no model, key or account" "that the install and run blocks run offline with no model, key or account"

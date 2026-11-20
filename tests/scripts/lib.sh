@@ -13,6 +13,14 @@ fail() { FAILS=$((FAILS+1)); echo "FAIL - $1"; }
 expect_eq() { if [ "$2" = "$3" ]; then ok "$1"; else fail "$1 (want '$2', got '$3')"; fi; }
 finish() { echo "$PASSES passed, $FAILS failed"; [ "$FAILS" -eq 0 ]; }
 
+# ---- grep in a pipeline under pipefail (CI run 44651027362) ----------------------------------------------------------------
+# `producer | grep -q pattern` exits at the first match, so a producer that is still writing meets a closed pipe: GNU sed prints "couldn't flush stdout: Broken
+# pipe" and exits 4 (GitHub Actions starts steps with SIGPIPE ignored; with the default the producer dies with 141), and `set -o pipefail` makes the whole
+# pipeline fail although grep found the text. Whether the producer is still writing depends on buffer sizes (4096 bytes for a pipe on Linux) and on scheduling,
+# so a Mac run proves nothing. Use gq in a pipeline: the arguments of grep without -q (and without -m, which stops early the same way); it reads all of its input
+# and prints nothing, so its status is 0 for a match and 1 for none. tests/scripts/pipefail-grep-q.sh reproduces the failure and refuses a new `| grep -q`.
+gq() { grep "$@" >/dev/null; }
+
 # ---- cargo test log parsing (S1-118 follow-up, CI run 44580204699) ---------------------------------------------------------
 # The text of a cargo test log depends on the runner: the workflow sets CARGO_TERM_COLOR=always, which colours the status word
 # of every `Running` line even when the output goes to a file (ESC[1mESC[92m     RunningESC[0m tests/corrupt.rs (...)), and

@@ -42,9 +42,10 @@ echo "== 1. npm publish --dry-run (from a directory laid out like the workflow's
 NPM_OUT=$( cd "$LAYOUT" && npm publish "./verified/$(cat lists/npm.txt)" --dry-run --access public --ignore-scripts --tag "$TAG" 2>&1 ) || { printf '%s\n' "$NPM_OUT" >&2; die "npm publish --dry-run failed"; }
 printf '%s\n' "$NPM_OUT" | tail -8
 # the lines npm 10 and 11 both print: the tarball's name and version, and that this was a dry run
-printf '%s\n' "$NPM_OUT" | grep -qF "name: @airplanemode/glyphsift" || die "npm's dry run did not name the package @airplanemode/glyphsift"
-printf '%s\n' "$NPM_OUT" | grep -qE "version: $VERSION\$" || die "npm's dry run did not name version $VERSION"
-printf '%s\n' "$NPM_OUT" | grep -qF "(dry-run)" || die "npm's output does not say it was a dry run: nothing may be published here"
+# (grep without -q, output discarded: with -q grep leaves at the first match, and under pipefail a producer that is still writing fails the pipeline: CI run 44651027362)
+printf '%s\n' "$NPM_OUT" | grep -F "name: @airplanemode/glyphsift" >/dev/null || die "npm's dry run did not name the package @airplanemode/glyphsift"
+printf '%s\n' "$NPM_OUT" | grep -E "version: $VERSION\$" >/dev/null || die "npm's dry run did not name version $VERSION"
+printf '%s\n' "$NPM_OUT" | grep -F "(dry-run)" >/dev/null || die "npm's output does not say it was a dry run: nothing may be published here"
 
 echo "== 2. cargo publish --dry-run --workspace --locked --no-verify (the workflow's command with --dry-run: nothing is compiled)"
 DIRTY=()
@@ -53,10 +54,10 @@ CARGO_OUT=$( ( unset RUSTFLAGS; cargo publish --dry-run --workspace --locked --n
 CARGO_PLAIN=$(printf '%s\n' "$CARGO_OUT" | LC_ALL=C sed -e "s/$(printf '\033')\\[[0-9;]*[A-Za-z]//g" -e "s/$(printf '\r')\$//")
 printf '%s\n' "$CARGO_PLAIN" | tail -8
 for c in glyphsift-core glyphsift-cli; do
-  printf '%s\n' "$CARGO_PLAIN" | grep -qE "^ *Uploading $c v$VERSION " || die "the dry run did not reach the upload step of $c"
+  printf '%s\n' "$CARGO_PLAIN" | grep -E "^ *Uploading $c v$VERSION " >/dev/null || die "the dry run did not reach the upload step of $c"
 done
 [ "$(printf '%s\n' "$CARGO_PLAIN" | grep -c 'aborting upload due to dry run')" -ge 2 ] || die "cargo's dry run did not abort both uploads"
-if printf '%s\n' "$CARGO_PLAIN" | grep -qE "^ *Uploading glyphsift-(py|wasm) "; then die "a publish = false crate reached the upload step"; fi
+if printf '%s\n' "$CARGO_PLAIN" | grep -E "^ *Uploading glyphsift-(py|wasm) " >/dev/null; then die "a publish = false crate reached the upload step"; fi
 
 echo "== 3. wheel metadata on every wheel in the directory"
 N=0

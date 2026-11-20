@@ -28,7 +28,7 @@ want=$(grep -c . <<<"$MITONLY")
 [ "$n" -ge "$want" ] && ok "NOTICE has $n MIT texts for $want crates" || bad "NOTICE has $n MIT texts for $want crates"
 names=$(awk '{print $1}' <<<"$MITONLY" | sort -u)
 sentence=$(grep -n "not offered under Apache-2.0" NOTICE | head -1)
-for c in $names; do grep -A1 "not offered under Apache-2.0" NOTICE | grep -q "$c" && ok "line-14 sentence names $c" || bad "line-14 sentence omits $c"; done
+for c in $names; do grep -A1 "not offered under Apache-2.0" NOTICE | grep "$c" >/dev/null && ok "line-14 sentence names $c" || bad "line-14 sentence omits $c"; done
 for f in crates/*/NOTICE; do cmp -s NOTICE "$f" && ok "$f equals NOTICE" || bad "$f differs from NOTICE"; done
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -83,7 +83,7 @@ while IFS= read -r line; do
   NUSES=$((NUSES+1))
   spec=$(printf '%s' "$line" | sed -E 's/^[[:space:]]*(- )?uses:[[:space:]]*//')
   if [[ "$spec" =~ ^([A-Za-z0-9._/-]+)@([0-9a-f]{40})[[:space:]]+#[[:space:]]+([A-Za-z0-9._-]+)[[:space:]]*$ ]]; then
-    if ! printf '%s\n' "$TABLE" | grep -qxF "${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]}"; then
+    if ! printf '%s\n' "$TABLE" | gq -xF "${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]}"; then
       echo "  not a table row: $spec"; BADPIN=$((BADPIN+1)); fi
   else
     echo "  not 'owner/repo@<40-hex> # <tag>': $spec"; BADPIN=$((BADPIN+1))
@@ -195,7 +195,7 @@ else
   DOCOUT=$(cd "$REPO" && RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked 2>&1); DOCRC=$?
   expect_eq "cargo doc --workspace --no-deps --locked exits 0 with -D warnings" 0 "$DOCRC"
   expect_eq "the cargo doc output contains no 'collision'" 0 "$(printf '%s\n' "$DOCOUT" | grep -ci 'collision')"
-  if printf '%s\n' "$DOCOUT" | grep -qi 'collision'; then printf '%s\n' "$DOCOUT" | grep -i -B1 -A3 'collision' | head -8 | sed 's/^/    /'; fi
+  if printf '%s\n' "$DOCOUT" | gq -i 'collision'; then printf '%s\n' "$DOCOUT" | grep -i -B1 -A3 'collision' | head -8 | sed 's/^/    /'; fi
 fi
 
 # ---- K. release-rehearsal (D3-02, TD-106, TD-118, S1 conditions) -----------------------------------------
@@ -467,7 +467,7 @@ INSTALL_RE='cargo install|cargo binstall|pip install +(-e|--editable|\.|\./|\.\.
 RRM=$(job_text "$CI" release-rehearsal | grep -vE '^[[:space:]]*#')
 expect_eq "release-rehearsal: no install from the checkout (no cargo install, pip install -e or ., npm install ., maturin develop)" 0 "$(printf '%s\n' "$RRM" | grep -cE "$INSTALL_RE")"
 expect_eq "publish.yml: no install from the checkout" 0 "$(printf '%s\n' "$PC" | grep -cE "$INSTALL_RE")"
-expect_eq "the only script in scripts/release that runs cargo install is install-crate-offline.sh (inside the unpacked packaged crate)" "install-crate-offline.sh" "$(for f in "$RELD"/*.sh; do if code_lines "$f" | grep -vE '^[[:space:]]*(step|note|echo|printf|die) ' | grep -qE 'cargo install'; then basename "$f"; fi; done | tr '\n' ' ' | sed 's/ $//')"
+expect_eq "the only script in scripts/release that runs cargo install is install-crate-offline.sh (inside the unpacked packaged crate)" "install-crate-offline.sh" "$(for f in "$RELD"/*.sh; do if code_lines "$f" | grep -vE '^[[:space:]]*(step|note|echo|printf|die) ' | gq -E 'cargo install'; then basename "$f"; fi; done | tr '\n' ' ' | sed 's/ $//')"
 expect_eq "rehearse.sh and build-artefacts.sh do not install from the checkout" 0 "$( { code_lines "$RELD/rehearse.sh"; code_lines "$RELD/build-artefacts.sh"; } | grep -vE '^[[:space:]]*(step|note|echo|printf|die) ' | grep -cE 'cargo install|pip install +(-e|\.)|maturin develop')"
 
 # M5. BUG-T3-S7-07 (c): the PyPI step uploads from exactly the staging directory, which holds exactly the files listed in the verified manifest

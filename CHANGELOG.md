@@ -65,6 +65,18 @@ owner-requested addition; it has no row in the plan documents and creates no gat
 - Sprint 7 fix round 1 (D3, FR1): BUG-T3-S7-07: `ci-policy.sh` gained the rules the first review found missing, each with a mutation that turns it red (`tests/scripts/ci-policy-mutations.sh`, 84 checks: a control run and 83 single mutations of the workflows and release scripts): no `cargo install --path` or any other install from the
   checkout in `release-rehearsal` or `publish.yml`; no `${{ }}` in any `publish.yml` `run:` step and no `${{ matrix.* }}` in any `run:` step of any workflow; the PyPI `packages-dir` is exactly the staging directory `pypi-dist/`, made with a plain `mkdir`, copied from `lists/pypi.txt`, count-checked, and the step right before the action;
   `timeout-minutes` on both publish jobs (75 and 30, pagetriage's values); the `cargo-deny` job passes `matrix.checks` through step env as `CHECKS` and validates it against the two fixed values before use.
+- Sprint 7 CI fix round 2 (D3), the two red jobs of CI run 44651027362 at 7c90f6b, both in test harness code (no shipped file behaves differently, except that
+  `scripts/release/publish-dry-run.sh` no longer has the hazard in its own checks):
+  `release-doc.sh` (job `packaging dry runs`, Ubuntu) ran `sed -n '/^## Status/,/^## Install/p' README.md | grep -qF "$VERSION"` under `set -o pipefail`. `grep -q` exits at the first match
+  (byte 119 of a 9438-byte section), GNU sed writes to a pipe in 4096-byte blocks and its next write met the closed pipe (`sed: couldn't flush stdout: Broken pipe`), so the pipeline failed
+  although the README names 0.1.3. GitHub Actions starts steps with SIGPIPE ignored (the producer gets EPIPE; with the default it dies with 141), and whether the producer outlives the match
+  depends on buffer sizes and scheduling, which is why the Mac passed. `gq` in `tests/scripts/lib.sh` is grep without `-q` and with its output discarded; every `| grep -q` of the test scripts
+  (35 sites) and the five in `scripts/release/publish-dry-run.sh` read their whole input now, and `tests/scripts/pipefail-grep-q.sh` reproduces the failure on the real README with a producer that
+  outlives the match (status 141 with the default SIGPIPE, 1 with it ignored; `gq` gives 0 in both) and fails on any new `| grep -q` or `| grep -m N` in the scripts and workflows.
+  `release-rehearsal (windows-latest)`, step Quick start: `quickstart.mjs` took Git Bash from `EXEPATH\bin\bash.exe`, but the runner's `shell: bash` starts `C:\Program Files\Git\bin\bash.EXE` and Git Bash
+  then sets EXEPATH to `C:\Program Files\Git\bin` (`spawnSync C:\Program Files\Git\bin\bin\bash.exe ENOENT`). It now tries both spellings, then `ProgramFiles\Git`, never the System32 WSL launcher and never a bare
+  `bash`. The scrubbed environment also lost `PYTHON=python` (so `scripts/package-npm.sh` would have used `python3`, which the Windows runner does not have) and the Windows system variables the linker lookup
+  reads; `PYTHON` and a fixed list of those variables are kept, still with no `GITHUB_*`, `RUNNER_*` or token. Both Windows rules are checked on any host by the harness self-test (`path.win32`).
 
 ### Security
 

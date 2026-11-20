@@ -45,7 +45,7 @@ expect_eq "SECURITY.md keeps the RFC 8032 test-key statement" 1 "$(grep -c 'RFC 
 expect_eq "SECURITY.md keeps the no-telemetry statement" 1 "$(grep -ci 'no telemetry' SECURITY.md | awk '{print ($1 >= 1) ? 1 : 0}')"
 
 echo "== C. CONTRIBUTING.md"
-cc() { if tr '\n' ' ' < CONTRIBUTING.md | sed 's/  */ /g' | grep -qF -- "$1"; then ok "CONTRIBUTING.md says $2"; else fail "CONTRIBUTING.md says $2 ($1)"; fi; }
+cc() { if tr '\n' ' ' < CONTRIBUTING.md | sed 's/  */ /g' | gq -F -- "$1"; then ok "CONTRIBUTING.md says $2"; else fail "CONTRIBUTING.md says $2 ($1)"; fi; }
 cc "## Tests first" "tests first"
 cc "## Determinism" "determinism"
 cc "Synthetic inputs only" "synthetic inputs only"

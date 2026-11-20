@@ -38,7 +38,7 @@ expect_eq "that log is cited with its evidence path" 1 "$LOGPATHS"
 echo "== B. the first CI run of the wheels job is recorded"
 SECTION=$(awk '/^## First CI run of the wheels job/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$SECTION" ]; then ok "docs/release.md has the section 'First CI run of the wheels job'"; else fail "docs/release.md has the section 'First CI run of the wheels job'"; fi
-need() { if printf '%s\n' "$SECTION" | grep -qF -- "$1"; then ok "the section cites $2"; else fail "the section cites $2 ($1)"; fi; }
+need() { if printf '%s\n' "$SECTION" | gq -F -- "$1"; then ok "the section cites $2"; else fail "the section cites $2 ($1)"; fi; }
 need "43667702791" "the run id"
 need "5ff0c47" "the commit"
 need "18 Nov 2026" "the date it was read"
@@ -84,12 +84,12 @@ if grep -qF 'workspace.package' scripts/package-npm.sh && grep -qF '"version": "
 else
   fail "package-npm.sh writes package.json's version from the workspace version"
 fi
-if grep -qE "^## \\[${VERSION//./\\.}\\]" CHANGELOG.md || awk '/^## \[Unreleased\]/{on=1; next} on && /^## \[/{exit} on{print}' CHANGELOG.md | grep -qF "$VERSION"; then
+if grep -qE "^## \\[${VERSION//./\\.}\\]" CHANGELOG.md || awk '/^## \[Unreleased\]/{on=1; next} on && /^## \[/{exit} on{print}' CHANGELOG.md | gq -F "$VERSION"; then
   ok "CHANGELOG.md has an entry for $VERSION"
 else
   fail "CHANGELOG.md has an entry for $VERSION"
 fi
-if sed -n '/^## Status/,/^## Install/p' README.md | grep -qF "$VERSION"; then ok "the README Status names $VERSION"; else fail "the README Status names $VERSION"; fi
+if sed -n '/^## Status/,/^## Install/p' README.md | gq -F "$VERSION"; then ok "the README Status names $VERSION"; else fail "the README Status names $VERSION"; fi
 # A built artifact name in a README must carry the current version (the 0.1.0 names are the CI run's, quoted in docs/release.md only).
 for f in README.md npm/README.md crates/glyphsift-py/README.md; do
   if grep -qE "glyphsift-0\.1\.[0-2]([^0-9]|$)|airplanemode-glyphsift-0\.1\.[0-2]([^0-9]|$)" "$f" && [ "$VERSION" != "0.1.2" ]; then fail "$f names no artifact of an older version"; else ok "$f names no artifact of an older version"; fi
@@ -98,7 +98,7 @@ done
 echo "== D. packaging notes: local wheels are not reproducible, the sdist includes tests"
 PN=$(awk '/^## Packaging notes/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$PN" ]; then ok "docs/release.md has the section 'Packaging notes'"; else fail "docs/release.md has the section 'Packaging notes'"; fi
-pn() { if printf '%s\n' "$PN" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the packaging notes say $2"; else fail "the packaging notes say $2 ($1)"; fi; }
+pn() { if printf '%s\n' "$PN" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the packaging notes say $2"; else fail "the packaging notes say $2 ($1)"; fi; }
 pn "Local macOS wheels are not byte-reproducible across checkout paths" "that local macOS wheels are not byte-reproducible across checkout paths"
 pn 'Mach-O `LC_UUID`' "why: the Mach-O LC_UUID"
 pn "ad-hoc code signature" "why: the ad-hoc code signature"
@@ -131,7 +131,7 @@ expect_eq "row 6 cites evidence/sprint-7/D3/gates-s7.log" 1 "$(printf '%s\n' "$R
 expect_eq "row 6 names the sdist's corrupt-feature test run" 1 "$(printf '%s\n' "$ROW6" | grep -c -- '--features corrupt')"
 S6=$(awk '/^## Sprint 6 carry-overs closed here/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$S6" ]; then ok "docs/release.md has the section 'Sprint 6 carry-overs closed here'"; else fail "docs/release.md has the section 'Sprint 6 carry-overs closed here'"; fi
-s6() { if printf '%s\n' "$S6" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the Sprint 6 section says $2"; else fail "the Sprint 6 section says $2 ($1)"; fi; }
+s6() { if printf '%s\n' "$S6" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the Sprint 6 section says $2"; else fail "the Sprint 6 section says $2 ($1)"; fi; }
 s6 "S1-118" "S1-118"
 s6 "BUG-T2-S5-14" "BUG-T2-S5-14 (build-wasm.sh and the native leg honour CARGO_TARGET_DIR)"
 s6 "BUG-T2-S5-15" "BUG-T2-S5-15"
@@ -143,7 +143,7 @@ s6 "glyphsift | determinism (windows-latest) | proves BUG-T2-S5-14" "the owner's
 echo "== E. output confinement is documented"
 OC=$(awk '/^## Output confinement of/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$OC" ]; then ok "docs/release.md has the section 'Output confinement of release-manifest.mjs'"; else fail "docs/release.md has the section 'Output confinement of release-manifest.mjs'"; fi
-oc() { if printf '%s\n' "$OC" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the confinement section says $2"; else fail "the confinement section says $2 ($1)"; fi; }
+oc() { if printf '%s\n' "$OC" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the confinement section says $2"; else fail "the confinement section says $2 ($1)"; fi; }
 oc "scripts/lib/confine.mjs" "where the check lives"
 oc "tests/scripts/confine.test.mjs" "which unit tests prove the Windows rules"
 oc "tests/scripts/release-manifest.sh" "which script test uses real links"
@@ -158,31 +158,31 @@ expect_eq "scripts/release-manifest.mjs no longer writes with writeFileSync" 0 "
 
 echo "== F. BUG-T3-S6-R2-08: the wheel size is quoted in KiB, not as a path-dependent byte count"
 expect_eq "docs/release.md does not quote the exact wheel byte count 254,197" 0 "$(grep -c '254,197' "$REL")"
-if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | grep -qE 'about 24[0-9] KiB'; then ok "the wheel size is given in KiB"; else fail "the wheel size is given in KiB (about 24x KiB)"; fi
-if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | grep -qF 'varies by a few bytes with the checkout path'; then ok "the document says the wheel bytes vary with the checkout path"; else fail "the document says the wheel bytes vary with the checkout path"; fi
+if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | gq -E 'about 24[0-9] KiB'; then ok "the wheel size is given in KiB"; else fail "the wheel size is given in KiB (about 24x KiB)"; fi
+if tr '\n' ' ' < "$REL" | sed 's/  */ /g' | gq -F 'varies by a few bytes with the checkout path'; then ok "the document says the wheel bytes vary with the checkout path"; else fail "the document says the wheel bytes vary with the checkout path"; fi
 expect_eq "the sdist size is quoted in KiB (about 115 KiB), not as a README-dependent byte count" 1 "$(tr '\n' ' ' < "$REL" | sed 's/  */ /g' | grep -c 'the sdist is about 115 KiB' | awk '{print ($1>=1)?1:0}')"
 
 echo "== G. BUG-T3-S6-R2-01: the CHANGELOG [0.1.2] cites the confinement port and the target-dir fix"
 CL=$(sed -n '/^## \[0.1.2\]/,/^## \[0.1.1\]/p' CHANGELOG.md)
 for id in S1-106 COM0 BUG-T2-S6-06 cargo-target-dir.sh BUG-T3-S6-02 "real NTFS after the push"; do
-  if printf '%s\n' "$CL" | grep -qF -- "$id"; then ok "CHANGELOG [0.1.2] cites $id"; else fail "CHANGELOG [0.1.2] cites $id"; fi
+  if printf '%s\n' "$CL" | gq -F -- "$id"; then ok "CHANGELOG [0.1.2] cites $id"; else fail "CHANGELOG [0.1.2] cites $id"; fi
 done
 
 echo "== H. Sprint 7 (D3-01): the CHANGELOG [0.1.3] is dated 20 Nov 2026, untagged, and cites the task, decision and finding ids"
 grep -qE '^## \[0\.1\.3\] - 2026-11-20 \(untagged\)$' CHANGELOG.md && ok "CHANGELOG.md has the heading '## [0.1.3] - 2026-11-20 (untagged)'" || fail "CHANGELOG.md has the heading '## [0.1.3] - 2026-11-20 (untagged)'"
 CL3=$(sed -n '/^## \[0.1.3\]/,/^## \[0.1.2\]/p' CHANGELOG.md)
 for id in D3-01 D3-02 D3-03 D3-04 TD-103 TD-106 TD-107 TD-118 TD-123 S1-126; do
-  if printf '%s\n' "$CL3" | grep -qF -- "$id"; then ok "CHANGELOG [0.1.3] cites $id"; else fail "CHANGELOG [0.1.3] cites $id"; fi
+  if printf '%s\n' "$CL3" | gq -F -- "$id"; then ok "CHANGELOG [0.1.3] cites $id"; else fail "CHANGELOG [0.1.3] cites $id"; fi
 done
 for g in Added Changed Fixed Security Deferred; do
-  if printf '%s\n' "$CL3" | grep -qE "^### $g\$"; then ok "CHANGELOG [0.1.3] has the group '$g'"; else fail "CHANGELOG [0.1.3] has the group '$g'"; fi
+  if printf '%s\n' "$CL3" | gq -E "^### $g\$"; then ok "CHANGELOG [0.1.3] has the group '$g'"; else fail "CHANGELOG [0.1.3] has the group '$g'"; fi
 done
-if awk '/^## \[Unreleased\]/{on=1; next} on && /^## \[/{exit} on{print}' CHANGELOG.md | grep -q '[^[:space:]]'; then fail "[Unreleased] is empty once the entry is dated"; else ok "[Unreleased] is empty once the entry is dated"; fi
+if awk '/^## \[Unreleased\]/{on=1; next} on && /^## \[/{exit} on{print}' CHANGELOG.md | gq '[^[:space:]]'; then fail "[Unreleased] is empty once the entry is dated"; else ok "[Unreleased] is empty once the entry is dated"; fi
 
 echo "== I. Sprint 7 (D3-02, D3-03, D3-06): what the rehearsal and the publish workflow prove, and what only the push can"
 S7=$(awk '/^## Sprint 7 carry-overs closed here/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$S7" ]; then ok "docs/release.md has the section 'Sprint 7 carry-overs closed here'"; else fail "docs/release.md has the section 'Sprint 7 carry-overs closed here'"; fi
-s7() { if printf '%s\n' "$S7" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the Sprint 7 section says $2"; else fail "the Sprint 7 section says $2 ($1)"; fi; }
+s7() { if printf '%s\n' "$S7" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the Sprint 7 section says $2"; else fail "the Sprint 7 section says $2 ($1)"; fi; }
 s7 "scripts/release/rehearse.sh" "which script is the rehearsal"
 s7 "release-rehearsal (<os>)" "the new job name"
 s7 "replaces the \`wheels\` job" "that the wheels job is folded in"
@@ -225,7 +225,7 @@ fi
 
 echo "== J. Sprint 7 (D3-03): docs/RELEASING.md lists only the owner's steps, in order, each with its reason"
 RLS=docs/RELEASING.md
-need2() { if tr '\n' ' ' < "$RLS" | sed 's/  */ /g' | grep -qF -- "$1"; then ok "RELEASING.md has $2"; else fail "RELEASING.md has $2 ($1)"; fi; }
+need2() { if tr '\n' ' ' < "$RLS" | sed 's/  */ /g' | gq -F -- "$1"; then ok "RELEASING.md has $2"; else fail "RELEASING.md has $2 ($1)"; fi; }
 need2 "## Owner-only steps, in order" "the owner-only steps heading"
 NSTEPS=$(grep -cE '^### [0-9]+\. ' "$RLS")
 if [ "$NSTEPS" -ge 12 ]; then ok "RELEASING.md has $NSTEPS numbered steps"; else fail "RELEASING.md has at least 12 numbered steps (found $NSTEPS)"; fi
@@ -268,7 +268,7 @@ expect_eq "RELEASING.md gives every step a gh or shell command or a named page, 
 echo "== K. Sprint 7 fix round 1 (D3): the documents say what FR1 changed"
 FR1=$(awk '/^## Sprint 7 fix round 1 \(D3\)/{on=1; print; next} on && /^## /{exit} on{print}' "$REL")
 if [ -n "$FR1" ]; then ok "docs/release.md has the section 'Sprint 7 fix round 1 (D3)'"; else fail "docs/release.md has the section 'Sprint 7 fix round 1 (D3)'"; fi
-fr1() { if printf '%s\n' "$FR1" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the fix-round section says $2"; else fail "the fix-round section says $2 ($1)"; fi; }
+fr1() { if printf '%s\n' "$FR1" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the fix-round section says $2"; else fail "the fix-round section says $2 ($1)"; fi; }
 fr1 "S1-130" "S1-130 (the npm path)"
 fr1 "./verified/" "that the npm argument starts with ./"
 fr1 "npm-package-arg" "that npm's own resolver was asked"
@@ -300,13 +300,13 @@ need2 "npm first, then the crates, then PyPI" "the order of the three registries
 need2 "only in a step of the publish job" "that RELEASE_KEY_ID is read only in a publish-job step"
 CL3=$(sed -n '/^## \[0.1.3\]/,/^## \[0.1.2\]/p' CHANGELOG.md)
 for id in BUG-T3-S7-01 S1-130 BUG-S1-S7-03 S1-131 BUG-T3-S7-07 TD-125 S1-135 FR1-REVENDOR; do
-  if printf '%s\n' "$CL3" | grep -qF -- "$id"; then ok "CHANGELOG [0.1.3] cites $id"; else fail "CHANGELOG [0.1.3] cites $id"; fi
+  if printf '%s\n' "$CL3" | gq -F -- "$id"; then ok "CHANGELOG [0.1.3] cites $id"; else fail "CHANGELOG [0.1.3] cites $id"; fi
 done
 
 echo "== L. Sprint 7 fix round 2 (D3): recovery steps, and the key.pub to base64 command"
 REC=$(awk '/^## If a publish step fails/{on=1; print; next} on && /^## /{exit} on{print}' "$RLS")
 if [ -n "$REC" ]; then ok "RELEASING.md has the section 'If a publish step fails'"; else fail "RELEASING.md has the section 'If a publish step fails'"; fi
-rec() { if printf '%s\n' "$REC" | tr '\n' ' ' | sed 's/  */ /g' | grep -qF -- "$1"; then ok "the recovery section says $2"; else fail "the recovery section says $2 ($1)"; fi; }
+rec() { if printf '%s\n' "$REC" | tr '\n' ' ' | sed 's/  */ /g' | gq -F -- "$1"; then ok "the recovery section says $2"; else fail "the recovery section says $2 ($1)"; fi; }
 rec "cargo yank" "to yank each crate"
 rec "glyphsift-core" "which crates"
 rec "glyphsift-cli" "which crates (cli)"

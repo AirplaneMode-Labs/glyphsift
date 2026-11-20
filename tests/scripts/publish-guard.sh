@@ -228,8 +228,8 @@ expect_eq "core was asked three times, cli twice (a confirmed crate is not asked
 reset_curl
 run 1 "a crate that never appears fails after the whole window" $CI_G $G crate-index "$S/verified"
 expect_eq "the default window is 600 seconds (40 sleeps of 15 seconds)" 600 "$(total_slept)"
-printf '%s\n' "$LAST_OUT" | grep -q 'publish-guard: ' && ok "the failure is a publish-guard message on stderr" || fail "the failure is a publish-guard message"
-printf '%s\n' "$LAST_OUT" | grep -q 'glyphsift-core' && printf '%s\n' "$LAST_OUT" | grep -q '600 seconds' && ok "the message names the crate and the window" || fail "the message names the crate and the window: $(printf '%s' "$LAST_OUT" | tail -1)"
+printf '%s\n' "$LAST_OUT" | gq 'publish-guard: ' && ok "the failure is a publish-guard message on stderr" || fail "the failure is a publish-guard message"
+printf '%s\n' "$LAST_OUT" | gq 'glyphsift-core' && printf '%s\n' "$LAST_OUT" | gq '600 seconds' && ok "the message names the crate and the window" || fail "the message names the crate and the window: $(printf '%s' "$LAST_OUT" | tail -1)"
 reset_curl; run 1 "a custom short window (timeout 30, interval 10) still fails when nothing appears" $CI_G $G crate-index "$S/verified" 30 10
 expect_eq "the custom window slept 30 seconds in all" 30 "$(total_slept)"
 reset_curl; run 1 "a failing request is retried and then refused (never counted as published)" env CURL_FAKE_FAIL=1 GUARD_VERSION=$V $G crate-index "$S/verified" 20 10
@@ -240,7 +240,7 @@ run 1 "a cli request that times out every time is refused after the window" $CI_
 reset_curl; idx glyphsift-core 1 200 "$(core_line $V "$cli_sha")"; idx glyphsift-cli 1 200 "$(cli_line $V "$cli_sha")"
 run 1 "core with a different cksum is refused" $CI_G $G crate-index "$S/verified"
 expect_eq "a cksum mismatch is not retried (no sleep)" 0 "$(total_slept)"
-printf '%s\n' "$LAST_OUT" | grep -q "$core_sha" && printf '%s\n' "$LAST_OUT" | grep -q "$cli_sha" && ok "the mismatch message prints both digests" || fail "the mismatch message prints both digests"
+printf '%s\n' "$LAST_OUT" | gq "$core_sha" && printf '%s\n' "$LAST_OUT" | gq "$cli_sha" && ok "the mismatch message prints both digests" || fail "the mismatch message prints both digests"
 reset_curl; idx glyphsift-core 1 200 "$(core_line $V "$core_sha")"; idx glyphsift-cli 1 200 "$(cli_line $V "$core_sha")"
 run 1 "cli with a different cksum is refused" $CI_G $G crate-index "$S/verified"
 reset_curl; idx glyphsift-core 1 200 "$(core_line $V "$core_sha" true)"; idx glyphsift-cli 1 200 "$(cli_line $V "$cli_sha")"

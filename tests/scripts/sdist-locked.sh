@@ -72,7 +72,7 @@ LIST=$(tar -tzf "$TGZ")
 for f in Cargo.toml Cargo.lock README.md pyproject.toml LICENSE NOTICE \
          crates/glyphsift-core/Cargo.toml crates/glyphsift-core/LICENSE crates/glyphsift-core/NOTICE \
          crates/glyphsift-py/Cargo.toml crates/glyphsift-py/LICENSE crates/glyphsift-py/NOTICE; do
-  if printf '%s\n' "$LIST" | grep -qxF "glyphsift-$VERSION/$f"; then ok "the sdist carries $f"; else fail "the sdist carries $f"; fi
+  if printf '%s\n' "$LIST" | gq -xF "glyphsift-$VERSION/$f"; then ok "the sdist carries $f"; else fail "the sdist carries $f"; fi
 done
 
 python3 -I scripts/check-no-builder-paths.py "$TGZ" > "$SCRATCH/paths.log" 2>&1
@@ -107,7 +107,7 @@ if [ "$rc" -ne 0 ]; then tail -8 "$SCRATCH/build.log"; fi
 if cmp -s "$ROOT/Cargo.lock" "$SCRATCH/Cargo.lock.before"; then ok "cargo left the sdist's Cargo.lock byte-identical"; else fail "cargo left the sdist's Cargo.lock byte-identical"; fi
 
 for f in bench/corpus/clean.txt docs/gate.md docs/score-vs-noise.csv docs/corruption-generator.md; do
-  if printf '%s\n' "$LIST" | grep -qxF "glyphsift-$VERSION/$f"; then ok "the sdist carries $f"; else fail "the sdist carries $f"; fi
+  if printf '%s\n' "$LIST" | gq -xF "glyphsift-$VERSION/$f"; then ok "the sdist carries $f"; else fail "the sdist carries $f"; fi
 done
 
 ( cd "$ROOT" && CARGO_TARGET_DIR="$SCRATCH/target" cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt ) > "$SCRATCH/test.log" 2>&1
@@ -117,7 +117,7 @@ FAILED=$(cargo_failed_total "$SCRATCH/test.log")
 expect_eq "0 tests failed in the unpacked sdist" 0 "$FAILED"
 if [ "$rc" -ne 0 ]; then strip_ansi < "$SCRATCH/test.log" | grep -E '^test result:|panicked|FAILED' | head -12; fi
 for bin in corrupt gate_noise; do
-  if printf '%s\n' "$LIST" | grep -qxF "glyphsift-$VERSION/crates/glyphsift-core/tests/$bin.rs"; then ok "the sdist carries crates/glyphsift-core/tests/$bin.rs"; else fail "the sdist carries crates/glyphsift-core/tests/$bin.rs"; fi
+  if printf '%s\n' "$LIST" | gq -xF "glyphsift-$VERSION/crates/glyphsift-core/tests/$bin.rs"; then ok "the sdist carries crates/glyphsift-core/tests/$bin.rs"; else fail "the sdist carries crates/glyphsift-core/tests/$bin.rs"; fi
   # The `test result: ok.` line after "Running tests/<bin>.rs (" is that binary's summary. The parser (lib.sh) reads the log
   # as the runner wrote it: CI sets CARGO_TERM_COLOR=always, which colours the Running word, and Windows prints backslashes.
   N=$(cargo_bin_passed "$SCRATCH/test.log" "$bin")
@@ -128,7 +128,7 @@ for bin in corrupt gate_noise; do
     grep -m1 'Running' "$SCRATCH/test.log" | cat -v | sed 's/^/    raw: /'
   fi
 done
-if printf '%s\n' "$LIST" | grep -q "glyphsift-$VERSION/crates/glyphsift-cli/"; then fail "the sdist does not carry the CLI crate (so its corrupt test is not shipped)"; else ok "the sdist does not carry the CLI crate (so its corrupt test is not shipped)"; fi
+if printf '%s\n' "$LIST" | gq "glyphsift-$VERSION/crates/glyphsift-cli/"; then fail "the sdist does not carry the CLI crate (so its corrupt test is not shipped)"; else ok "the sdist does not carry the CLI crate (so its corrupt test is not shipped)"; fi
 cmp -s "$ROOT/Cargo.lock" "$SCRATCH/Cargo.lock.before" && ok "cargo test left the sdist's Cargo.lock byte-identical" || fail "cargo test left the sdist's Cargo.lock byte-identical"
 
 finish
