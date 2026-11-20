@@ -1,0 +1,215 @@
+name: publish
+
+# NOBODY ON THE TEAM RUNS THIS WORKFLOW. It exists so that publishing glyphsift is a short list of the owner's own steps (docs/RELEASING.md), and it cannot
+# fire by accident (Sprint 7, D3-03; TD-105, TD-121, TD-122, TD-123). Read docs/RELEASING.md before you dispatch it.
+#
+# How it can be started: workflow_dispatch only, with no inputs, from the main branch of AirplaneMode-Labs/glyphsift only. There is no push, pull request,
+# schedule, release or workflow_run trigger, and nothing here is reachable from a fork.
+#
+# The six locks, all of which must hold before a publish step runs:
+#   1. the repository and ref guard on both jobs (this repository, refs/heads/main);
+#   2. the `release` environment on the publish job: the owner is its required reviewer, deployments are limited to main and administrators cannot
+#      bypass it (the owner configures this; docs/RELEASING.md has the commands). The job waits for the owner's approval after the build has finished;
+#   3. the variable RELEASE_PUBLISH_ARMED on the `release` environment, which must read 'true' (the owner sets it only for the minutes a release takes, just
+#      before approving the waiting job; the first step after the checkout refuses to go on otherwise, TD-125: it is read in a step because an environment's
+#      variables are not visible in a job-level `if`);
+#   4. the owner's signed manifest, attached to the GitHub release of tag v<version>, verified against the public key committed in docs/release-keys.json
+#      (it is empty until the owner adds the real key, so nothing verifies today);
+#   5. registry credentials: NPM_TOKEN and CARGO_REGISTRY_TOKEN exist only as secrets of the `release` environment, which the owner creates and revokes
+#      (a 7-day token, TD-122); PyPI uses trusted publishing and holds no secret at all;
+#   6. RELEASE_KEY_ID, a variable of the `release` environment, equals the one key committed in docs/release-keys.json at the commit being published.
+# Then the three bindings: tag v<version> resolves to this commit; the manifest says glyphsift-release, this version and no expiry; no registry holds this
+# version yet. Then provenance (an attestation of the exact files). Then publishing, from the exact files the verified manifest lists, never from a glob:
+# npm first, then the crates, then PyPI. The crates are packaged and published with --no-verify, so nothing is compiled in the job that holds the registry
+# tokens (S1-131); the re-package, the digest compare against the signed manifest and `cargo publish` are adjacent steps with nothing between them, they come before
+# the third-party PyPI action, and a check of crates.io's sparse index follows, retried for up to 10 minutes, that what the registry now holds is the signed bytes.
+# The same dist-tag derivation, dry runs and file checks run in CI on every push through scripts/release/rehearse.sh, with the published test key and no
+# publish step (scripts/release/publish-dry-run.sh, scripts/release/publish-guard.sh).
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: publish-glyphsift
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    if: github.repository == 'AirplaneMode-Labs/glyphsift' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      TOOLS_BIN: ${{ matrix.os == 'windows-latest' && 'Scripts' || 'bin' }}
+      PYTHON: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
+      BUILD_SET: ${{ matrix.os == 'ubuntu-latest' && 'all' || 'wheel' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Hashed tool install (uv, maturin, mypy, ziglang) into a venv outside the checkout
+        run: |
+          python -m venv "$RUNNER_TEMP/tools-venv"
+          "$RUNNER_TEMP/tools-venv/$TOOLS_BIN/python" -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
+          "$RUNNER_TEMP/tools-venv/$TOOLS_BIN/maturin" --version
+      - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
+        if: matrix.os == 'ubuntu-latest'
+        run: scripts/install-wasm-tools.sh
+      - name: Build the candidate artefacts (the Linux leg also builds the tarball, the sdist and the crates)
+        env:
+          GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
+          RELEASE_DIR: dist-release
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          export SOURCE_DATE_EPOCH
+          mkdir dist-release
+          scripts/release/build-artefacts.sh
+      - name: Print the candidate digests (the owner compares these before signing)
+        run: |
+          node -e 'const fs=require("fs"),c=require("crypto");for(const n of fs.readdirSync("dist-release").sort()){const b=fs.readFileSync("dist-release/"+n);console.log(c.createHash("sha256").update(b).digest("hex")+"  "+n+"  "+b.length+" bytes")}'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: glyphsift-candidate-${{ matrix.os }}
+          path: dist-release/
+          retention-days: 1
+          if-no-files-found: error
+          include-hidden-files: false
+
+  publish:
+    name: publish
+    needs: build
+    if: github.repository == 'AirplaneMode-Labs/glyphsift' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # lock 3 (TD-125): the owner has armed this release. It is the first step after the checkout and it is a step because an environment's variables are not visible in
+      # a job-level `if` (the environment is resolved after it); here the variable sits on the release environment, where docs/RELEASING.md tells the owner to put it.
+      - name: Lock 3, RELEASE_PUBLISH_ARMED is true
+        env:
+          RELEASE_PUBLISH_ARMED: ${{ vars.RELEASE_PUBLISH_ARMED }}
+        run: scripts/release/publish-guard.sh armed
+      # Node 22 for the guard scripts (first-party action; registry-url writes the .npmrc that reads NODE_AUTH_TOKEN, which only the npm publish step sets)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      # lock 6: the key id the owner set in the environment is the one committed key
+      - name: Lock 6, RELEASE_KEY_ID equals the single key in docs/release-keys.json
+        env:
+          RELEASE_KEY_ID: ${{ vars.RELEASE_KEY_ID }}
+        run: scripts/release/publish-guard.sh key-id
+      # the one third-party action before the publishing steps comes only after the armed check and the key id check
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: "1.98"
+      - name: Read the version from the package file at this commit (validated, never interpolated into a command)
+        run: |
+          VERSION=$(scripts/release/publish-guard.sh version)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DIST_TAG=$(scripts/release/publish-guard.sh dist-tag "$VERSION")" >> "$GITHUB_ENV"
+      # binding 1: the tag v<version> resolves to the commit this run published
+      - name: Binding 1, tag v<version> peels to this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GUARD_REPO: ${{ github.repository }}
+          GUARD_SHA: ${{ github.sha }}
+        run: GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh tag-binding
+      # binding 3 (read-only lookups; only a 404 passes): no registry holds this version
+      - name: Binding 3, npm, PyPI and crates.io do not hold this version yet
+        run: GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh registry-absent
+      # the candidates built by the build job of THIS run, and the owner's signed manifest from the GitHub release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: glyphsift-candidate-*
+          merge-multiple: true
+          path: candidate
+      - name: Fetch the owner's signed manifest from the GitHub release of tag v<version>
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GUARD_REPO: ${{ github.repository }}
+        run: |
+          mkdir signed
+          gh release download "v$VERSION" --repo "$GUARD_REPO" --pattern release-manifest.json --dir signed
+          test "$(ls -A signed)" = "release-manifest.json"
+      - name: Assemble the verify directory (the candidate files, the signed manifest, the candidate SHA256SUMS)
+        run: |
+          mkdir verified
+          cp candidate/* verified/
+          cp signed/release-manifest.json verified/release-manifest.json
+          node scripts/release/release-tool.mjs sums --dir verified
+      # lock 4: the signature, the id, the artefact hashes and sizes, and SHA256SUMS, against the committed release keys
+      - name: Lock 4, verify the signed manifest against docs/release-keys.json
+        run: node scripts/release/release-tool.mjs verify --dir verified --expect-id glyphsift-release --trust-file docs/release-keys.json
+      - name: Binding 2, the manifest says glyphsift-release, this version, no expiry
+        run: GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh manifest-binding verified/release-manifest.json
+      - name: The verified set is exactly the expected files, and the exact per-registry lists
+        run: GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh exact-set verified lists
+      - name: Exact paths of the verified artefacts (no glob)
+        id: exact
+        run: |
+          {
+            echo "paths<<EOF_PATHS"
+            sed 's|^|verified/|' lists/all.txt
+            echo "EOF_PATHS"
+          } >> "$GITHUB_OUTPUT"
+      # provenance: after every check and before the first publish step
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.exact.outputs.paths }}
+      # S1-130: the argument starts with ./ . Without it npm reads `verified/<name>.tgz` as the GitHub shorthand user/repo and would try to publish a third party's repository.
+      - name: Publish the npm package (provenance, public, no install scripts, a derived dist-tag)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish "./verified/$(cat lists/npm.txt)" --provenance --access public --ignore-scripts --tag "$DIST_TAG"
+      # S1-131 (S1-126, TD-123): the crates are re-packaged here without a build, and each must have the digest the owner signed. This step holds no token. The very next
+      # step publishes, with nothing between them, and both come before every third-party action that is left (the PyPI action).
+      - name: Re-package the crates (no build) and compare their digests with the signed manifest
+        run: |
+          cargo package --workspace --locked --no-verify
+          GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh crate-digests verified target/package
+      - name: Publish the crates (glyphsift-core, then glyphsift-cli; the publish = false crates are skipped; no build in this job)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --workspace --locked --no-verify
+      # S1-131: what crates.io now holds is the signed bytes (its sparse index lists the sha256 of each .crate); retried for up to 10 minutes, then it fails loudly
+      - name: The crates.io index shows both crates with the signed checksums
+        run: GUARD_VERSION="$VERSION" scripts/release/publish-guard.sh crate-index verified
+      - name: Stage exactly the PyPI files (the sdist and the three wheels)
+        run: |
+          mkdir pypi-dist
+          while IFS= read -r f; do cp "verified/$f" "pypi-dist/$f"; done < lists/pypi.txt
+          test "$(ls -A pypi-dist | wc -l | tr -d ' ')" = "$(wc -l < lists/pypi.txt | tr -d ' ')"
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: pypi-dist/
+          attestations: true

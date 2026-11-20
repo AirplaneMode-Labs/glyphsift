@@ -266,29 +266,31 @@ jobs:
           scripts/build-wasm.sh
           scripts/package-npm.sh
 
-  # Wheels and the sdist, one build per platform, published nowhere. The jobs install their tools by hash
-  # (tools/ci/requirements.txt, `pip install --require-hashes --no-deps --only-binary=:all:`), build with
-  # --locked, install the wheel into a fresh venv with --no-index, make one real call (the score of a clean
-  # Hindi word is 1000000 ppm) and keep the files as a workflow artifact for 7 days. The sdist comes from
-  # scripts/package-sdist.sh (S1-103): `maturin sdist` compiles nothing, has no --locked flag (maturin 1.16.0) and
-  # shipped the whole workspace's Cargo.lock beside a two-member workspace, so the unpacked sdist could not build
-  # --locked; the script prunes that lock to the sdist's own workspace and then builds the unpacked sdist --locked.
-  # The step is still followed by a check that the repository's Cargo.lock did not change. A workflow artifact is
-  # not a release: there is no registry, release or Pages step and no secret. Linux builds the
-  # manylinux_2_17 wheel through zig (the ziglang package from the hashed requirements) and the sdist.
-  # Not a required check. First run: green on all three operating systems in run 43667702791 at 5ff0c47
-  # (15 Nov 2026; docs/release.md, "First CI run of the wheels job"); the sdist step is new in Sprint 5.
-  wheels:
-    name: wheel and sdist (${{ matrix.os }})
+  # Release rehearsal (Sprint 7, D3-02; TD-106, TD-118, TD-123, S1-126). It replaces the Sprint 4 `wheels` job (display name
+  # "wheel and sdist (<os>)"): the platform wheel, the sdist and their checks are now steps of scripts/release/rehearse.sh. One job per
+  # operating system builds the artefacts exactly as a release would (npm tarball; this platform's wheel with maturin --locked, through
+  # zig as manylinux_2_17 on Linux; on Linux the sdist; the two packaged crates from `cargo package --workspace --locked`, packaged twice and
+  # compared), then INSTALLS each built artefact into a fresh place with no sibling repository (an empty npm project, offline with a fresh
+  # cache and --ignore-scripts; a fresh .venv with PIP_NO_INDEX=1; on Linux a wheel built from the unpacked sdist alone; the CLI built by
+  # cargo install --offline --locked from the unpacked packaged crates, glyphsift-core taken from the packaged file through a directory
+  # source, so no -core crate comes from a registry) and makes one real call whose output must equal committed bytes (a clean and a corrupted
+  # Devanagari sample: the report and the gate verdicts pass and hold). It then rehearses the release with the published RFC 8032 test key:
+  # manifest, SHA256SUMS, signature, verification with the explicit flag, and the exact refusals (test_key_refused without the flag,
+  # no_trusted_key against docs/release-keys.json, and four more). Hashed tools only, no cache of any kind, contents: read, no secret, no
+  # id-token. The upload holds dist-release/ and dist-release-report/ only (checked first), is named as a test-key rehearsal, and is kept 3
+  # days. A workflow artefact is not a release: there is no registry, release or Pages step. Not a required check.
+  release-rehearsal:
+    name: release-rehearsal (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     env:
-      TOOLS_BIN: ${{ matrix.os == 'windows-latest' && 'tools-venv/Scripts' || 'tools-venv/bin' }}
+      TOOLS_BIN: ${{ matrix.os == 'windows-latest' && 'Scripts' || 'bin' }}
+      PYTHON: ${{ matrix.os == 'windows-latest' && 'python' || 'python3' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -296,57 +298,42 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: "1.98"
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+          targets: wasm32-unknown-unknown
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - name: Hashed tool install (uv, maturin, mypy, ziglang) into a venv
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Hashed tool install (uv, maturin, mypy, ziglang) into a venv outside the checkout
         run: |
-          python -m venv tools-venv
-          "$TOOLS_BIN/python" -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
-          "$TOOLS_BIN/maturin" --version
-      - name: Empty the wheel output folder
-        run: rm -rf target/wheels
-      - name: Build the manylinux_2_17 wheel through zig (ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          export PATH="$PWD/$TOOLS_BIN:$PATH"
-          . scripts/remap-paths.sh
-          maturin build --release --locked --zig --compatibility manylinux_2_17 -m crates/glyphsift-py/Cargo.toml
-      - name: Build the sdist (ubuntu), build it --locked from its own Cargo.lock, and check that the repository's Cargo.lock did not change
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          export PATH="$PWD/$TOOLS_BIN:$PATH"
-          export SDIST_OUT=target/wheels
-          scripts/package-sdist.sh
-          git diff --exit-code -- Cargo.lock
-      - name: Build the wheel (windows, macos)
-        if: matrix.os != 'ubuntu-latest'
-        run: |
-          export PATH="$PWD/$TOOLS_BIN:$PATH"
-          . scripts/remap-paths.sh
-          maturin build --release --locked -m crates/glyphsift-py/Cargo.toml
-      - name: Builder-path gate on the wheel (no home, checkout or temp path inside)
-        run: python -I scripts/check-no-builder-paths.py target/wheels/*.whl
-      - name: Wheel contents check (type stubs, py.typed, LICENSE, NOTICE, README wording, sizes) on this platform's wheel
-        run: |
-          VERSION=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          python -I tests/python/check_wheel.py target/wheels/glyphsift-"$VERSION"-*.whl "$VERSION"
-      - name: Install the wheel into a fresh venv with no index and make a real call
-        run: |
-          ls -l target/wheels
-          python -m venv smoke-venv
-          if [ -d smoke-venv/Scripts ]; then SMOKE=smoke-venv/Scripts; else SMOKE=smoke-venv/bin; fi
-          "$SMOKE/python" -m pip install --no-index --no-deps target/wheels/glyphsift-*.whl
-          "$SMOKE/python" -I -c 'import glyphsift, json; ppm = json.loads(glyphsift.validate("\u0928\u092e\u0938\u094d\u0924\u0947\u0964"))["score"]["ppm"]; print("ppm", ppm); assert ppm == 1000000'
+          python -m venv "$RUNNER_TEMP/tools-venv"
+          "$RUNNER_TEMP/tools-venv/$TOOLS_BIN/python" -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt
+          "$RUNNER_TEMP/tools-venv/$TOOLS_BIN/maturin" --version
+      - name: Install pinned wasm-bindgen CLI and wasm-opt (digest-pinned release binaries)
+        run: scripts/install-wasm-tools.sh
+      - name: Rehearsal (build, clean-machine install checks, test-key signature and refusal proofs)
+        env:
+          GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
+        run: scripts/release/rehearse.sh
+      - name: Assert dist-release holds only the manifest entries, the manifest and SHA256SUMS
+        run: scripts/release/rehearse.sh assert-dir dist-release
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: glyphsift-wheels-${{ matrix.os }}
+          name: REHEARSAL-test-key-NOT-A-RELEASE-glyphsift-${{ matrix.os }}-${{ github.sha }}
           path: |
-            target/wheels/*.whl
-            target/wheels/*.tar.gz
-          retention-days: 7
+            dist-release/
+            dist-release-report/
+          retention-days: 3
           if-no-files-found: error
+          include-hidden-files: false
+      # The README's "Try it in two minutes" (D3-04, TD-115): every block is extracted and run from the built files in a fresh directory with a scrubbed environment,
+      # and the output is compared with the expect block. After the upload, so a failure here never hides the rehearsal's files; it builds under dist/ and target/,
+      # which are not uploaded. maturin comes from the hashed venv (the harness puts its bin directory first on PATH).
+      - name: Quick start (the README blocks, from the built files, in a fresh directory)
+        env:
+          GLYPHSIFT_TOOLS_VENV: ${{ runner.temp }}/tools-venv
+        run: tests/scripts/quickstart.sh
 
   # Dependency policy (deny.toml). cargo-deny is a pinned release binary checked against a SHA-256 kept
   # in this file, not the EmbarkStudios Docker action. Linux only. The advisories leg may fail without
@@ -368,10 +355,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: "1.98"
+      # BUG-T3-S7-07: the matrix value reaches the script through step env and is validated (no ${{ }} expression inside a run: step); the two values hold
+      # one or several fixed words, so the last line leaves $CHECKS unquoted on purpose.
       - name: cargo-deny 0.20.2 (digest-pinned binary)
+        env:
+          CHECKS: ${{ matrix.checks }}
         run: |
+          case "$CHECKS" in
+            advisories|"bans licenses sources") ;;
+            *) echo "unexpected cargo-deny checks: $CHECKS" >&2; exit 1 ;;
+          esac
           mkdir -p "$RUNNER_TEMP/bin"
           curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/cargo-deny.tgz" https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
           echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  $RUNNER_TEMP/cargo-deny.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/cargo-deny.tgz" --strip-components=1 -C "$RUNNER_TEMP/bin"
-          "$RUNNER_TEMP/bin/cargo-deny" --all-features check ${{ matrix.checks }}
+          # shellcheck disable=SC2086
+          "$RUNNER_TEMP/bin/cargo-deny" --all-features check $CHECKS
