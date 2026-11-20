@@ -1,6 +1,6 @@
 # What glyphsift measures
 
-Status: written in Sprint 6 (19 Nov 2026) for glyphsift 0.1.2, untagged and unpublished. This page is short on purpose and is
+Status: written in Sprint 6 (19 Nov 2026) and re-read against the committed files in Sprint 7 (20 Nov 2026), for glyphsift 0.1.3, untagged and unpublished. Sprint 7 changed no number on this page: the benchmark CSV, the gate and the determinism corpus are byte-identical to Sprint 6. This page is short on purpose and is
 the only text about glyphsift's results that anyone outside this repository should quote. Every number on it is read from a
 committed file by `tests/docs_numbers.py`, and the file and the command that produce it are named next to it. Anything not on
 this page is not claimed.

@@ -2,33 +2,30 @@
 
 One row per item of the definition of done that every Airplane Mode Labs release must meet. A row is
 Done only when the Evidence column names a file or command that proves it today; anything else is
-Open. Nothing may be tagged while a Blocker-for-tag row is Open. The release is 0.1.2, a release candidate: the
-workspace version is 0.1.2 (0.1.0 and 0.1.1 were never tagged and 0.1.2 supersedes them, TD-43 and TD-69), the notes live in
-[CHANGELOG.md](../CHANGELOG.md) (`## [0.1.2] - 2026-11-19 (untagged)`), and
-the tag commit (step 1 below) only changes that heading to a date.
+Open. Nothing may be tagged while a Blocker-for-tag row is Open. The release is 0.1.3, a release candidate: the
+workspace version is 0.1.3 (0.1.0, 0.1.1 and 0.1.2 were never tagged and 0.1.3 supersedes them, TD-43, TD-69 and TD-107), the notes live in
+[CHANGELOG.md](../CHANGELOG.md) (`## [0.1.3] - 2026-11-20 (untagged)`), and
+the owner's steps, in order, are in [RELEASING.md](RELEASING.md) (the release commit only changes that heading to a date).
 
-Status as of 2026-11-19 (Sprint 6; the Sprint 5 text below is kept where it still holds). Evidence paths under `evidence/sprint-3/D3/`, `evidence/sprint-4/D3/` and
-`evidence/sprint-5/D3/` are copied there from the sprint scratch folders by the architect at wrap-up. Nothing is
+Status as of 2026-11-20 (Sprint 7, an addition the owner asked for on 19 Nov 2026: release readiness; it has no row in the plan documents and creates no gate-1 evidence). Evidence paths under `evidence/sprint-3/D3/` to
+`evidence/sprint-7/D3/` are copied there from the sprint scratch folders by the architect at wrap-up. Nothing is
 published, signed or tagged, and the npm scope `@airplanemode` and the PyPI and crates.io names `glyphsift`,
-`glyphsift-core` and `glyphsift-cli` are not reserved. The owner pushed Sprints 3 and 4 on 15 Nov 2026 (glyphsift at
-5ff0c47): CI run 43667702791 was green on all 14 jobs and the live demo shows Sprint 4 (read on 18 Nov 2026; the section
-"First CI run of the wheels job" records what that run proved). Sprint 5 (the gate call, the sdist fix, version 0.1.1) was pushed and its CI was read on 18 Nov 2026 (the live demo shows Sprint 5, read on
-19 Nov 2026), except for two cancelled macOS legs in other repositories; Sprint 6 (version 0.1.2, the measures page, the sdist's corrupt tests,
-`CARGO_TARGET_DIR`) is committed locally and not pushed, so no CI run covers it and the live demo changes only after the owner's push.
-No row below flips to Done in Sprint 6: every one needs the owner (the push and a CI read of the Sprint 6 commit, the 8 GB laptop, the real
-key, the tag, the registries). What Sprint 4, Sprint 5 and Sprint 6 closed, and what only CI can prove, are in the tables after the rows.
+`glyphsift-core` and `glyphsift-cli` are not reserved. The main session pushed Sprint 6 on 19 Nov 2026 (glyphsift at f9e88f4): CI run 44584716730 was green on all 15 jobs and the live demo shows Sprint 6 (read with `gh` on 20 Nov 2026).
+Sprint 7 (version 0.1.3, the `release-rehearsal (<os>)` job, the vendored release tool, `publish.yml` and its guard, the quick start, the issue forms) is committed locally and not pushed, so no CI run covers it and the live demo changes only after the main session's push.
+What the team could do is done: the rehearsal installs every built artefact into a fresh place and signs and verifies a rehearsal manifest with the published test key, and `publish.yml` exists behind six locks. Every row that is still Open needs the owner:
+the 8 GB laptop (not measured on 8 GB), the real key, the reserved names, the configured environment with its variable and secrets, the tag, the publish and the write-up.
 
 | # | Definition-of-done item | Status | Evidence | Owner | Blocker-for-tag |
 |---|---|---|---|---|---|
-| 1 | Tests written before the implementation; CI green on Linux, macOS and Windows | Tests-first evidence Done (red/green logs); CI was green on all three operating systems at 5ff0c47 (Sprint 4 head, run 43667702791); the Sprint 5 commit has not run in CI, pending the owner's push | Owner must: `git push`, then `gh run list --repo AirplaneMode-Labs/glyphsift --limit 5` and read every job (commands under "Owner must", row 1). Tests first, each with its red log before its green log: Sprint 3 and 4 in `evidence/sprint-3/D3/` and `evidence/sprint-4/D3/` (the case table, the wheel, the npm package, the CLI surface, the demo, the release-manifest tool, the hashed installs and the CI policy), and Sprint 5 in `evidence/sprint-5/D3/red/` then `green/`: D3-01 the gate (core tests, CLI tests, the 200-case corpus, the WASM safety script; `red/D3-01.log` then `green/D3-01.log`), D3-02 the sdist builds `--locked` (`red/D3-02.log`, `green/D3-02.log`), D3-03 this document and the version (`red/D3-03.log`, `green/D3-03.log`), D3-04 the demo's Gate tab (`red/D3-04.log`, `green/D3-04.log`). Local macOS arm64 at Sprint 5: `cargo fmt`, `clippy -D warnings`, `cargo test`, `RUSTDOCFLAGS="-D warnings" cargo doc`, `scripts/determinism.sh` (native, Python and WASM byte-identical on 13 samples and on 200 gate cases), `cargo deny check bans licenses sources` and the script tests pass (`evidence/sprint-5/D3/green/gates.log`). The three-OS matrix (`check`, `determinism`, `deny`, `demo`, `packaging`, `demo-browser`, `wheels`, and new in Sprint 5 `doc`) is configured in `.github/workflows/ci.yml`. At 5ff0c47 it was green: [run 43667702791](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/43667702791), all 14 jobs, including the `packaging`, `demo-browser` and `wheels` jobs that had never run before. Not marked Done until the owner pushes the Sprint 5 commit and reads CI for it | D3, then owner (push, read CI) | yes |
+| 1 | Tests written before the implementation; CI green on Linux, macOS and Windows | Tests-first evidence Done (red logs older than green logs, `evidence/sprint-7/D3/red/` and `green/`); CI was green on all 15 jobs at f9e88f4 (the Sprint 6 head, run 44584716730, read with `gh` on 20 Nov 2026); the Sprint 7 commits have not run in CI, pending the main session's push | Owner (reads CI after the main session's push): `gh run list --repo AirplaneMode-Labs/glyphsift --limit 5`, then every job by name, the three `release-rehearsal (<os>)` jobs first ("Sprint 7: what only CI can prove" below). Tests first, each with its red log before its green log: Sprint 3 to 6 in `evidence/sprint-3/D3/` to `evidence/sprint-6/D3/`, Sprint 7 in `evidence/sprint-7/D3/` (the release policy rules, the rehearsal, the vendored tool and its 36 shared vectors, the publish guard, the quick start, the community files) | owner (reading CI) | yes |
 | 2 | Benchmark on an 8 GB laptop recorded in the README | Open | Owner must: run `node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift` and the browser run on the 8 GB Windows no-GPU laptop (steps under "Owner must", row 2). README [Benchmarks](../README.md#benchmarks) carries Apple-silicon figures (`evidence/sprint-3/D3/throughput.log`, and for the gate rows added in Sprint 5 `evidence/sprint-5/D3/green/throughput.log`, from `scripts/throughput.mjs`) next to an "8 GB Windows no-GPU laptop" column that reads "not measured on 8 GB". No figure for that machine exists and none was invented. The procedure is below | owner | yes |
 | 3 | README limitations section | Done | README [Limitations](../README.md#limitations): structural checks only, synthetic text only, Devanagari only, what the joiner and tag rules do and do not flag, the benchmark proves a narrow thing, nothing published, one wheel platform, nothing signed, CI not yet run on the Sprint 3 changes, target hardware unmeasured. The wheel and npm READMEs carry their own Limitations sections | D3 | no |
-| 4 | Signed artifacts and manifest | Open | Owner must: `cargo run -p cp-sign -- keygen --out ./keys` offline, then sign `dist/release-manifest.json` with `cp-sign sign` (row 4 below). Tooling exists, signing does not. `scripts/release-manifest.mjs` writes an unsigned `airplanemode.manifest/0.1` listing the wheel and the npm tarball with their SHA-256 and size (tests: `tests/scripts/release-manifest.sh`, 42 checks, `red-D3-09.log` then `green-D3-09.log`; the script differs from pagetriage's only in two constants, `diff-release-manifest.log`). A dry run with the public RFC 8032 test key through `cp-sign` verified with `--allow-test-key` and was refused without it (`dry-run-sign.log`). That signature proves the tooling only: it is not a release signature, and no signed manifest or key is in this repository. A real key does not exist yet | owner, D6 (tooling) | yes |
-| 5 | CHANGELOG and semver tag | Open | Owner must: after rows 1, 2, 4, 6, 7 are Done, `git tag v0.1.2 && git push origin v0.1.2` (tag procedure below). [CHANGELOG.md](../CHANGELOG.md) carries the Sprint 5 changes under `## [Unreleased]` (the architect dates them as `## [0.1.2] - 2026-11-18 (untagged)` at wrap-up) and, below them, the `## [0.1.0]` entry for Sprints 1 to 4, which was never tagged. The tag does not exist (`git tag` prints nothing) and must not be created until every row above and below is Done. The workspace version is 0.1.2 (`tests/scripts/release-doc.sh` checks that every crate, `Cargo.lock`, the wheel and the npm package.json carry the same one) | owner | yes |
-| 6 | Package installable from a clean machine | Open (installs proven locally on macOS arm64; CI built the other platforms; nothing published) | Owner must: reserve the names, publish, then run the install commands of the "After the owner publishes" block (row 6 below) on a clean machine. Installed offline from locally built 0.1.2 artifacts on macOS arm64, each followed by a real call: the wheel `glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl` (platform tag `macosx_11_0_arm64`, about 248 KiB; the exact byte count varies by a few bytes with the checkout path, because the compiled extension is not byte-identical across build paths, so exact bytes are reproducible only from the same path (BUG-T3-S6-R2-08, TD-81 style)) into a `python3 -m venv` (`pip install --no-index --no-deps`) and into a `uv venv` (`uv pip install --offline --no-index --no-deps`), `score_ppm('कखग\ufffd')` printing 750000 and `gate()` answering (`evidence/sprint-6/D3/green/package-python.log`; the stubs pass `mypy --strict`); the tarball `airplanemode-glyphsift-0.1.2.tgz` (120,963 bytes) from `npm pack` into a fresh empty directory with an empty cache (`npm i <tgz> --ignore-scripts --offline`; `npm ls` shows one package), a Node call byte-equal to `glyphsift check` and to `glyphsift gate`, and a bundler-free page in installed Chrome with 0 console errors (`evidence/sprint-6/D3/green/package-npm.log`); the CLI with `cargo install --path crates/glyphsift-cli --locked` and every documented exit code on the installed binary, `gate` included (`evidence/sprint-5/D3/green/cli-install.log` for 0.1.1, not repeated for 0.1.2 (the CLI source is unchanged apart from the version`); and the sdist `glyphsift-0.1.2.tar.gz` (115,881 bytes; it carries four repository-root files its tests read, the fourth added in Sprint 6 for S1-118, and the README as the core crate's README), whose `Cargo.lock` is pruned to its own workspace (61 entries to 36, same versions and checksums) so that `cargo build --locked` succeeds, and `cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` passes, from the unpacked tree, with `tests/corrupt.rs` (28 tests) and `tests/gate_noise.rs` (3 tests) shown to have run (S1-103, BUG-T2-S5-12, S1-118: `evidence/sprint-6/D3/green/package-sdist.log` and `tests/scripts/sdist-locked.sh`). The sizes and SHA-256 of all of them, with the toolchain versions, are in `evidence/sprint-6/D3/gates-s6.log`, the one log this row cites for artifact sizes. The wheel, the tarball, the sdist and each crate carry `LICENSE` and `NOTICE`, no test data in the wheel or the tarball, no lifecycle script and nothing over 5 MB. CI built 0.1.0 artifacts for three platforms at 5ff0c47 (see "First CI run of the wheels job" below); the 0.1.2 ones do not exist until CI builds them from the pushed commit. Not closed: nothing is published, the names are not reserved, no CI-built wheel has been installed on a machine other than its own runner, and no clean machine has installed from a registry | owner | yes |
-| 7 | Short write-up | Open | Owner must: write and publish the write-up from the measured figures once row 2 has numbers (row 7 below). No write-up exists. It is written from the measured numbers once row 2 closes; the demo page at <https://airplanemode-labs.github.io/glyphsift/> is the natural home. Only a draft from existing evidence may precede the owner's tag and publish | owner | yes |
+| 4 | Signed artifacts and manifest | Open (rehearsed with a public test key, not performed) | Owner must: create the real key offline, commit its public half to `docs/release-keys.json`, sign the manifest of the checked candidate with `cp-sign sign --no-expiry`, attach it to the GitHub release ([RELEASING.md](RELEASING.md), steps 3, 4, 11, 12, 13). Done by the team: `scripts/release/rehearse.sh` builds the artefacts as a release would, writes the manifest and `SHA256SUMS` with the vendored release tool (`scripts/release/release-tool.mjs`, spec 0.6.1, TD-103), signs a `glyphsift-rehearsal` manifest with the published RFC 8032 test key, verifies it with the explicit flag and shows `refused: test_key_refused` without it, `refused: no_trusted_key` against the committed empty `docs/release-keys.json`, and four more exact refusals; two runs with the same `SOURCE_DATE_EPOCH` gave byte-identical `SHA256SUMS` and `release-manifest.json` (`evidence/sprint-7/D3/green/rehearse-macos-run1.log` and `-run2.log`). That signature proves the tooling only: it is not a release signature, the test key can never sign a `-release` id (R1) and is refused by every production path (R2), and no signed manifest or real key exists | owner, D6 (cp-sign) | yes |
+| 5 | CHANGELOG and semver tag | Open | Owner must: [RELEASING.md](RELEASING.md), step 9 (date the entry, read CI, `git tag -s v0.1.3`, push the tag), after rows 1, 2, 4, 6, 7 are Done. [CHANGELOG.md](../CHANGELOG.md) has `## [0.1.3] - 2026-11-20 (untagged)` (Keep a Changelog groups Added, Changed, Fixed, Security, Deferred; `[Unreleased]` is empty). The tag does not exist (`git tag` prints nothing) and must not be created until every row above and below is Done. The workspace version is 0.1.3 (`tests/scripts/release-doc.sh` checks that every crate, `Cargo.lock`, the wheel and the npm package.json carry the same one) | owner | yes |
+| 6 | Package installable from a clean machine | Open (the rehearsal proves the install from the built files; nothing is published) | Owner must: reserve the names, configure the environment, publish through `publish.yml`, then install from a clean machine ([RELEASING.md](RELEASING.md), steps 2 to 16). Done by the team, on macOS arm64 from the 0.1.3 build in a copy with no sibling repository: each built artefact installed into a fresh place and called, with the output compared with committed bytes (a clean and a corrupted Devanagari sample, gate verdicts pass and hold): the tarball `airplanemode-glyphsift-0.1.3.tgz` into an empty npm project (offline, a fresh cache, `--ignore-scripts`), the wheel `glyphsift-0.1.3-cp39-abi3-macosx_11_0_arm64.whl` (about 248 KiB; the exact byte count varies by a few bytes with the checkout path, because the compiled extension is not byte-identical across build paths, so exact bytes are reproducible only from the same path (BUG-T3-S6-R2-08)) into a fresh `.venv` (`PIP_NO_INDEX=1`), and the CLI built by `cargo install --offline --locked` from the unpacked packaged `.crate` files with `glyphsift-core` taken from the packaged file and nothing from a registry (`evidence/sprint-7/D3/green/rehearse-macos-run1.log`); `package-python.sh` (both venvs, `mypy --strict`), `package-npm.sh` (a bundler-free page in installed Chrome, 0 console errors) and `package-sdist.sh` again for 0.1.3 (`evidence/sprint-7/D3/green/package-python.log`, `package-npm.log`, `package-sdist.log`; the sdist is about 115 KiB, carries four repository-root files its tests read and builds `cargo build --locked` from its own pruned `Cargo.lock`, and `tests/scripts/sdist-locked.sh` runs `cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` from the unpacked tree with `tests/corrupt.rs` (28 tests) and `tests/gate_noise.rs` (3 tests) shown to have run). The sizes and SHA-256 of all of them, with the toolchain versions, are in `evidence/sprint-7/D3/gates-s7.log`, the one log this row cites for artifact sizes. Not closed: the Linux and Windows runs of the rehearsal (only the push shows them), nothing is published, the names are not reserved, and no clean machine has installed from a registry | owner | yes |
+| 7 | Short write-up | Open | Owner must: finish and publish the write-up from the measured figures once row 2 has numbers ([RELEASING.md](RELEASING.md), step 16): draft exists; finishing it waits on the 8 GB figure (owner). The draft is `docs/writeup-0.1.3-draft.md`, marked draft, not published, written from committed files only; the demo page at <https://airplanemode-labs.github.io/glyphsift/> is the natural home | owner | yes |
 
-Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.2 today would not be honest.
+Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.3 today would not be honest.
 
 ## Sprint 4 carry-overs closed here (D3)
 
@@ -76,6 +73,54 @@ Not closed in Sprint 6, and the owner's push list for it (nobody re-runs CI; eac
 - glyphsift | fmt, clippy, test, wasm32, pyo3 (ubuntu-latest, macos-latest, windows-latest) | proves the fix of the one red job of CI run 44580204699 (`packaging dry runs`, on S1-118: the log parser of `sdist-locked.sh` could not read cargo's coloured `Running` line under the workflow's `CARGO_TERM_COLOR=always`; CHANGELOG, Unreleased): the step "Cargo test log parser" runs `tests/scripts/cargo-test-log.sh` with `GLYPHSIFT_LIVE_CARGO_LOG=1`, and its log must show `CARGO_TERM_COLOR=always put escape bytes into the log file`, `live: tests/corrupt.rs ran and 28 tests passed` and the same for `gate_noise.rs` with 3 on all three systems. The `packaging` job's `sdist-locked.sh` line above is then the one read for the sdist itself.
 - glyphsift | determinism (windows-latest) | proves BUG-T2-S5-14 on Windows: the native leg's log prints `cli: ...\target\release\glyphsift.exe` (the default directory, unchanged) and ends `gate native: 200 cases match`.
 - glyphsift | fmt, clippy, test, wasm32, pyo3 (windows-latest) | proves S1-106 and COM0/LPT0: the step "Release-manifest --out containment" runs `confine.test.mjs` (43 tests, 0 skipped, the Sprint 6 cases included) on a real NTFS runner. Landed in D3-02 (`red/D3-02.log`, `green/D3-02.log`); the case list equals pagetriage's (`logs/confine-caselist-diff.txt` is empty).
+
+## Sprint 7 carry-overs closed here (D3)
+
+Sprint 7 is release readiness (an addition the owner asked for on 19 Nov 2026; no row in the plan documents; no gate-1 evidence). Version 0.1.3 (TD-107). Evidence under `evidence/sprint-7/D3/`; red logs are older than green logs.
+
+| Item | Status | Evidence |
+|---|---|---|
+| Part A, CI at the Sprint 6 head | Read with `gh` on 20 Nov 2026: ci run 44584716730 at f9e88f4 green on all 15 jobs, pages run 44584717262 green; 0 open Dependabot pull requests (B5: nothing to apply or defer) | `partA-ci.log`, `dependabot.md` |
+| The release tool vendored from runtime's spec 0.6.1 (D3-01, TD-103, TD-104) | `scripts/release/release-tool.mjs` byte for byte (sha256 `81583057...` since fix round 1, `57c2af90...` before), `scripts/release/VENDORED.json`, 31 shared vectors under `scripts/release/vectors/`, all `-text`; 35 of 36 cases run on macOS and Linux, the junction case on Windows only; manifest parity with `scripts/release-manifest.mjs` | `tests/scripts/release-tool-vendored.sh` (25 checks), `red/D3-01-vendored.log`, `green/D3-01-vendored.log` |
+| `release-rehearsal (<os>)` replaces the `wheels` job (D3-02, TD-106, TD-118) | `.github/workflows/ci.yml`: ubuntu, macos and windows, `contents: read`, no cache, no secret, hashed tools, `--locked`; runs `scripts/release/rehearse.sh`; uploads `dist-release/` and `dist-release-report/` only, named `REHEARSAL-test-key-NOT-A-RELEASE-glyphsift-<os>-<sha>`, 3 days. Run once on macOS in a copy with no sibling and `GITHUB_SHA` and `GITHUB_REF` cleared, twice with the same `SOURCE_DATE_EPOCH`: `SHA256SUMS` and `release-manifest.json` byte-identical | `tests/scripts/ci-policy.sh` rules K (red, then green), `tests/scripts/rehearse.sh` (62 checks), `green/D3-02-rehearse-macos-run1.log`, `-run2.log` |
+| S1-126 and TD-123: the packaged crates stay in the signed set | `cargo package --workspace --locked` is run twice in every rehearsal and in the publish build and the two `.crate` files must be byte-identical; they were (macOS), and the publish job re-packages them with `--no-verify` (S1-131: nothing is compiled where the tokens are; the same bytes, proved by the rehearsal's four runs) and compares the digests with the signed manifest before it publishes. If they ever differ the rehearsal fails and the crates leave the signed set (RELEASING.md, step 14) | `green/D3-02-rehearse-macos-run1.log` ("ok: two cargo package --workspace --locked runs give identical .crate bytes"), `scripts/release/build-artefacts.sh` |
+| No '-core' crate from a registry (D3-02) | The CLI is installed by `cargo install --offline --locked` from the unpacked packaged `glyphsift-cli` crate; `glyphsift-core` comes from the packaged file through a directory source made by `cargo vendor --locked` with a `.cargo-checksum.json` whose package hash is the `.crate` sha256; the log has no `Downloading`, `Downloaded` or `Updating` line | `scripts/release/install-crate-offline.sh`, the rehearsal logs |
+| `publish.yml` and its checks (D3-03, TD-105, TD-122, TD-123, TD-121) | `workflow_dispatch` only, no inputs, main of this repository only; locks: repository and ref guard, the `release` environment, the arming variable (a step, because an environment's variables are not visible in a job-level `if`), the signed manifest verified against `docs/release-keys.json`, environment secrets only, `RELEASE_KEY_ID`; bindings: tag to commit, manifest version and id, no registry holds the version; then provenance, then publishing from the exact files. `scripts/release/publish-guard.sh` holds the checks, `tests/scripts/publish-guard.sh` proves each refusal (78 checks in the first pass, 117 after fix round 1) and rules L of `tests/scripts/ci-policy.sh` pin every one (each single mutation of the file turns one red). Nobody has run it | `green/D3-03-publish.log`, `red/D3-03-publish.log` |
+| `docs/RELEASING.md` (D3-03) | Rewritten as the owner's 16 steps in order, each with the reason only the owner can take it, the exact `gh` commands for the environment, variable, secrets, PyPI pending publisher, token scopes and expiry, the candidate check before signing, the offline `cp-sign` signature, verification with the vendored tool and the revoke step | `tests/scripts/release-doc.sh` section J |
+| Quick start (D3-04, TD-115, TD-116) | README `## Try it in two minutes` (CLI, Python and Node, no model, no download, no test key), run by `tests/scripts/quickstart.sh`; eleven single-block breaks each turn it red; the `Live demo:` line is in the first 12 lines | `green/D3-04-quickstart-breaks.log`, `tests/scripts/readme-claims.sh` section D |
+| Issue forms, `SECURITY.md`, `CONTRIBUTING.md`, good-first-issue texts (D3-04, TD-117) | `.github/ISSUE_TEMPLATE/` with the required no-real-documents checkbox and a `SECURITY.md` contact link, blank issues off; five draft texts under `drafts/good-first-issues/glyphsift.md`, none filed | `tests/scripts/community-files.sh` |
+| `docs/what-glyphsift-measures.md` stays in step (D3-04) | Re-read against the committed benchmark: no number changed; `tests/docs_numbers.py` now also requires the page to name the workspace version | `tests/docs_numbers.py`, `green/D3-04-docs-numbers.log` |
+| Write-up draft (D3-06) | `docs/writeup-0.1.3-draft.md`, marked draft, not published; row 7 reads "draft exists; finishing it waits on the 8 GB figure (owner)" | `tests/scripts/release-doc.sh` section I |
+| Demo refresh (D3-05) | Sprint 7 status line, one new "does not do yet" line (no signing key, no tag, release path rehearsed in CI with a public test key only), 249 checks green, 0 requests when idle; the live page changes only after the main session's push | `green/D3-05-demo.log` |
+
+No 8 GB figure exists (not measured on 8 GB), nothing is published or signed, and no 0.1.x tag exists.
+
+## Sprint 7 fix round 1 (D3)
+
+Fix round 1 of Sprint 7 (the PO triage of 20 Nov 2026). Red logs are older than green logs; the evidence is under `evidence/sprint-7/D3/` (`red/FR1-*.log`, `green/FR1-*.log`). Still true after it: not measured on 8 GB (no 8 GB figure exists), nothing is signed, published or tagged, and no step the team could have taken is left to the owner.
+
+| Item | Status | Evidence |
+|---|---|---|
+| BUG-T3-S7-01 / S1-130: `npm publish verified/<name>.tgz` is a GitHub shorthand to npm | Fixed. npm's own `npm-package-arg` resolves a bare `verified/<name>.tgz` as the hosted spec `github:verified/<name>.tgz`, a third party's repository, so the first real publish would have tried to publish that. `publish.yml` now publishes `"./verified/$(cat lists/npm.txt)"` (resolved as type `file`); `scripts/release/publish-dry-run.sh` runs the identical string, with `--dry-run`, from a scratch directory laid out like the job's working directory (`verified/` and `lists/npm.txt`); rule M1 of `tests/scripts/ci-policy.sh` requires every `npm publish` argument in every workflow to start with `./` or `/` and the two strings to be equal | `tests/scripts/npm-publish-arg.sh` (6 checks; red: `git`, green: `file`), `red/FR1-S1-130-npm-publish-arg.log`, `green/FR1-S1-130-npm-publish-arg.log`, S1's own probe `green/FR1-S1-130-npa-probe-s1.log`, `green/FR1-publish-dry-run-local.log` |
+| BUG-S1-S7-03 / S1-131: nothing is compiled in the job that holds the tokens | Fixed. The crates are packaged and published with `--no-verify` (`cargo package --workspace --locked --no-verify`, `cargo publish --workspace --locked --no-verify`). The re-package and the digest comparison against the signed manifest are one step with no token; the very next step publishes, with nothing between them; both come before the PyPI action (npm, then the crates, then PyPI); and `publish-guard.sh crate-index` then reads crates.io's sparse index until both crates show the signed sha256, asking again for 10 minutes on a 404, a server error or a missing line and failing at once on a different checksum, a yanked entry, two lines or a malformed one. `scripts/release/build-artefacts.sh` packages twice with the build check and twice with `--no-verify` and fails unless all four give the same bytes (macOS: identical); `publish-dry-run.sh` runs the workflow's command with `--dry-run` | `tests/scripts/publish-guard.sh` (117 checks, the index check run against stand-ins for `curl` and `sleep`), rules M7 of `ci-policy.sh`, `red/FR1-S1-131-publish-guard.log`, `green/FR1-S1-131-publish-guard.log`, `green/FR1-REHEARSE-macos-run1.log` |
+| BUG-T3-S7-07: policy gaps and missing timeouts | Fixed, each rule with a mutation proven red (`tests/scripts/ci-policy-mutations.sh`, 84 checks: a control run and 83 single mutations of the workflows and release scripts): no install from the checkout in `release-rehearsal` or `publish.yml` (`cargo install --path`, `pip install -e .`, `maturin develop`); no `${{ }}` in a `publish.yml` `run:` step and no `${{ matrix.* }}` in a `run:` step of any workflow; the PyPI `packages-dir` is exactly the staging directory `pypi-dist/`; `timeout-minutes` 75 on the build job and 30 on the publish job; the `cargo-deny` job passes `matrix.checks` through step env as `CHECKS` and validates it | `red/FR1-ci-policy.log` (26 failures before the change), `green/FR1-ci-policy.log` (256 checks), `red/FR1-ci-policy-mutations.log`, `green/FR1-ci-policy-mutations.log` |
+| TD-125 alignment | Confirmed and enforced: no `vars.` in any job-level `if` of any workflow; the armed check is step 2 of the publish job (right after the checkout) and `RELEASE_KEY_ID` is step 3; each variable is read once, in step env of the publish job; `docs/RELEASING.md` sets both with `--env release`, arms just before the approval and disarms after | rules M6 and their mutations |
+| S1-135: the owner compares the candidate with an independent build before signing | `docs/RELEASING.md` step 11 names the independent build (the push run's `REHEARSAL-test-key-NOT-A-RELEASE-glyphsift-ubuntu-latest-<sha>` artefact or a local `scripts/release/rehearse.sh` at that commit with the pinned tools), the four files compared byte for byte (the npm tarball, the sdist and the two crates) with the `gh` and `shasum` commands, and says that wheels compare only between the two CI builds | `tests/scripts/release-doc.sh` section K |
+| FR1-REVENDOR (follows BUG-T2-S7-04/05) | The release tool re-vendored from D1's re-landed spec 0.6.1 (`D1/RELANDED-FR1.txt`): sha256 `81583057...` (was `57c2af90...`) in `scripts/release/release-tool.mjs` and `scripts/release/VENDORED.json`; the 31 shared vectors are unchanged byte for byte (`diff -r` against runtime's `spec/vectors/release` is empty, listing sha256 `54d78d44...`); `release-tool-vendored.sh` 25 checks, `release-tool-cases.mjs` 35 of 35 on macOS (the junction case, 36 of 36, is Windows only); two sign phases with the same `SOURCE_DATE_EPOCH` are byte-identical | `red/FR1-REVENDOR-vendored.log` (the new pin against the old tool), `green/FR1-REVENDOR-vendored.log`, `green/FR1-REVENDOR-cases.log`, `green/FR1-REHEARSE-identical.txt` |
+
+## Sprint 7: what only CI can prove (the push list)
+
+The Windows and Linux legs cannot run on this Mac, and nobody on the team pushes or reruns CI. One line per job, in the form `<repo> | <job> | <task> | <what it proves> | <exact log text to look for>`; read each job's log after the main session's push.
+
+- glyphsift | release-rehearsal (ubuntu-latest) | D3-02, D3-03 | the first run of the rehearsal on Linux: the manylinux_2_17 wheel through zig, the sdist built `--locked`, a wheel built from the unpacked sdist alone, the packaged crates, the CLI built from them with nothing from a registry, the publish dry runs, the test-key signature and the six refusals | `ok: two cargo package --workspace --locked runs give identical .crate bytes`, `installed node check: all checks passed`, `installed wheel check: all checks passed` (twice: the wheel and the sdist wheel), `installed cli check: all checks passed`, `Installed package` and a `Compiling glyphsift-core v0.1.3` line with no `Downloading` or `Updating` line, `release vectors through release-tool.mjs: 35 of 35 cases passed` (36 cases, the junction one is Windows only), `refused: test_key_refused`, `refused: no_trusted_key`, `release rehearsal ok on linux`; fix round 1: `ok: cargo package --workspace --locked --no-verify gives the same .crate bytes as the verified run, two runs each (S1-131)`, the dry run's `== 1. npm publish --dry-run (from a directory laid out like the workflow's, with the workflow's own ./verified/ argument)` followed by `+ @airplanemode/glyphsift@0.1.3`, and `== 2. cargo publish --dry-run --workspace --locked --no-verify` with two `aborting upload due to dry run` lines
+- glyphsift | release-rehearsal (macos-latest) | D3-02, D3-03 | the same on a GitHub macOS runner (arm64): the wheel `macosx_11_0_arm64`, no sdist (a release builds it on Linux only) | the same lines with `release rehearsal ok on macos` and `release vectors through release-tool.mjs: 35 of 35 cases passed`; fix round 1: `ok: cargo package --workspace --locked --no-verify gives the same .crate bytes as the verified run, two runs each (S1-131)`, the dry run's `== 1. npm publish --dry-run (from a directory laid out like the workflow's, with the workflow's own ./verified/ argument)` followed by `+ @airplanemode/glyphsift@0.1.3`, and `== 2. cargo publish --dry-run --workspace --locked --no-verify` with two `aborting upload due to dry run` lines
+- glyphsift | release-rehearsal (windows-latest) | D3-02, D3-03 | the first run of the whole path on Windows: `package-npm.sh` with `PACKAGE_NPM_PACK_ONLY=1` and `PYTHON=python`, `.venv/Scripts`, the cargo directory-source install and `glyphsift.exe` under `$RUNNER_TEMP`, and the Windows junction case of the shared vectors (a junction made with `fs.symlinkSync(..., "junction")`, refused with `not_regular_file`, never skipped: the Windows log must say `release vectors through release-tool.mjs: 36 of 36 cases passed`) | `release vectors through release-tool.mjs: 36 of 36 cases passed`, `installed wheel check: all checks passed`, `installed cli check: all checks passed`, `release rehearsal ok on windows`; fix round 1: `ok: cargo package --workspace --locked --no-verify gives the same .crate bytes as the verified run, two runs each (S1-131)`, the dry run's `== 1. npm publish --dry-run (from a directory laid out like the workflow's, with the workflow's own ./verified/ argument)` followed by `+ @airplanemode/glyphsift@0.1.3`, and `== 2. cargo publish --dry-run --workspace --locked --no-verify` with two `aborting upload due to dry run` lines
+- glyphsift | packaging dry runs (wheel, npm tarball, release manifest) | D3-03, D3-04 | the new script tests on Linux: `publish-guard.sh` (117 checks), `release-tool-vendored.sh`, `rehearse.sh`, `quickstart.sh` (the quick start run from the built files), `community-files.sh`, and the rewritten `ci-policy.sh` and `release-doc.sh` | `script tests:` with `0 failed` and `quickstart: all blocks ran and the output matched`; fix round 1: the list also shows `npm-publish-arg.sh`, `ci-policy-mutations.sh` (`84 passed, 0 failed`) and `publish-guard.sh` (`117 passed, 0 failed`) with `0 failed`
+- glyphsift | fmt, clippy, test, wasm32, pyo3 (ubuntu-latest, macos-latest, windows-latest) | D3-01 | version 0.1.3 and the README test of Sprint 7 (`readme_states_the_sprint_7_position_in_the_required_words`) | `test result: ok.` with 0 failed for every binary
+- glyphsift | demo build (ubuntu-latest) and pages deploy | D3-05 | the demo builds and deploys with the Sprint 7 page | the pages run is green and the live page's status line begins `Sprint 7 (20 Nov 2026)`
+- glyphsift | cargo-deny (advisories) | BUG-T3-S7-07 | the deny job with the matrix value passed through step env as `CHECKS` and validated: the step runs cargo-deny on `advisories` (this leg may report a new advisory, which is information and does not block) | the step runs to cargo-deny's own summary and the log has no line `unexpected cargo-deny checks`
+- glyphsift | cargo-deny (bans licenses sources) | BUG-T3-S7-07 | the same step with the three words in `CHECKS`, unquoted on purpose so that cargo-deny gets three arguments | cargo-deny's summary reports `bans ok, licenses ok, sources ok`, and no line `unexpected cargo-deny checks`
+- glyphsift | publish.yml | D3-03 | nothing: the team never runs it and no push, pull request or schedule can; a run of it in the list of workflow runs before the owner's step 10 would be a defect | `gh run list --workflow publish.yml` shows no run; what the owner's first real run must show, in order, at the crates: the step 'Re-package the crates (no build) and compare their digests with the signed manifest' prints `ok: glyphsift-core-0.1.3.crate re-packaged to the verified digest` and the same for the cli, the next step publishes without a build (`Uploading glyphsift-core v0.1.3`, no `Compiling` line), and the step 'The crates.io index shows both crates with the signed checksums' ends `ok: both crates are in the crates.io index at 0.1.3 with the signed cksums`
 
 ## First CI run of the wheels job (read on 18 Nov 2026)
 
@@ -158,7 +203,7 @@ Any refusal exits 2 and writes nothing; any other write error exits 1 with one l
 Rules, in the order they are applied:
 
 1. `--out` is not empty and has no NUL; no component is `..` (a backslash counts as a separator for this test on every OS).
-2. On Windows only, on the text as typed: no `\\?\` or `\\.\` prefix; no UNC path (`\\server\share`, also `//server/share` and the
+2. On Windows only, on the text as typed: no `\\?` or `\\.` prefix; no UNC path (`\\server\share`, also `//server/share` and the
    admin share of the local drive); no drive-relative path (`C:name`, `C:dir\name`, `C:`), whose meaning depends on a per-drive
    working directory; no `:` after the drive (an alternate data stream); no reserved device name (`CON PRN AUX NUL COM0-9 LPT0-9
    CONIN$ CONOUT$`, plus the superscript digits 1 to 3 after COM and LPT; COM0 and LPT0 since Sprint 6, T2-NOTE-COM0; any case, with or without an extension); no component ending in `.` or a space (Windows strips them); no
@@ -224,29 +269,11 @@ already carry the MIT texts of zmij and memchr inside `NOTICE`, TD-28; the demo'
 
 ## Owner must
 
-Each Open row, with the commands. Run them from a checkout of `AirplaneMode-Labs/glyphsift` (`cp-sign` comes
-from the private `AirplaneMode-Labs/control-plane`).
+Each Open row that is yours, with the commands. The ordered list of everything the owner does to release, with the reason each step is the owner's, is [RELEASING.md](RELEASING.md); this section keeps the one
+runbook that is not a release step, the 8 GB laptop (row 2). Run commands from a checkout of `AirplaneMode-Labs/glyphsift` (`cp-sign` comes from the private `AirplaneMode-Labs/control-plane`).
 
-**Row 1, after the push.**
-
-Owner must: review the Sprint 5 commits, `git push` (the order for all seven repositories is in the sprint report), then read the CI run for the pushed
-commit on `ubuntu-latest`, `macos-latest` and `windows-latest`, and the Linux-only `doc`, `packaging` and `demo-browser` jobs (the `wheels` job
-now also runs the sdist `--locked` build and the wheel contents check):
-
-```sh
-gh run list --repo AirplaneMode-Labs/glyphsift --limit 5
-gh run view <run-id> --repo AirplaneMode-Labs/glyphsift --json jobs --jq '.jobs[] | [.name, .conclusion] | @tsv'
-```
-
-Read these legs by name (one line per leg): **glyphsift check (windows-latest) proves the ported containment** (its step "Release-manifest --out
-containment" runs `confine.test.mjs` and `release-manifest.sh`; a red here that names "could not create a symlink" or "could not create a junction"
-means the runner cannot make links, not that the code is wrong, and is still a red); **glyphsift packaging (ubuntu-latest)** runs
-`tests/scripts/ci-policy.sh` section J, which fails if `cargo doc` prints "collision" (cargo's own warning, which `-D warnings` on rustdoc does not
-turn into a failure), next to the `doc` job (rustdoc, warnings are errors); **glyphsift determinism (ubuntu, macos, windows)** proves the gate
-corpus is byte-identical on all three.
-
-Change row 1's status to Done only when every job is green for the commit that will be tagged. The `doc` job, the sdist step and the wheel
-contents check are new in Sprint 5 and have never run in CI: if one fails, the fix goes in `.github/workflows/ci.yml` or the scripts, not in this table.
+**Row 1, CI after the push.** The main session pushes between sprints and reads CI; the owner reads the jobs listed under "Sprint 7: what only CI can prove" below (`gh run list --repo AirplaneMode-Labs/glyphsift --limit 5`, then
+`gh run view <run-id> --repo AirplaneMode-Labs/glyphsift --json jobs --jq '.jobs[] | [.name, .conclusion] | @tsv'`). Row 1 is Done only when every job is green for the commit that will be tagged.
 
 **Row 2, benchmark on the 8 GB Windows no-GPU laptop.**
 
@@ -279,89 +306,8 @@ Chrome) and write down what the commands print. Invent nothing. The throughput s
 6. Put the results in the README Benchmarks table (the "8 GB Windows no-GPU laptop" column), cite where the raw
    output is kept, and change row 2 to Done here.
 
-**Row 4, signed artifacts and manifest.**
-
-Owner must: on the offline key machine (not this Mac, not CI), generate the real key and sign the manifest:
-
-```sh
-git clone https://github.com/AirplaneMode-Labs/control-plane && cd control-plane   # private repo
-cargo run -p cp-sign -- keygen --out ./keys            # key.secret stays on this machine, mode 0600
-cargo run -p cp-sign -- keyid --pub ./keys/key.pub     # record the keyId in the release notes
-```
-
-Then, after the artifacts exist (rows 5 and 6 steps), in the glyphsift checkout:
-
-```sh
-scripts/build-wasm.sh && scripts/package-npm.sh          # dist/npm/airplanemode-glyphsift-0.1.2.tgz
-scripts/package-python.sh    # maturin@1.16.0 pinned, builder paths remapped; the wheel lands in dist/wheels
-SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) node scripts/release-manifest.mjs --out dist/release-manifest.json \
-  dist/npm/airplanemode-glyphsift-0.1.2.tgz dist/wheels/glyphsift-0.1.2-*.whl
-cargo run -p cp-sign -- sign --key ./keys/key.secret dist/release-manifest.json --out dist/release-manifest.signed.json
-cargo run -p cp-sign -- verify --pub ./keys/key.pub dist/release-manifest.signed.json
-shasum -a 256 dist/npm/*.tgz dist/wheels/*.whl     # each value must equal the manifest's sha256 for that file
-```
-
-Publish `release-manifest.signed.json` and `key.pub` next to the artifacts ([RELEASING.md](RELEASING.md),
-"Signing the manifest"). Never use `--allow-test-key` for a release.
-
-**Row 5, CHANGELOG and semver tag.**
-
-Owner must: once rows 1, 2, 4, 6 and 7 are Done and CI is green on the tag commit, follow the tag procedure below
-from step 1, ending with `git tag v0.1.2` (the owner only) and `git push origin v0.1.2`.
-
-**Row 6, installable from a clean machine.**
-
-Owner must: reserve the names, build and publish, then prove the install from a registry on a clean machine.
-
-1. Reserve the names (due 22 Nov 2026): npm scope `@airplanemode` (package `@airplanemode/glyphsift`), PyPI `glyphsift`,
-   crates.io `glyphsift-core` and `glyphsift-cli`.
-2. Build wheels for Linux, macOS and Windows: after the push, the `wheels` job of `ci.yml` builds them (manylinux_2_17
-   through zig on Ubuntu, `win_amd64` on Windows, macOS arm64) and an sdist, with tools pinned by hash, and keeps them as a
-   workflow artifact for 7 days (`gh run download <run-id> --repo AirplaneMode-Labs/glyphsift -n glyphsift-wheels-ubuntu-latest`
-   and the same for `windows-latest` and `macos-latest`). Read the job first (see "CI-only proofs"). Before publishing those
-   wheels, change the OS classifiers in `crates/glyphsift-py/pyproject.toml` from MacOS alone to include
-   `Operating System :: POSIX :: Linux` and `Operating System :: Microsoft :: Windows`, and update the matching assertion in
-   `tests/python/check_wheel.py` in the same commit, so the metadata does not claim a platform that was not proven. Then
-   publish per tag-procedure steps 4 to 6 below.
-3. On a machine that has never seen this repository, with Wi-Fi on, run the commands in the block below and record the
-   output. They are registry commands and work only after publishing.
-
-   **After the owner publishes**
-
-   ```sh
-   python3 -m venv v && v/bin/pip install glyphsift==0.1.2 && v/bin/python -I -c "import glyphsift; print(glyphsift.score_ppm('कखग\ufffd'))"
-   mkdir t && cd t && npm init -y && npm i @airplanemode/glyphsift@0.1.2 && node -e 'console.log(require("@airplanemode/glyphsift").score_ppm("कखग\ufffd"))'
-   cargo install glyphsift-cli && glyphsift --version
-   ```
-
-4. Change the README Install section so the "After the owner publishes" commands move into the main text, and
-   mark row 6 Done with the recorded output as evidence.
-
-**Row 7, short write-up.**
-
-Owner must: once row 2 has numbers, write the short write-up from the measured figures, each with its evidence path,
-publish it (the demo page is the natural home), and mark row 7 Done.
-
-## Tag procedure (owner only, in this order)
-
-Taken from [RELEASING.md](RELEASING.md); do not start it while any Blocker-for-tag row is Open.
-
-1. **Date the release.** In `CHANGELOG.md` change `## [0.1.2] - 2026-11-19 (untagged)` to
-   `## [0.1.2] - YYYY-MM-DD`. The workspace version is already 0.1.2 (`Cargo.toml`, `[workspace.package]`); the
-   wheel and the npm package take it from there. This is the tag commit; nothing else goes in it.
-2. **Run the gate** on that commit: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
-   `cargo test --locked`, `scripts/determinism.sh`, `scripts/package-python.sh`, `scripts/package-npm.sh`,
-   `tests/scripts/run-all.sh`. CI must be green on Linux, macOS and Windows for the commit, the `wheels` job included.
-3. **Tag** `v0.1.2` on that commit and push the tag.
-4. **crates.io.** `cargo publish -p glyphsift-core`, then (once the index has it) `cargo publish -p glyphsift-cli`.
-5. **PyPI.** Upload the wheels for every platform: `twine upload dist/wheels/*`.
-6. **npm.** `npm publish dist/npm/airplanemode-glyphsift-0.1.2.tgz --access public`.
-7. **Sign.** Write the manifest (`node scripts/release-manifest.mjs --out dist/release-manifest.json <artifacts>`), sign it
-   with `cp-sign` and the real key on the offline key machine (see "Owner must", row 4), and publish the signed
-   manifest with the release.
-8. **Demo and write-up.** The `pages` workflow deploys the demo on the push; publish the write-up.
-
-Do not tag until every Blocker-for-tag row is Done.
+**Rows 4 to 7.** [RELEASING.md](RELEASING.md), steps 2 to 16: reserve the names, create and commit the real key, configure the `release` environment, its variable and secrets, tag, dispatch `publish.yml`, check the candidate, sign it offline, attach
+the signed manifest to the GitHub release, arm and approve, disarm and revoke, install from a clean machine, finish the write-up. The README Install section moves its "After the owner publishes" commands into the main text in step 16.
 
 ## History
 

@@ -46,6 +46,16 @@ them and say why in `CHANGELOG.md`.
 Synthetic inputs only: never paste text from a real document, a customer or a scraped corpus into
 tests or docs.
 
+## Quick start, issue forms and the release path
+
+The README's [Try it in two minutes](README.md#try-it-in-two-minutes) section is run by `tests/scripts/quickstart.sh`: if you change a command it shows, change the block, and the test tells you if it no longer works.
+Issues use the forms in `.github/ISSUE_TEMPLATE` (a bug report and a feature request, each with a required "no real documents" checkbox; blank issues are off). `tests/scripts/run-all.sh` runs every script test
+(it needs the wasm tools, Node 22 and the hashed tool venv described in the README's Develop section; `tests/scripts/ci-policy.sh` and `tests/scripts/community-files.sh` need nothing but a shell).
+
+Contributors never publish, sign or tag. Releasing is the owner's job and has its own list: [docs/RELEASING.md](docs/RELEASING.md). A pull request must not change `docs/release-keys.json` (the file that says which key may sign a release),
+`.github/workflows/publish.yml`, or `scripts/release/release-tool.mjs` (vendored byte for byte from runtime's spec; a change belongs in runtime). The CI job `release-rehearsal` shows on every push that a release would
+build and install; it signs only with a public test key.
+
 ## Style
 
 British spelling, no emojis, commit subjects of at most 72 characters in the imperative mood.

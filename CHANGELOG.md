@@ -6,7 +6,46 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-After the Sprint 6 push (CI run 44580204699 at 84b5c3d). Tests and CI only: no crate, report, score, gate rule or packaged file changed, and `Cargo.lock` and the version stay as they are.
+## [0.1.3] - 2026-11-20 (untagged)
+
+Sprint 7 (20 Nov 2026, untagged), glyphsift **0.1.3** (TD-107): release readiness, so that publishing becomes a short list of the owner's own steps (`docs/RELEASING.md`). 0.1.0, 0.1.1 and 0.1.2 were never tagged; 0.1.3 supersedes them.
+Nothing is published, signed or tagged. The scoring, the weights, the report spec (`glyphsift.report/0.2`), the gate rules, the benchmark CSV and SVG and every determinism sample are byte-identical to 0.1.2: `bench --verify` passes. Sprint 7 is an
+owner-requested addition; it has no row in the plan documents and creates no gate-1 evidence.
+
+### Added
+
+- `release-rehearsal (<os>)` (D3-02, TD-106, TD-118), a CI job on ubuntu, macos and windows that replaces the Sprint 4 `wheels` job (`wheel and sdist (<os>)`). `scripts/release/rehearse.sh` builds the artefacts as a release would (`scripts/release/build-artefacts.sh`: the npm
+  tarball, this platform's wheel with `maturin build --release --locked`, on Linux the sdist, and the packaged crates `glyphsift-core` and `glyphsift-cli` from `cargo package --workspace --locked`); installs each built file, never the source tree, into a fresh place with no
+  sibling repository and no registry (an empty npm project with `npm_config_offline=true`, a fresh cache and `--ignore-scripts`; a fresh `.venv` with `PIP_NO_INDEX=1`; on Linux a wheel built from the unpacked sdist alone; the CLI built by `cargo install --offline --locked` from the unpacked packaged crates,
+  `glyphsift-core` taken from the packaged file through a directory source made by `cargo vendor --locked`, `scripts/release/install-crate-offline.sh`); asserts one real call each (a clean and a corrupted Devanagari sample must give the report and the `glyphsift.gate/0.1` bytes committed under `tests/determinism`,
+  verdicts pass and hold, `scripts/release/check-installed.mjs` and `.py`); then signs a `glyphsift-rehearsal` manifest with the published RFC 8032 test key (deterministic with `SOURCE_DATE_EPOCH`, no expiry, TD-121), verifies it with the explicit flag and proves the refusals by exit code, first stderr line and JSON reason: `test_key_refused`
+  without the flag, `no_trusted_key` against the committed empty `docs/release-keys.json`, `expect_id_required`, `test_key_flag_misuse`, `test_key_release_id` (R1) and `artifact_hash_mismatch` for a changed artefact. The upload is `dist-release/` and `dist-release-report/` only, named `REHEARSAL-test-key-NOT-A-RELEASE-glyphsift-<os>-<sha>`, kept 3 days, after
+  `rehearse.sh assert-dir` has shown that nothing but the manifest entries, the manifest and `SHA256SUMS` is there. Hashed tools, `--locked`, no cache, `contents: read`, no secret. Run on macOS twice with the same `SOURCE_DATE_EPOCH`: `SHA256SUMS` and `release-manifest.json` byte-identical.
+  Tests: `tests/scripts/rehearse.sh` (62 checks: synthetic artefacts, a missing tool, seven kinds of misbehaving tool, `assert-dir` refusals, unsafe paths) and the new rules K of `tests/scripts/ci-policy.sh`.
+- The release tool vendored from runtime's spec 0.6.1 (D3-01, TD-103, TD-104): `scripts/release/release-tool.mjs` byte for byte, `scripts/release/VENDORED.json` (source, spec release, sha256, the digest of the shared vectors) and the 31 shared release vectors under `scripts/release/vectors/`, all `-text` in `.gitattributes`.
+  `tests/scripts/release-tool-vendored.sh` checks the pins and the bundle's allowlist, runs every case of `release.json` through the vendored copy (`tests/scripts/release-tool-cases.mjs`, 35 cases on macOS and Linux, the junction case on Windows; the rehearsal runs them on all three) and shows that
+  `scripts/release-manifest.mjs` and `release-tool manifest` write byte-identical output for `glyphsift-release`.
+- `.github/workflows/publish.yml` and `docs/RELEASING.md` (D3-03, TD-105, TD-122, TD-123): a publish workflow that only the owner can start and nobody has run. `workflow_dispatch` only, no inputs, main of this repository only; six locks (repository and ref guard; the `release` environment with the owner as reviewer; the variable
+  `RELEASE_PUBLISH_ARMED`; the owner's signed manifest from the GitHub release verified against `docs/release-keys.json`; registry credentials only as secrets of that environment; `RELEASE_KEY_ID` equal to the one committed key, S1-129), three bindings (tag `v<version>` peels to this commit; the manifest says `glyphsift-release`, this version and no
+  expiry; no registry holds the version), then an attestation of the exact files, then publishing from the exact files the verified manifest lists (npm with `--provenance`, PyPI with attestations, crates after their re-packaged digests are compared). `scripts/release/publish-guard.sh` holds the checks and `tests/scripts/publish-guard.sh` proves
+  each refusal with stand-ins for `gh` and `curl` (78 checks, 117 after fix round 1); `scripts/release/publish-dry-run.sh` (`npm publish --dry-run`, `cargo publish --dry-run --workspace --locked`, the wheel metadata) is run by the rehearsal on three systems. Rules L of `tests/scripts/ci-policy.sh` pin every one of these and each single mutation of the workflow turns one red.
+- `docs/release-keys.json`, committed with an empty key list until the owner adds the real public key (`{"spec":"airplanemode.release-keys/0.1","keys":[]}`); `docs/RELEASING.md` lists, in order, only the steps that are the owner's, each with the reason the team cannot do it.
+- `## Try it in two minutes` in the README (D3-04, TD-115, TD-116): a clone, a build, a fresh venv and a fresh npm project, a clean and a noisy line scored from Python, Node and the command line, no model and no download. `tests/scripts/quickstart.sh` (with `tests/scripts/quickstart.mjs`) extracts every block, runs a static pre-check
+  (no http, https, curl, wget, pipe into a shell, sudo, npx, test-key flag or CSP edit), runs the blocks from the built files in a fresh directory with a scrubbed environment and compares the output with the expect block; eleven single-line breaks of the section each turn it red. A `Live demo:` line is within the first 12 lines of the README, checked by `tests/scripts/readme-claims.sh`.
+- Issue forms (`bug_report.yml` with a required no-real-documents checkbox, `feature_request.yml`, `config.yml` with blank issues off and a link to `SECURITY.md`), a `CONTRIBUTING.md` that names the release path, and `drafts/good-first-issues/glyphsift.md` (texts only; nothing is filed) (D3-04, TD-117).
+- `docs/writeup-0.1.3-draft.md`, marked draft, not published (D3-06).
+- `tests/scripts/cargo-test-log.sh` (added after the Sprint 6 push, folded in from the old [Unreleased] block; tests first, red then green): the self-test of the colour- and Windows-safe cargo log parser on the line format of each runner, and with `GLYPHSIFT_LIVE_CARGO_LOG=1` on the real `cargo test` log of the machine it runs on
+  (the `check` job runs it on ubuntu, macos and windows). `tests/scripts/run-all.sh` picks it up.
+
+### Changed
+
+- Version 0.1.3 everywhere (workspace, crates, `Cargo.lock`, wheel, npm package).
+- `scripts/package-npm.sh` takes `PACKAGE_NPM_PACK_ONLY=1` (stop after the builder-path gate with the tarball written) and `PYTHON` (the interpreter for that gate; a Windows runner has `python`, not always `python3`). The default behaviour is unchanged.
+- `tests/docs_numbers.py` also requires `docs/what-glyphsift-measures.md` to name the workspace version, so the page the outreach drafts quote cannot lag the release; the page's Status line is re-read in Sprint 7 and no number on it changed.
+- Demo: a Sprint 7 status line and one new line in "What this demo does not do yet" (no signing key, no tag, the release path rehearsed in CI with a public test key only); no CSP change, 0 requests when idle (249 checks).
+- `.gitignore`: `/dist-release/`, `/dist-release-report/` and `*.crate`.
+- `docs/release.md`: the definition-of-done rows say what the rehearsal and the publish workflow now prove and what stays open (the 8 GB figure, the real key, reserved names, the configured environment, publishing, the tag, the write-up).
+- Sprint 7 fix round 1 (D3, FR1-REVENDOR): the release tool re-vendored from runtime's re-landed spec 0.6.1 (D1/RELANDED-FR1.txt): `scripts/release/release-tool.mjs` sha256 `81583057...` (was `57c2af90...`), `scripts/release/VENDORED.json` updated, the 31 shared vectors unchanged byte for byte (`diff -r` against runtime's `spec/vectors/release` is empty); `tests/scripts/release-tool-vendored.sh` (25 checks) and `release-tool-cases.mjs` (35 of 35 on macOS; the junction case is Windows only) pass, and two sign phases with the same `SOURCE_DATE_EPOCH` are byte-identical.
 
 ### Fixed
 
@@ -19,12 +58,33 @@ After the Sprint 6 push (CI run 44580204699 at 84b5c3d). Tests and CI only: no c
   The check is not weaker: with `--features corrupt` removed from the script, cargo skips both binaries and it still fails for both.
 - No other script of this repository reads cargo or libtest output by its text (`ci-policy.sh` greps `cargo doc` output for the word `collision`, which colour cannot split).
 
-### Added
+- The one red job of CI run 44580204699 is fixed at the head of Sprint 6 (`6859d81`, `f9e88f4`, run 44584716730 green on all 15 jobs, read with `gh` on 20 Nov 2026): see the entry above.
+- Sprint 7 fix round 1 (D3, FR1): BUG-T3-S7-01 / S1-130: `publish.yml` passed `npm publish "verified/<name>.tgz"`, and npm reads a bare `a/b` as the GitHub shorthand user/repo (npm's own `npm-package-arg` resolves it as a hosted `github:verified/...`
+  spec, a third party's repository), so the first real publish would have tried to publish that. The argument is now `"./verified/$(cat lists/npm.txt)"` (type `file`), `scripts/release/publish-dry-run.sh` runs the identical string from a scratch directory laid out like the job's
+  (`verified/`, `lists/npm.txt`), `ci-policy.sh` rule M1 requires every `npm publish` argument in every workflow to start with `./` or `/` and the two strings to be equal, and `tests/scripts/npm-publish-arg.sh` asks npm's resolver (red: `git`, green: `file`).
+- Sprint 7 fix round 1 (D3, FR1): BUG-T3-S7-07: `ci-policy.sh` gained the rules the first review found missing, each with a mutation that turns it red (`tests/scripts/ci-policy-mutations.sh`, 84 checks: a control run and 83 single mutations of the workflows and release scripts): no `cargo install --path` or any other install from the
+  checkout in `release-rehearsal` or `publish.yml`; no `${{ }}` in any `publish.yml` `run:` step and no `${{ matrix.* }}` in any `run:` step of any workflow; the PyPI `packages-dir` is exactly the staging directory `pypi-dist/`, made with a plain `mkdir`, copied from `lists/pypi.txt`, count-checked, and the step right before the action;
+  `timeout-minutes` on both publish jobs (75 and 30, pagetriage's values); the `cargo-deny` job passes `matrix.checks` through step env as `CHECKS` and validates it against the two fixed values before use.
 
-- `tests/scripts/cargo-test-log.sh` (tests first, red then green): the self-test of that parser on the line format of each runner (Linux and macOS colour, Windows backslashes, `.exe` and CRLF, libtest's own colour, a skipped binary, 0 tests, a FAILED
-  summary, a crash before the summary, a binary whose name begins like another) and on the S6 awk, which it shows finds nothing in the coloured line. With `GLYPHSIFT_LIVE_CARGO_LOG=1` it also runs `cargo test` for the two feature-gated binaries on the machine it is on and
-  parses that real log; the CI `check` job runs it with that variable on ubuntu, macos and windows (new step "Cargo test log parser"), so the parser is proved on each operating system's real output, not only on fixtures.
-  `tests/scripts/run-all.sh` picks it up (14 script tests). `sdist-locked.sh` itself still runs only in the Linux `packaging` job.
+### Security
+
+- S1-126 (TD-123): `cargo package --workspace --locked` is run twice by every rehearsal and by the publish build and the two `.crate` files must be byte-identical (on macOS, in every local run: identical; the digests are in the rehearsal report and in `evidence/sprint-7/D3/gates-s7.log`, and they change whenever the README changes, since each crate carries it); the publish job
+  compares the re-packaged digests with the signed manifest before `cargo publish`. If the two runs ever differ, the rehearsal fails and the crates must leave the signed set.
+- S1-127 (R4): no key is placed in an application trust set; `docs/release-keys.json` is read only by `release-tool verify` and the publish job, and holds no key today. R1 and R2: the rehearsal shows that the test key cannot sign a `-release` id and that the test-key flag with a release id is a usage error.
+- No workflow of this repository reads a secret except `publish.yml`'s two registry tokens, inside the step env of its publish job; `id-token` and `attestations` are held only by that job (and by the Pages deploy job); no workflow uses `pull_request_target` or `workflow_run`.
+- Dependabot: 0 open updates for this repository on 20 Nov 2026 (read with `gh`); the lockfile changed only by the four package version lines.
+- Sprint 7 fix round 1 (D3, FR1): BUG-S1-S7-03 / S1-131: the job that holds the registry tokens compiles nothing. `publish.yml` packages and publishes the crates with `cargo package --workspace --locked --no-verify` and `cargo publish --workspace --locked --no-verify`; the re-package and the digest comparison against the signed manifest are one step with no
+  token, the very next step publishes (nothing between them), both come before the third-party PyPI action (the order is now npm, the crates, PyPI), and a last step, `publish-guard.sh crate-index`, reads crates.io's sparse index until both crates show the signed sha256 (it asks again for up to 10 minutes on a 404, a server error or a missing line, and fails at once on a different
+  checksum, a yanked entry, two lines or a malformed one). `scripts/release/build-artefacts.sh` packages twice with the build check and twice with `--no-verify` and fails unless all four give the same bytes (on macOS: identical, the digests are in the rehearsal log), so the digest the publish job compares is the one that was signed; `publish-dry-run.sh` runs the workflow's command with `--dry-run`.
+  `tests/scripts/publish-guard.sh` grew to 117 checks (the index check with stand-ins for `curl` and `sleep`), and rules M of `ci-policy.sh` pin the order and the flags, each with a mutation.
+- Sprint 7 fix round 1 (D3, FR1): TD-125: no `vars.` in any job-level `if` (an environment's variables are not visible there); the armed check is step 2 of the publish job, right after the checkout, and `RELEASE_KEY_ID` is step 3; both variables are read once each, in step env of the publish job; `docs/RELEASING.md` sets both with `--env release` and arms just before the approval.
+- Sprint 7 fix round 1 (D3, FR1): S1-135: `docs/RELEASING.md` step 11 tells the owner to compare the npm tarball, the sdist and the two crates with an independent build of the same commit (the push run's `REHEARSAL-test-key-NOT-A-RELEASE-glyphsift-ubuntu-latest-<sha>` artefact, or a local `scripts/release/rehearse.sh` with the pinned tools) before signing, and says that wheels compare only between the two CI builds.
+
+### Deferred
+
+- A real signing key, the reserved names, the `release` environment, its variables and secrets, the tag and the publish: the owner's (`docs/RELEASING.md`). npm trusted publishing (it needs npm 11.5.1 or later, TD-122) is decided after the first token publish.
+- The 8 GB laptop benchmark (not measured on 8 GB) and everything that needs it; scripts other than Devanagari (TD-80); OCR (TD-72).
+- The three-operating-system proof of the rehearsal, the Windows junction case and the Windows install checks: only the owner's push can show them (`docs/release.md`, "Sprint 7: what only CI can prove").
 
 ## [0.1.2] - 2026-11-19 (untagged)
 

@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a change or an addition (a rule, a script, a binding, a doc)
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        glyphsift is small and deliberate (see the Limitations section of the README and CONTRIBUTING.md). A request is easier to weigh when it says what problem it solves
+        and how we would know it works. Please redact anything private before you submit; this form is public.
+  - type: checkboxes
+    id: no-real-documents
+    attributes:
+      label: No real documents
+      description: This issue tracker is public. Documents from a bank, a court, a hospital or an identity card must never be attached or pasted.
+      options:
+        - label: "I have not attached any real, confidential or personal document (bank, legal, medical, identity). Any sample is synthetic or public."
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the text you are trying to check, in your own words and without pasting it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: How would we test it?
+      description: Every change here starts with a failing test (CONTRIBUTING.md). A synthetic input and the output you expect is enough.

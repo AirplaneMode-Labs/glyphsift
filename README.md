@@ -5,16 +5,28 @@ Devanagari grapheme-cluster validator with a Rust core, a WASM build for the bro
 wheel and a CLI. Sixteen structural rules, a document score from 0 to 1, per-line scores, a per-chunk
 pass/hold gate, no model and no network.
 
+Live demo: https://airplanemode-labs.github.io/glyphsift/
+
 Part of [Airplane Mode Labs](https://github.com/AirplaneMode-Labs), an open-core, offline-first,
 browser-native AI infrastructure lab. Package names use the placeholder scope `@airplanemode` /
 crate and package names `glyphsift` until the handles are reserved; nothing is published yet.
 
 ## Status
 
-Sprint 6 (19 Nov 2026): Working: everything from Sprint 5, plus a short page on what glyphsift measures, linked from the demo and built only from the committed benchmark: the score falls as synthetic noise rises (0 of 60 series rise), the gate threshold is 975000 ppm, and native, Python and WebAssembly give the same bytes on 13 samples and 200 gate cases; the shipped source package now runs its corrupt-feature tests; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).
+Sprint 7 (20 Nov 2026): Working: everything from Sprint 6, plus the release path rehearsed in code: version 0.1.3 builds its npm tarball, wheel, source package and two packaged crates the way a release would, a new CI job (first run after the push) installs each built file into a fresh project and checks a clean and a corrupted Devanagari sample against the committed reports, a test-signed rehearsal manifest verifies only with an explicit flag, and a two-minute quick start for the command line, Python and Node is run by a test; the score, the gate and the benchmark did not change (0 of 60 series rise). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only), a published package or wheel, a signing key or a tag, 8 GB figures (not measured on 8 GB).
 
-In more detail, for the Sprint 6 release candidate: glyphsift **0.1.2 is a release candidate, not tagged** (0.1.0 and 0.1.1 were never tagged; 0.1.2
-supersedes them, TD-69). New in Sprint 6, none of it a change to the scoring (the benchmark CSV and the reports are byte-identical): a short page,
+In more detail, for the Sprint 7 release candidate: glyphsift **0.1.3 is a release candidate, not tagged** (0.1.0, 0.1.1 and 0.1.2 were never tagged; 0.1.3 supersedes them, TD-107). Sprint 7 is release readiness, so that
+publishing becomes a short list of the owner's own steps ([docs/RELEASING.md](docs/RELEASING.md)); it changes no rule, weight, report, gate or benchmark byte. New: `scripts/release/rehearse.sh`, which the new CI job `release-rehearsal (<os>)`
+runs on Linux, macOS and Windows in place of the old `wheels` job. It builds the npm tarball, this platform's wheel, on Linux the source package and the two packaged crates (`cargo package --workspace --locked`, packaged twice, the bytes
+equal, S1-126, and twice more with `--no-verify`, the way the publish job packages them, the bytes equal to the verified ones, S1-131), installs each built file (never the source tree) into an empty npm project, a fresh `.venv` or a fresh cargo root with no sibling repository and no registry, and checks that a clean and a corrupted Devanagari
+sample give the bytes committed under `tests/determinism`; the CLI is built by `cargo install --offline --locked` from the unpacked packaged crates, with `glyphsift-core` taken from the packaged file. It then signs a
+`glyphsift-rehearsal` manifest with the published RFC 8032 test key, verifies it with the explicit flag and shows the six refusals (`test_key_refused` without the flag, `no_trusted_key` against the committed, empty
+`docs/release-keys.json`, and four more). Also new: the release tool vendored from runtime's spec (`scripts/release/release-tool.mjs`, spec 0.6.1, pinned in `scripts/release/VENDORED.json`, with its 36 shared vector cases, one of which, the junction case, runs on Windows only);
+`.github/workflows/publish.yml`, which only the owner can start (`workflow_dispatch` on main, behind the `release` environment, an armed variable, the owner's signed manifest and three bindings) and which nobody has run; the
+two-minute quick start below, run by `tests/scripts/quickstart.sh`; issue forms and a contributing guide. Everything here is proven on this Mac (macOS arm64) and by tests that read the workflow files; the three-operating-system
+runs happen after the owner's push. Not yet: a real signing key, reserved names, a tag, a published package, an 8 GB figure (not measured on 8 GB), scripts other than Devanagari.
+
+Sprint 6 (0.1.2, superseded by 0.1.3) brought, none of it a change to the scoring (the benchmark CSV and the reports are byte-identical): a short page,
 [docs/what-glyphsift-measures.md](docs/what-glyphsift-measures.md), that says what the score is and quotes only numbers read from committed files (a test,
 `tests/docs_numbers.py`, re-reads each one), linked from the demo footer as text; the shipped source package now runs its two corrupt-feature test files
 (`cargo test --locked --no-fail-fast -p glyphsift-core --features corrupt` from the unpacked sdist: S1-118, BUG-T2-S5-15 and -16, with
@@ -36,6 +48,68 @@ Hindi answers built on gated text. What is open before a tag is in [docs/release
 operating systems for the Sprint 5 commit after the owner's push, the 8 GB laptop benchmark (not measured on 8 GB), signed
 artifacts, the tag, publishing and the write-up.
 
+## Try it in two minutes
+
+Score a clean and a noisy Devanagari line from the command line, from Python and from Node, using the files this clone builds. There is no model, and nothing is published, so every command builds from the clone. The `quickstart:setup` block downloads Rust crates from crates.io once (57 registry crates in `Cargo.lock`), plus any tool you install from the list below; the install and run blocks run offline with no model, key or account. The clone needs Rust 1.98 with the wasm32 target, `wasm-bindgen` 0.2.129 and `wasm-opt` (`scripts/install-wasm-tools.sh` installs both), Node 22, Python 3.9 or later and maturin 1.16.0 on your `PATH`. Prefer a browser? The live demo needs no install: https://airplanemode-labs.github.io/glyphsift/. `tests/scripts/quickstart.sh` extracts every block below and runs it from the built files in a fresh directory, so this section cannot go out of date. In the blocks, `$REPO` is the path of your clone (`export REPO=$PWD` from its root). On Windows, run the blocks in Git Bash, reading `.venv/bin/` as `.venv/Scripts/` and `python3` as `python`. No 8 GB figure is claimed here (not measured on 8 GB).
+
+```sh
+git clone https://github.com/AirplaneMode-Labs/glyphsift.git
+```
+
+From the root of the clone, build the command-line binary, the npm tarball and the Python wheel:
+
+```sh quickstart:setup
+cargo build --release --locked -p glyphsift-cli
+scripts/build-wasm.sh
+PACKAGE_NPM_PACK_ONLY=1 scripts/package-npm.sh
+maturin build --release --locked -m crates/glyphsift-py/Cargo.toml -o dist/wheels
+```
+
+In a new empty directory outside the clone, install the wheel into a fresh virtual environment and the tarball into a fresh npm project (both offline):
+
+```sh quickstart:install
+python3 -m venv .venv
+.venv/bin/python -m pip install --no-index --no-deps "$REPO"/dist/wheels/glyphsift-0.1.3-*.whl
+npm init -y > /dev/null
+npm i "$REPO/dist/npm/airplanemode-glyphsift-0.1.3.tgz" --ignore-scripts --offline --no-audit --no-fund
+```
+
+Two small files, one for Node and one for Python, each scoring a clean line and a line with a replacement character (what a broken extraction leaves behind):
+
+```js quickstart:file=quickstart.cjs
+const { score_ppm, gate } = require("@airplanemode/glyphsift");
+for (const [name, text] of [["clean", "नमस्ते।"], ["noisy", "कखग\ufffd"]]) {
+  console.log(name, score_ppm(text), JSON.parse(gate(text)).verdict);
+}
+```
+
+```py quickstart:file=quickstart.py
+import glyphsift, json
+
+for name, text in (("clean", "नमस्ते।"), ("noisy", "कखग\ufffd")):
+    print(name, glyphsift.score_ppm(text), json.loads(glyphsift.gate(text))["verdict"])
+```
+
+Run both, then the command line on the noisy line:
+
+```sh quickstart:run
+.venv/bin/python -I quickstart.py
+node quickstart.cjs
+printf 'कखग\357\277\275' | "$REPO"/target/release/glyphsift gate -
+```
+
+You should see exactly this (a score is parts per million of clean clusters; `hold` means below the gate's default threshold of 975000, `pass` means at or above it):
+
+```text quickstart:expect
+clean 1000000 pass
+noisy 750000 hold
+clean 1000000 pass
+noisy 750000 hold
+{"spec":"glyphsift.gate/0.1","scored":true,"script":"devanagari","devanagari_ppm":1000000,"ppm":750000,"threshold_ppm":975000,"verdict":"hold"}
+```
+
+The same call is in the browser demo (a Gate tab) with the heatmap. glyphsift checks structure only, on Devanagari only; see [Limitations](#limitations) before you rely on a score.
+
 ## Install
 
 Not published yet: the npm scope @airplanemode and the PyPI and crates.io names are not reserved. The commands below were proven from locally built artifacts on macOS arm64 (an npm pack tarball installed offline into a fresh empty directory, a wheel installed into a fresh venv); publishing to the registries is the owner's step.
@@ -43,7 +117,7 @@ Not published yet: the npm scope @airplanemode and the PyPI and crates.io names 
 From a clone of this repository (Rust 1.98 comes from `rust-toolchain.toml`):
 
 ```sh
-# Command line: installs the `glyphsift` binary (0.1.2) under <dir>/bin. The RUSTFLAGS prefix keeps your home
+# Command line: installs the `glyphsift` binary (0.1.3) under <dir>/bin. The RUSTFLAGS prefix keeps your home
 # and checkout paths out of the binary (optional; scripts/remap-paths.sh sets the same flags for the build scripts)
 RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/glyphsift" cargo install --path crates/glyphsift-cli --locked --root <dir>
 
@@ -52,34 +126,35 @@ RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.ru
 # uv, maturin and mypy from tools/ci/requirements.txt, pinned by hash: python -m pip install --require-hashes
 # --no-deps --only-binary=:all: -r tools/ci/requirements.txt, then GLYPHSIFT_TOOLS_VENV=<that venv>)
 . scripts/remap-paths.sh && uvx maturin@1.16.0 build --release --locked -m crates/glyphsift-py/Cargo.toml -o target/wheels
-python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl
-uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl
+python3 -m venv venv && venv/bin/pip install --no-index --no-deps target/wheels/glyphsift-0.1.3-cp39-abi3-macosx_11_0_arm64.whl
+uv venv uvenv && uv pip install --offline --no-index --no-deps --python uvenv/bin/python target/wheels/glyphsift-0.1.3-cp39-abi3-macosx_11_0_arm64.whl
 
 # npm package @airplanemode/glyphsift (WASM, Node and browser): packed, then installed offline into an empty directory
 scripts/install-wasm-tools.sh    # wasm-bindgen 0.2.129 and binaryen from digest-pinned release binaries (default ~/.local/glyphsift-tools)
-scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.2.tgz
-mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.2.tgz --ignore-scripts --offline --no-audit --no-fund
+scripts/build-wasm.sh && scripts/package-npm.sh      # dist/npm/airplanemode-glyphsift-0.1.3.tgz
+mkdir app && cd app && npm init -y && npm i ../dist/npm/airplanemode-glyphsift-0.1.3.tgz --ignore-scripts --offline --no-audit --no-fund
 
 # The source distribution: builds with maturin, prunes its Cargo.lock to its own workspace, and proves cargo build --locked from it
-scripts/package-sdist.sh      # dist/sdist/glyphsift-0.1.2.tar.gz
+scripts/package-sdist.sh      # dist/sdist/glyphsift-0.1.3.tar.gz
 
 # The demo: demo/dist/ (runs build-wasm.sh first)
 scripts/build-demo.sh
 ```
 
-What was proven, and where: the wheel is `glyphsift-0.1.2-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
+What was proven, and where: the wheel is `glyphsift-0.1.3-cp39-abi3-macosx_11_0_arm64.whl`, platform tag
 `macosx_11_0_arm64`, and it installed with `python3 -m venv` plus `pip install --no-index --no-deps` and with
 `uv venv` plus `uv pip install --offline --no-index --no-deps`, each followed by a `python -I` call that printed
-750000 for `score_ppm('कखग\ufffd')` and checked `gate()` (`evidence/sprint-6/D3/green/package-python.log`, rebuilt for 0.1.2). **Linux and Windows wheels and an sdist were built by CI**
+750000 for `score_ppm('कखग\ufffd')` and checked `gate()` (`evidence/sprint-7/D3/green/package-python.log`, rebuilt for 0.1.3). **Linux and Windows wheels and an sdist were built by CI**
 (run 43667702791 at 5ff0c47, the `wheels` job, read on 18 Nov 2026: a `manylinux_2_17` wheel through zig, a `win_amd64` wheel and an
 sdist, each wheel installed into a fresh venv with `--no-index` and answering `ppm 1000000`; they are workflow artifacts kept for
 7 days, not releases, and `docs/release.md` lists what that run proved and what it did not). The sdist built by `scripts/package-sdist.sh` builds
 `cargo build --locked` from its own pruned `Cargo.lock` (61 lock entries pruned to the 36 its workspace needs, same versions and
-checksums: `evidence/sprint-6/D3/green/package-sdist.log`; `tests/scripts/sdist-locked.sh` also runs `cargo test --locked --features corrupt` from the unpacked tree and counts the corrupt tests that ran). The npm tarball installed offline from an empty
+checksums: `evidence/sprint-7/D3/green/package-sdist.log`; `tests/scripts/sdist-locked.sh` also runs `cargo test --locked --features corrupt` from the unpacked tree and counts the corrupt tests that ran). The npm tarball installed offline from an empty
 cache with install scripts off; `npm ls` showed exactly that one package, and a Node call and a bundler-free
-page in installed Chrome gave the report `glyphsift check` and the verdict `glyphsift gate` print (`evidence/sprint-6/D3/green/package-npm.log`). The CLI
+page in installed Chrome gave the report `glyphsift check` and the verdict `glyphsift gate` print (`evidence/sprint-7/D3/green/package-npm.log`). The CLI
 installed with `cargo install --path` and ran with every documented exit code
-(0.1.1, `evidence/sprint-5/D3/green/cli-install.log`; not repeated for 0.1.2). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
+(0.1.1, `evidence/sprint-5/D3/green/cli-install.log`; not repeated for 0.1.3). In Sprint 7 the CLI was also built by `cargo install --offline --locked` from the unpacked packaged `.crate` files, with
+`glyphsift-core` taken from the packaged file and nothing from a registry, and printed the committed report and gate bytes for a clean and a corrupted sample (`evidence/sprint-7/D3/green/rehearse-macos-run1.log`). The wheel, the tarball and each crate carry `LICENSE` and `NOTICE`. The wheel and the tarball contain no test data,
 no source map, no install script and no file over 5 MB. The source packages `cargo package --list` would upload
 do include each crate's `tests/` (`glyphsift-core` ships `tests/cases/devanagari.toml`, invented strings, and `tests/*.rs`;
 `glyphsift-cli` ships `tests/*.rs`) so the crates can be tested from the registry; that is intended. Third-party crates
@@ -129,7 +204,7 @@ printf 'hello' | glyphsift gate - --threshold-ppm 900000
   OCR-noise family to clean text on standard input (`--list-families` prints the 19 names and `mixed`).
 - `glyphsift bench --corpus <path> --seeds 1,2,3 --csv <path> --svg <path>` runs the score-versus-noise
   benchmark and writes the CSV and the chart; `glyphsift bench --verify <csv>` re-checks an existing CSV.
-- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.2) exit 0.
+- `glyphsift --help`, `glyphsift <command> --help` and `glyphsift --version` (0.1.3) exit 0.
 
 Exit codes, the same for every command:
 
@@ -373,6 +448,9 @@ Browser figures other than the demo line, lines per second in the browser, and m
 
 ## Limitations
 
+- **The release path is rehearsed, not performed.** Since Sprint 7 CI builds the artefacts as a release would, installs each into a fresh place and signs and verifies a rehearsal manifest, but only with the
+  published RFC 8032 test key, which proves the tooling and nothing else. There is no real signing key, no reserved package name, no tag and no registry release: nothing is published. `docs/release-keys.json` holds no key, so no release signature verifies yet.
+  The Linux and Windows runs of the rehearsal happen only after the owner's push; on this Mac (macOS arm64) it ran twice with byte-identical output.
 - **Structural checks only.** The validator judges the order and combination of code points inside
   one cluster. It has no dictionary and no language model: a well-formed nonsense word scores clean, and
   so does a visually plausible OCR confusion (`ब` for `व`).
@@ -516,7 +594,12 @@ scripts/package-sdist.sh                       # builds the sdist, prunes its Ca
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked   # the CI `doc` job
 scripts/package-python.sh                      # builds the wheel, installs it into a venv from pip and from uv, runs mypy --strict on the stubs
 scripts/package-npm.sh                         # packs the npm tarball and installs it offline into an empty directory (needs dist/wasm)
+GLYPHSIFT_TOOLS_VENV=<hashed tools venv> scripts/release/rehearse.sh   # the release rehearsal CI runs on three systems (builds, installs each artefact fresh, signs and verifies with the public test key, proves the refusals)
+tests/scripts/quickstart.sh                    # runs the README's "Try it in two minutes" blocks from the built files in a fresh directory
 ```
+
+The hashed tools venv is `python3 -m venv V && V/bin/python -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt`; locally `rehearse.sh` can also use a `maturin` of exactly the pinned version on `PATH`.
+`REHEARSE_ALLOW_DIRTY=1` lets `cargo package` read an uncommitted tree for a local run (CI never sets it).
 
 Browser checks of the built demo and of the installed npm package, in installed Chrome (Playwright 1.65.0 is
 not a dependency of glyphsift; `tools/playwright` holds its lockfile, and `npm ci` pins every package by integrity hash):

@@ -10,8 +10,8 @@ No version of glyphsift has been released. Until the first tag, security fixes l
 
 ## Reporting a vulnerability
 
-Email jtushar53@gmail.com with a description, a reproducer and the commit you tested. You will get
-an acknowledgement within 7 days.
+Report a vulnerability privately, never in a public issue or a pull request. Email jtushar53@gmail.com with a description, a reproducer and the commit you tested. You will get
+an acknowledgement within 7 days. (GitHub private vulnerability reporting for this repository is a setting only the owner can turn on; until it is on, email is the route.)
 
 We follow a 90-day coordinated disclosure window: we aim to ship a fix and publish an advisory
 within 90 days of the report, and ask reporters to hold details until then (or until the fix is

@@ -1,0 +1,61 @@
+name: Bug report
+description: glyphsift gave a wrong score, a wrong verdict, an error, or does not do what the README says
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. Please redact anything private before you submit: glyphsift scores text on your own machine and sends nothing anywhere, and this
+        form is public. Never paste a real document. A short synthetic string that reproduces the problem is the most useful thing you can give us.
+        Do not report a security problem here: see SECURITY.md (use the link on the "new issue" page).
+  - type: checkboxes
+    id: no-real-documents
+    attributes:
+      label: No real documents
+      description: This issue tracker is public. Documents from a bank, a court, a hospital or an identity card must never be attached or pasted.
+      options:
+        - label: "I have not attached any real, confidential or personal document (bank, legal, medical, identity). Any sample is synthetic or public."
+          required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did you see it?
+      options:
+        - Command line (glyphsift check, gate, corrupt or bench)
+        - Python wheel
+        - npm package (Node)
+        - npm package (browser)
+        - The live demo
+        - The documentation or the quick start
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of glyphsift --version, glyphsift.__file__'s distribution version, or the package.json version. Nothing is published yet, so say which clone and commit you built."
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: "for example macOS 15 arm64, Windows 11 x64, Ubuntu 24.04 x64"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened?
+      description: The score in parts per million, the gate verdict (pass, hold, not_scored) or the error text, with the input as a short synthetic string (escape unusual code points as U+XXXX).
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands, from a clone. If you can, add a case for crates/glyphsift-core/tests/cases/devanagari.toml (see CONTRIBUTING.md).
+    validations:
+      required: true
