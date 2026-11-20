@@ -22,10 +22,10 @@ repository, and no secret ever goes on a command line or into a file you commit.
 
 ### 1. Measure the 8 GB laptop figure
 
-Follow "Owner must", row 2, in [release.md](release.md) on the 8 GB Windows laptop with no GPU, then put the figures in the README Benchmarks table in the "8 GB Windows no-GPU laptop" column and cite where the raw output is kept.
+Follow "Owner must", row 2, in [release.md](release.md) on the 8 GB Windows laptop with no GPU. Commit the raw files first (the commands write them with their date, commit and machine; [benchmarks/README.md](benchmarks/README.md) says how to list them), then put the figures from those files in the README Benchmarks table in the "8 GB Windows no-GPU laptop" column.
 
 ```sh
-node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift
+node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift --json docs/benchmarks/throughput-8gb.json
 ```
 
 Why only you: the machine is yours. Every cell for that laptop reads "not measured on 8 GB" until you fill it, and no figure measured on another machine may stand in for it.

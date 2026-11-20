@@ -114,6 +114,8 @@ it, both measured here with the default threshold (`crates/glyphsift-core/tests/
 below): the benchmark corpus corrupted at each level, split back into lines and cut into chunks of one, three and eight lines (the
 sizes of a page cut into pieces), seeds 1 to 3; no chunk was ever `not_scored`, because the noise keeps well over half of the
 letters Devanagari; and nothing was held at p=0.
+The rows of both tables, and the counts quoted in the prose after them, are committed as raw data in `docs/benchmarks/gate-holds.json` (date, commit, machine and the command that regenerates them, `node scripts/record-benchmarks.mjs gate-holds`);
+`tests/docs_numbers.py` checks this page against that file, and the score table above against `docs/benchmarks/score-vs-noise.csv`.
 
 **Hold counts out of 288 chunks of three lines** (96 chunks times three seeds, default threshold, by noise level p):
 

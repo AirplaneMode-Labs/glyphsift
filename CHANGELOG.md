@@ -12,6 +12,9 @@ Sprint 7 (20 Nov 2026, untagged), glyphsift **0.1.3** (TD-107): release readines
 Nothing is published, signed or tagged. The scoring, the weights, the report spec (`glyphsift.report/0.2`), the gate rules, the benchmark CSV and SVG and every determinism sample are byte-identical to 0.1.2: `bench --verify` passes. Sprint 7 is an
 owner-requested addition; it has no row in the plan documents and creates no gate-1 evidence.
 
+Owner decision, 20 Nov 2026: every benchmark glyphsift quotes is published in this repository as a raw file with its date, commit, machine and method. No rule, weight, report, gate or determinism byte changed: the score CSV and SVG are byte-identical
+to 0.1.3 (`bench --verify` passes, three fresh `bench` runs equal the committed files), and nothing was measured on an 8 GB laptop (not measured on 8 GB).
+
 ### Added
 
 - `release-rehearsal (<os>)` (D3-02, TD-106, TD-118), a CI job on ubuntu, macos and windows that replaces the Sprint 4 `wheels` job (`wheel and sdist (<os>)`). `scripts/release/rehearse.sh` builds the artefacts as a release would (`scripts/release/build-artefacts.sh`: the npm
@@ -36,6 +39,14 @@ owner-requested addition; it has no row in the plan documents and creates no gat
 - `docs/writeup-0.1.3-draft.md`, marked draft, not published (D3-06).
 - `tests/scripts/cargo-test-log.sh` (added after the Sprint 6 push, folded in from the old [Unreleased] block; tests first, red then green): the self-test of the colour- and Windows-safe cargo log parser on the line format of each runner, and with `GLYPHSIFT_LIVE_CARGO_LOG=1` on the real `cargo test` log of the machine it runs on
   (the `check` job runs it on ubuntu, macos and windows). `tests/scripts/run-all.sh` picks it up.
+- `docs/benchmarks/` with a `README.md` index (what each file is, its date, commit and machine, the exact command that reproduces it, the standing line that nothing here is measured on an 8 GB laptop unless a file says so, and the list of figures whose raw data is not kept) and eight raw files,
+  all measured at 3c0bb4d on 20 Nov 2026 on the Apple M5 Pro, 48 GB except the CI record: `score-vs-noise.csv` (a byte-identical copy of `docs/score-vs-noise.csv`, which the tests, the chart and the source package still read) with `score-vs-noise.provenance.json` (SHA-256 of the CSV and SVG, three byte-identical fresh runs, `bench --verify` PASS, the bench
+  wall-clock times), `throughput-m5pro-48gb.json` (all five runs of every measurement), `demo-1mib-m5pro-48gb.json` (one run in headless Chrome 157.0.8103.80), `wasm-linearity-m5pro-48gb.json` (ratio 1.99), `gate-holds.json` (the hold counts of `docs/gate.md`), `joiner-sites.json` (the README's 599 of 807) and
+  `ci-run-43667702791.json` (the sizes CI run 43667702791 printed for its wheels, sdist and npm tarball, copied from its logs and artifact list before the artifacts expire on 22 Nov 2026).
+- The commands that write them: `scripts/lib/bench-provenance.mjs` (the shared envelope: schema, date, commit, whether the build inputs were modified, machine as CPU model and RAM only, environment, method, command, data); `--json` on `scripts/throughput.mjs`; `--bench-json` on `tests/wasm/run_wasm_safety.mjs` and `tests/demo/check_demo.mjs` (both write only when every check passed);
+  `scripts/record-benchmarks.mjs score-vs-noise|joiner-sites|gate-holds`.
+- `tests/scripts/benchmarks-raw.sh` (148 checks): the envelope, the index, a 40-hex commit, `build_inputs_modified` false, a machine label that is model and RAM only, no builder path, no file over 5 MB, the CSV copy byte-identical, the SHA-256 and row counts in the provenance file, the sizes of `docs/release.md` against the CI file; and nine mutations of a scratch copy that each turn it red.
+- The demo footer links `docs/benchmarks/` on GitHub ("Benchmark raw data", a plain link, no request, the CSP unchanged); `tests/demo/check_demo.mjs` pins the link (250 checks).
 
 ### Changed
 
@@ -46,6 +57,12 @@ owner-requested addition; it has no row in the plan documents and creates no gat
 - `.gitignore`: `/dist-release/`, `/dist-release-report/` and `*.crate`.
 - `docs/release.md`: the definition-of-done rows say what the rehearsal and the publish workflow now prove and what stays open (the 8 GB figure, the real key, reserved names, the configured environment, publishing, the tag, the write-up).
 - Sprint 7 fix round 1 (D3, FR1-REVENDOR): the release tool re-vendored from runtime's re-landed spec 0.6.1 (D1/RELANDED-FR1.txt): `scripts/release/release-tool.mjs` sha256 `81583057...` (was `57c2af90...`), `scripts/release/VENDORED.json` updated, the 31 shared vectors unchanged byte for byte (`diff -r` against runtime's `spec/vectors/release` is empty); `tests/scripts/release-tool-vendored.sh` (25 checks) and `release-tool-cases.mjs` (35 of 35 on macOS; the junction case is Windows only) pass, and two sign phases with the same `SOURCE_DATE_EPOCH` are byte-identical.
+- The README's throughput figures are re-measured and replace the Sprint 3 and Sprint 5 ones, whose logs record no commit (raw data not kept): native `check` 66 ms (was 61 and 67), `validate()` 238 ms (was 220 and 234), `score_ppm()` 81 ms (was 74 and 80), `gate()` 40 ms (was 40), native `gate` 17 ms (was 17), the demo 1,602 ms (was 1,462, one run);
+  the 5,000-mark against 2,500-mark ratio is quoted as 1.99 (was "about twice"); the benchmark takes 546 ms (was "about one second"). The 1 MiB input is the same file (SHA-256 `3336ba4c...`). The figures of earlier sprints that stay in `CHANGELOG.md`, `docs/release.md` and `docs/benchmarks/README.md` are marked "raw data not kept".
+- `tests/docs_numbers.py` also re-reads, from `docs/benchmarks/`, every row of the README's score tables (mixed mean, minimum and maximum, the twelve triggering families, the seven blind spots, both ways), the recall statement, "599 of 807", "285 of 288", the linearity ratio, every row and prose count of the two hold tables of `docs/gate.md`, and every `N ms` figure in the README, the CHANGELOG
+  and `docs/*.md` (a figure with no matching value fails unless its paragraph says "raw data not kept"); it now reads the benchmark CSV from `docs/benchmarks/score-vs-noise.csv` and requires it to equal `docs/score-vs-noise.csv` byte for byte.
+- `tests/scripts/readme-claims.sh` section C reads the committed raw files instead of a log outside the repository, so it runs on every checkout, CI included (it used to print "not applicable" there): the five timings, the demo line, the table header's input, machine and operating system, the commit, date, Node and Chrome versions, and the benchmark time.
+- README Benchmarks and Limitations, `docs/gate.md`, `docs/what-glyphsift-measures.md`, `docs/release.md` and `docs/writeup-0.1.3-draft.md` point at `docs/benchmarks/`; the owner's 8 GB steps in `docs/release.md` and `docs/RELEASING.md` produce raw files (`--json`, `--bench-json`) that are committed before the README column is filled.
 
 ### Fixed
 
@@ -177,7 +194,7 @@ benchmark CSV and SVG did not change: `bench --verify` passes and the reports ar
   (61 entries to 36, same versions and checksums) and the unpacked sdist is built `cargo build --locked`. Tests: `tests/scripts/sdist-locked.sh`.
 - `tests/scripts/release-doc.sh` (BUG-T3-S4-24, D3-03): row 6 of `docs/release.md` cites exactly one `gates-*.log`; the first CI run of the `wheels` job is recorded; one version everywhere.
 - A `doc` CI job, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` (BUG-T2-S4-22), and a wheel contents check (`tests/python/check_wheel.py`) on every platform's wheel in the `wheels` job.
-- `scripts/throughput.mjs` also times `gate()` and `glyphsift gate`: WASM `gate()` takes 40 ms on the 1 MiB corpus against 234 ms for `validate()` (Apple M5 Pro, 48 GB; not measured on 8 GB; `evidence/sprint-5/D3/green/throughput.log`).
+- `scripts/throughput.mjs` also times `gate()` and `glyphsift gate`: WASM `gate()` takes 40 ms on the 1 MiB corpus against 234 ms for `validate()` (Apple M5 Pro, 48 GB; not measured on 8 GB; `evidence/sprint-5/D3/green/throughput.log`, which records no commit: raw data not kept; superseded on 20 Nov 2026 by `docs/benchmarks/throughput-m5pro-48gb.json`).
 
 - Fix round 1 (TD-53, BUG-T2-S5-02 / T3-S5-02 / S1-111): `scripts/lib/confine.mjs`, pagetriage's output-path confinement ported unchanged apart from its header, with
   `tests/scripts/confine.test.mjs` (36 tests: the Windows rules through `path.win32` and an in-memory volume, real symlinks and hard links, a real junction on Windows; none skipped) and
@@ -193,20 +210,20 @@ benchmark CSV and SVG did not change: `bench --verify` passes and the reports ar
 
 - The workspace, every crate, `Cargo.lock`, the wheel and the npm package are version 0.1.1 (TD-43).
 - `docs/release.md` records the first CI run of the `wheels` job: run 43667702791 at 5ff0c47, read with `gh` on 18 Nov 2026, built a `manylinux_2_17` wheel (254,335 bytes), a `win_amd64` wheel (151,328), a macOS arm64
-  wheel (247,045) and an sdist (82,081), all green on 14 of 14 jobs, with what it did and did not prove. READMEs, the demo's not-yet box and the release checklist no longer say the Linux and Windows wheels are built only after the owner's push.
+  wheel (247,045) and an sdist (82,081) (these sizes are committed in `docs/benchmarks/ci-run-43667702791.json`), all green on 14 of 14 jobs, with what it did and did not prove. READMEs, the demo's not-yet box and the release checklist no longer say the Linux and Windows wheels are built only after the owner's push.
 - The CI `wheels` job builds its sdist with `scripts/package-sdist.sh`; the `packaging` job gives the script tests the hashed maturin (`GLYPHSIFT_TOOLS_VENV`).
 - `docs/RELEASING.md` no longer copies the `packaging` job (the copy had gone stale); it points at `ci.yml`.
 - The root README no longer contains the literal builder-path prefixes the artifact checks search for (the sdist ships a copy of it as the core crate's README).
 
 - `scripts/release-manifest.mjs` takes its output path through `confineOutput` and `writeConfined` (a temporary file opened with `wx` and renamed over the target) instead of a `startsWith` check and
   `writeFileSync`; it is again identical to pagetriage's script except the id and the licence constants. Exit codes are unchanged: 2 for every refusal, 1 for a write error, now one line and no stack trace.
-- The README's Status section starts with the exact Sprint 5 status line (the narrative follows it); the throughput figures were corrected to the log (gate 40 ms, validate 234, score_ppm 80, check 67) and
+- The README's Status section starts with the exact Sprint 5 status line (the narrative follows it); the throughput figures were corrected to the log (gate 40 ms, validate 234, score_ppm 80, check 67; that log records no commit: raw data not kept, superseded by `docs/benchmarks/`) and
   the 8 GB column of every benchmark table reads "not measured on 8 GB".
 - The `glyphsift-cli` `[[bin]]` is `doc = false`: `cargo doc --workspace --no-deps --locked` documents `glyphsift-core`, `glyphsift-py` and `glyphsift-wasm` and no longer warns "output filename collision".
 
 ### Fixed
 
-- Fix round 2 (BUG-T2-S5-12, BUG-T2-S5-14, T3-R1-03): the sdist ships `bench/corpus/clean.txt`, `docs/gate.md` and `docs/score-vs-noise.csv` (synthetic, own-authored; `scripts/add-sdist-files.py`) so `cargo test --locked` passes from the unpacked sdist, now checked by `tests/scripts/sdist-locked.sh` (110,435 bytes); `tests/determinism/run_gate_native.mjs` exits 1 with `cannot run <cli path>: <error>` when the CLI cannot be run instead of throwing a TypeError (`tests/scripts/gate-native-error.sh`); `docs/release.md` row 2 quotes "not measured on 8 GB".
+- Fix round 2 (BUG-T2-S5-12, BUG-T2-S5-14, T3-R1-03): the sdist ships `bench/corpus/clean.txt`, `docs/gate.md` and `docs/score-vs-noise.csv` (synthetic, own-authored; `scripts/add-sdist-files.py`) so `cargo test --locked` passes from the unpacked sdist, now checked by `tests/scripts/sdist-locked.sh` (an sdist of 110,435 bytes: a build fact read from that build, raw data not kept); `tests/determinism/run_gate_native.mjs` exits 1 with `cannot run <cli path>: <error>` when the CLI cannot be run instead of throwing a TypeError (`tests/scripts/gate-native-error.sh`); `docs/release.md` row 2 quotes "not measured on 8 GB".
 
 - S1-103 / BUG-T2-S4-21: the sdist could not build `--locked` from its own `Cargo.lock` (see Added).
 - BUG-T3-S4-24: `docs/release.md` row 6 cited a superseded log next to the current one (fixed at 5ff0c47, now pinned by a test).
@@ -214,7 +231,7 @@ benchmark CSV and SVG did not change: `bench --verify` passes and the reports ar
 - BUG-T2-S5-02 / T3-S5-02 / S1-111: `release-manifest.mjs` refused a differently-cased `DIST/` that is the same directory, accepted a symlink to a file inside `dist/` and wrote through it, wrote through a
   hard link to a file outside `dist/`, and printed a stack trace when `--out` used a file as a directory or a name too long (reproduced by T2 on macOS; red logs `D3-FIX1-02-*`).
 - BUG-T2-S5-08: `cargo doc` warned "output filename collision" between the `glyphsift-py` library and the `glyphsift` binary, so one crate's docs overwrote the other's.
-- T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differed from the log they cite (39 / 230 / 79 / 66 against 40 / 234 / 80 / 67); the 8 GB column said only "not measured".
+- T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differed from the log they cite (39 / 230 / 79 / 66 against 40 / 234 / 80 / 67; raw data not kept for both sets); the 8 GB column said only "not measured".
 - BUG-T1-S5-05 / T3-S5-04: the README did not start with the status line the demo and `site/data/demos.json` carry.
 - BUG-T2-S5-07 and T3-S5-05 are documented, not changed (see Added: "Packaging notes").
 

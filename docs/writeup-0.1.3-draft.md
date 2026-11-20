@@ -53,7 +53,7 @@ tool, a Python wheel and a WebAssembly package; there is no model and no network
 | Time to score a 1 MiB text in the browser demo | not measured on 8 GB |
 | Peak memory | not measured on 8 GB |
 
-The procedure is in [release.md](release.md), "Owner must", row 2. The README's Benchmarks tables carry Apple-silicon figures with that column filled in as "not measured on 8 GB".
+The procedure is in [release.md](release.md), "Owner must", row 2. The README's Benchmarks tables carry Apple-silicon figures with that column filled in as "not measured on 8 GB". The raw files behind every figure, each with its date, commit, machine and command, are in [benchmarks/](benchmarks/README.md).
 
 ## Install, today
 

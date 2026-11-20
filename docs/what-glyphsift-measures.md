@@ -71,3 +71,7 @@ with bytes committed in the repository: 13 sample texts (`tests/determinism/samp
 
 `python3 -I tests/docs_numbers.py` re-reads every number above from the files named here and fails if one differs; change a value in
 `docs/score-vs-noise.csv` and it fails.
+
+The raw results behind the figures in this repository, each with the date, the commit, the machine and the command that produced it, are committed in
+[docs/benchmarks/](https://github.com/AirplaneMode-Labs/glyphsift/tree/main/docs/benchmarks); its README says what each file is and how to reproduce it. The table above is read from
+`docs/benchmarks/score-vs-noise.csv`, a byte-identical copy of `docs/score-vs-noise.csv`.

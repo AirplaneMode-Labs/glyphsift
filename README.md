@@ -362,7 +362,11 @@ all of this is `evidence/sprint-3/D3/green-D3-07.log`, with screenshots `evidenc
 
 ![Document score versus synthetic OCR noise: the mixed family's mean score and min-to-max band, twelve triggering families as thin lines, seven none-directly families as dashed lines](docs/score-vs-noise.svg)
 
-Reproduce (about one second in release mode; the CSV and SVG come out byte-identical every time):
+Every figure in this section is read from a raw file committed under [docs/benchmarks/](docs/benchmarks/): each file records the date, the commit, the machine and the command that produced it,
+and [docs/benchmarks/README.md](docs/benchmarks/README.md) is the index with the command that reproduces each one. `tests/docs_numbers.py` and `tests/scripts/readme-claims.sh` fail when a table row or a timing in this README has no
+matching row in those files. Nothing in `docs/benchmarks/` was measured on an 8 GB laptop (not measured on 8 GB), and the Apple M5 Pro, 48 GB files are the development Mac's, not the target's.
+
+Reproduce (the release binary takes 546 ms, best of three runs on the Apple M5 Pro, 48 GB, process start included: `docs/benchmarks/score-vs-noise.provenance.json`; the CSV and SVG come out byte-identical every time):
 
 ```sh
 cargo run -p glyphsift-cli --release -- bench --corpus bench/corpus/clean.txt --seeds 1,2,3 --csv docs/score-vs-noise.csv --svg docs/score-vs-noise.svg
@@ -382,7 +386,9 @@ result. The command exits 1 on any violation of this criterion:
 "Triggering" means the family's "rules it should trigger" column in the corruption doc names rules
 (twelve families); the other seven are "none directly" and are reported, not gated. All four parts
 hold on the committed `docs/score-vs-noise.csv` (420 rows), and `glyphsift bench --verify
-docs/score-vs-noise.csv` re-checks them without regenerating.
+docs/score-vs-noise.csv` re-checks them without regenerating. The raw file under `docs/benchmarks/` is `score-vs-noise.csv`, a byte-identical copy of that CSV (the tests, the chart and the source package read
+`docs/score-vs-noise.csv`, so it stays where it is; a test fails if the two differ), with `score-vs-noise.provenance.json` recording the date, commit, machine, the SHA-256 of the CSV and the SVG,
+and three fresh runs that were byte-identical to them.
 
 **Regenerated in Sprint 3.** Restricting the joiner rule to Devanagari bases (BUG-T2-S2-07) changed 35 rows of the
 CSV: the 18 `joiner_inject` rows and the 17 `mixed` rows with p above 0. A joiner injected after a space or other
@@ -392,7 +398,8 @@ corpus did not (their SHA-256 are in the log). The committed CSV was `d20efc20..
 `cac89041...` and the SVG changed with it. Two fresh runs are byte-identical, the criterion holds, and the tables
 below were regenerated from the new CSV. Evidence: `evidence/sprint-3/D3/bench-s3.log` (hashes before the run, two runs
 with SHA-256 of the CSV and SVG, the comparison with the committed files, `--verify`). The Sprint 2 run, on the old
-rules, is `evidence/sprint-2/D3/bench-determinism.log`. Numbers below are from `docs/score-vs-noise.csv` and are
+rules, is `evidence/sprint-2/D3/bench-determinism.log`. Raw data for this before-and-after comparison (the 35 changed rows, the old file's hash): not kept in this repository; the old CSV is in git history and the logs are
+outside the repository. The regenerated CSV's SHA-256 is recorded in `docs/benchmarks/score-vs-noise.provenance.json`. Numbers below are from `docs/benchmarks/score-vs-noise.csv` and are
 scores, 1.0000 being clean; figures are rounded half-up to four decimals (score_ppm divided by 1,000,000).
 
 | Mixed family | p=0 | p=0.01 | p=0.02 | p=0.05 | p=0.1 | p=0.2 | p=0.4 | 8 GB Windows no-GPU laptop |
@@ -427,23 +434,22 @@ the damaged cluster, is 1.000000 for every family that declares a rule, in every
 
 | Throughput on about 1 MiB of the synthetic corpus (1,048,569 bytes, 12,888 lines, 273,779 clusters) | Apple M5 Pro, 48 GB (macOS 27.2.1) | 8 GB Windows no-GPU laptop |
 |---|---|---|
-| native `glyphsift check`, wall clock, best of 5 | 61 ms (one cold run 396 ms) | not measured on 8 GB |
-| WASM `validate()` in Node 22, best of 5 | 220 ms | not measured on 8 GB |
-| WASM `score_ppm()` in Node 22, best of 5 | 74 ms | not measured on 8 GB |
-| WASM `gate()` in Node 22, best of 5 (Sprint 5: the verdict only, no per-cluster report is built) | 40 ms | not measured on 8 GB |
-| native `glyphsift gate`, wall clock, best of 5 (Sprint 5) | 17 ms | not measured on 8 GB |
-| demo in Chrome: 1 MiB pasted, validated and rendered | 1,462 ms (headless Chrome, includes the 20,000-cluster heatmap) | not measured on 8 GB |
+| native `glyphsift check`, wall clock, best of 5 | 66 ms | not measured on 8 GB |
+| WASM `validate()` in Node 22, best of 5 | 238 ms | not measured on 8 GB |
+| WASM `score_ppm()` in Node 22, best of 5 | 81 ms | not measured on 8 GB |
+| WASM `gate()` in Node 22, best of 5 (the verdict only, no per-cluster report is built) | 40 ms | not measured on 8 GB |
+| native `glyphsift gate`, wall clock, best of 5 | 17 ms | not measured on 8 GB |
+| demo in Chrome: 1 MiB pasted, validated and rendered | 1,602 ms (headless Chrome, one run, includes the 20,000-cluster heatmap) | not measured on 8 GB |
 | peak memory | not recorded on the Mac | not measured on 8 GB |
 
-Command and evidence: `evidence/sprint-3/D3/throughput.log` (the native line is the release `glyphsift check` on the 1 MiB
-file, five runs including process start; the WASM lines are `validate()` and `score_ppm()` from `dist/wasm/nodejs` on the
-same text, best of five; the demo line is from `evidence/sprint-3/D3/green-D3-07.log`). The Apple-silicon column is the
-development Mac (Apple M5 Pro, 48 GB), not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2); it stays "not measured on 8 GB" until that run exists.
-The two `gate` rows are from `evidence/sprint-5/D3/green/throughput.log` (the same 1 MiB file and the same command with
-`gate()` added to `scripts/throughput.mjs`); the same run measured `validate()` at 234 ms, `score_ppm()` at 80 ms and the native
-`check` at 67 ms, 6 to 10 percent above the Sprint 3 figures above, which are kept as recorded (an interactive Mac, a different day:
-that is noise, not a change in the validator, whose scoring did not change). The gate is faster than `validate()` because it never
-builds the per-cluster report.
+Raw results: [`docs/benchmarks/throughput-m5pro-48gb.json`](docs/benchmarks/throughput-m5pro-48gb.json) holds all five runs of every measurement above (20 Nov 2026, commit 3c0bb4d, Apple M5 Pro, 48 GB, macOS 27.2.1, Node 22.22.3),
+from `node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift --json docs/benchmarks/throughput-m5pro-48gb.json` on the 1 MiB file that the one-line Node command in `docs/release.md`, row 2, writes
+(SHA-256 `3336ba4c...`, recorded in the file). The native lines are the release `glyphsift check` and `glyphsift gate` on that file, process start included, output to a pipe; the WASM lines are `validate()`, `score_ppm()` and `gate()`
+from `dist/wasm/nodejs` on the same text. The demo line is [`docs/benchmarks/demo-1mib-m5pro-48gb.json`](docs/benchmarks/demo-1mib-m5pro-48gb.json), one run of `tests/demo/check_demo.mjs --bench-json` in headless
+Google Chrome 157.0.8103.80, not a best of five. The Apple-silicon column is the development Mac (Apple M5 Pro, 48 GB), not the target. The 8 GB Windows no-GPU laptop column is the owner's step (docs/release.md, row 2); it stays
+"not measured on 8 GB" until a raw file from that machine is committed next to these. Earlier figures for the same measurements (Sprint 3 and Sprint 5: native `check` 61 and 67 ms, `validate()` 220 and 234 ms, `score_ppm()` 74 and 80 ms,
+`gate()` 40 ms, native `gate` 17 ms, the demo 1,462 ms) were read from logs outside this repository that record the machine but no commit: raw data not kept, superseded by the files above, which were measured at 3c0bb4d on 20 Nov 2026.
+The gate is faster than `validate()` because it never builds the per-cluster report.
 Browser figures other than the demo line, lines per second in the browser, and memory peak: not measured on 8 GB, and not recorded on the Mac either.
 
 ## Limitations
@@ -563,7 +569,7 @@ Browser figures other than the demo line, lines per second in the browser, and m
 - Inputs are treated as untrusted text: the validator never interprets them, allocates in
   proportion to their length, caps input at 4 MiB, and has no recursion over input. A 20,000-string
   fuzz test (native) and the same set in WASM (`tests/wasm/run_wasm_safety.mjs`) finish with no panic and
-  no trap, and a 5,000-mark run takes about twice as long as a 2,500-mark run (linear).
+  no trap, and a 5,000-mark run takes 1.99 times as long as a 2,500-mark run (linear is 2, quadratic 4; Apple M5 Pro, 48 GB, `docs/benchmarks/wasm-linearity-m5pro-48gb.json`).
 - The packed artifacts (wheel, npm tarball) hold only the compiled module, its type declarations, the README and the
   licence files: no install or lifecycle script, no dependency, no source map, no test data, no file over 5 MB.
   The wheel and the tarball were installed with scripts off, offline, from an empty cache.
@@ -600,6 +606,10 @@ tests/scripts/quickstart.sh                    # runs the README's "Try it in tw
 
 The hashed tools venv is `python3 -m venv V && V/bin/python -m pip install --require-hashes --no-deps --only-binary=:all: -r tools/ci/requirements.txt`; locally `rehearse.sh` can also use a `maturin` of exactly the pinned version on `PATH`.
 `REHEARSE_ALLOW_DIRTY=1` lets `cargo package` read an uncommitted tree for a local run (CI never sets it).
+
+Benchmarks (owner decision, 20 Nov 2026): every raw file under `docs/benchmarks/` is written by a command that [docs/benchmarks/README.md](docs/benchmarks/README.md) lists (`scripts/throughput.mjs --json`,
+`scripts/record-benchmarks.mjs`, `tests/wasm/run_wasm_safety.mjs --bench-json`, `tests/demo/check_demo.mjs --bench-json`), and a figure quoted in this README or in `docs/` without a matching row in those files fails
+`tests/scripts/benchmarks-raw.sh`, `tests/scripts/readme-claims.sh` or `tests/docs_numbers.py` (run by `tests/scripts/run-all.sh`).
 
 Browser checks of the built demo and of the installed npm package, in installed Chrome (Playwright 1.65.0 is
 not a dependency of glyphsift; `tools/playwright` holds its lockfile, and `npm ci` pins every package by integrity hash):

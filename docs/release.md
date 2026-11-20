@@ -18,7 +18,7 @@ the 8 GB laptop (not measured on 8 GB), the real key, the reserved names, the co
 | # | Definition-of-done item | Status | Evidence | Owner | Blocker-for-tag |
 |---|---|---|---|---|---|
 | 1 | Tests written before the implementation; CI green on Linux, macOS and Windows | Tests-first evidence Done (red logs older than green logs, `evidence/sprint-7/D3/red/` and `green/`); CI was green on all 15 jobs at f9e88f4 (the Sprint 6 head, run 44584716730, read with `gh` on 20 Nov 2026); the Sprint 7 commits have not run in CI, pending the main session's push | Owner (reads CI after the main session's push): `gh run list --repo AirplaneMode-Labs/glyphsift --limit 5`, then every job by name, the three `release-rehearsal (<os>)` jobs first ("Sprint 7: what only CI can prove" below). Tests first, each with its red log before its green log: Sprint 3 to 6 in `evidence/sprint-3/D3/` to `evidence/sprint-6/D3/`, Sprint 7 in `evidence/sprint-7/D3/` (the release policy rules, the rehearsal, the vendored tool and its 36 shared vectors, the publish guard, the quick start, the community files) | owner (reading CI) | yes |
-| 2 | Benchmark on an 8 GB laptop recorded in the README | Open | Owner must: run `node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift` and the browser run on the 8 GB Windows no-GPU laptop (steps under "Owner must", row 2). README [Benchmarks](../README.md#benchmarks) carries Apple-silicon figures (`evidence/sprint-3/D3/throughput.log`, and for the gate rows added in Sprint 5 `evidence/sprint-5/D3/green/throughput.log`, from `scripts/throughput.mjs`) next to an "8 GB Windows no-GPU laptop" column that reads "not measured on 8 GB". No figure for that machine exists and none was invented. The procedure is below | owner | yes |
+| 2 | Benchmark on an 8 GB laptop recorded in the README | Open | Owner must: run `node scripts/throughput.mjs corpus-1mib.txt --cli target/release/glyphsift` and the browser run on the 8 GB Windows no-GPU laptop (steps under "Owner must", row 2). README [Benchmarks](../README.md#benchmarks) carries Apple-silicon figures (the raw files [benchmarks/throughput-m5pro-48gb.json](benchmarks/throughput-m5pro-48gb.json) and [benchmarks/demo-1mib-m5pro-48gb.json](benchmarks/demo-1mib-m5pro-48gb.json), measured at 3c0bb4d on 20 Nov 2026 by `scripts/throughput.mjs --json` and `tests/demo/check_demo.mjs --bench-json`; the Sprint 3 and Sprint 5 logs they replace record no commit: raw data not kept) next to an "8 GB Windows no-GPU laptop" column that reads "not measured on 8 GB". No figure for that machine exists and none was invented. The procedure is below | owner | yes |
 | 3 | README limitations section | Done | README [Limitations](../README.md#limitations): structural checks only, synthetic text only, Devanagari only, what the joiner and tag rules do and do not flag, the benchmark proves a narrow thing, nothing published, one wheel platform, nothing signed, CI not yet run on the Sprint 3 changes, target hardware unmeasured. The wheel and npm READMEs carry their own Limitations sections | D3 | no |
 | 4 | Signed artifacts and manifest | Open (rehearsed with a public test key, not performed) | Owner must: create the real key offline, commit its public half to `docs/release-keys.json`, sign the manifest of the checked candidate with `cp-sign sign --no-expiry`, attach it to the GitHub release ([RELEASING.md](RELEASING.md), steps 3, 4, 11, 12, 13). Done by the team: `scripts/release/rehearse.sh` builds the artefacts as a release would, writes the manifest and `SHA256SUMS` with the vendored release tool (`scripts/release/release-tool.mjs`, spec 0.6.1, TD-103), signs a `glyphsift-rehearsal` manifest with the published RFC 8032 test key, verifies it with the explicit flag and shows `refused: test_key_refused` without it, `refused: no_trusted_key` against the committed empty `docs/release-keys.json`, and four more exact refusals; two runs with the same `SOURCE_DATE_EPOCH` gave byte-identical `SHA256SUMS` and `release-manifest.json` (`evidence/sprint-7/D3/green/rehearse-macos-run1.log` and `-run2.log`). That signature proves the tooling only: it is not a release signature, the test key can never sign a `-release` id (R1) and is refused by every production path (R2), and no signed manifest or real key exists | owner, D6 (cp-sign) | yes |
 | 5 | CHANGELOG and semver tag | Open | Owner must: [RELEASING.md](RELEASING.md), step 9 (date the entry, read CI, `git tag -s v0.1.3`, push the tag), after rows 1, 2, 4, 6, 7 are Done. [CHANGELOG.md](../CHANGELOG.md) has `## [0.1.3] - 2026-11-20 (untagged)` (Keep a Changelog groups Added, Changed, Fixed, Security, Deferred; `[Unreleased]` is empty). The tag does not exist (`git tag` prints nothing) and must not be created until every row above and below is Done. The workspace version is 0.1.3 (`tests/scripts/release-doc.sh` checks that every crate, `Cargo.lock`, the wheel and the npm package.json carry the same one) | owner | yes |
@@ -53,7 +53,7 @@ Blocker-for-tag rows Open today: 1, 2, 4, 5, 6, 7. Tagging v0.1.3 today would no
 | BUG-T2-S5-07: a local macOS wheel is not byte-reproducible across checkout paths | Documented, no build change: see "Packaging notes" below | `tests/scripts/release-doc.sh` section D |
 | BUG-T2-S5-08: `cargo doc` printed "output filename collision" between `glyphsift-py` (lib) and `glyphsift-cli` (bin) | Fixed: the CLI's `[[bin]]` is `doc = false`; `tests/scripts/ci-policy.sh` section J runs `cargo doc` and fails on the word "collision" | `red/D3-FIX1-04.log`, `green/D3-FIX1-04.log` |
 | T3-S5-05, TD-56: the sdist ships `crates/*/tests` | Decided, no packaging change: the sdist is a source release and includes the tests on purpose ("Packaging notes" below) | `tests/scripts/release-doc.sh` section D |
-| T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differ from the log they cite; the 8 GB column says only "not measured" | Fixed: every figure equals `evidence/sprint-5/D3/green/throughput.log` (gate 40 ms, validate 234, score_ppm 80, check 67, native gate 17) and every 8 GB cell reads "not measured on 8 GB" | `tests/scripts/readme-claims.sh` sections B and C |
+| T3-S5-03 and T3-S5-15: README and CHANGELOG throughput figures differ from the log they cite; the 8 GB column says only "not measured" | Fixed: every figure equalled `evidence/sprint-5/D3/green/throughput.log` (gate 40 ms, validate 234, score_ppm 80, check 67, native gate 17; that log records no commit, so these Sprint 5 figures are raw data not kept) and every 8 GB cell reads "not measured on 8 GB". Since 20 Nov 2026 section C reads [benchmarks/throughput-m5pro-48gb.json](benchmarks/throughput-m5pro-48gb.json), which is committed | `tests/scripts/readme-claims.sh` sections B and C |
 | BUG-T1-S5-05 / T3-S5-04: the README's first Status line is not the status line the demo and `site/data/demos.json` carry | Fixed: the first line of the README's Status section is the status line verbatim, the narrative follows it | `tests/scripts/readme-claims.sh` section A |
 
 ## Sprint 6 carry-overs closed here (D3)
@@ -129,7 +129,8 @@ Run [43667702791](https://github.com/AirplaneMode-Labs/glyphsift/actions/runs/43
 green, the three `wheels` jobs, the `packaging` job and the `demo-browser` job among them, none of which had run before (the last earlier run
 was the Sprint 2 commit). Read on 18 Nov 2026 with `gh run view 43667702791 --repo AirplaneMode-Labs/glyphsift --json status,conclusion,headSha,jobs`
 and `gh run view ... --job <id> --log`, plus `gh api` GETs for the job ids and the artifact list; nothing was changed or re-run.
-Job logs: `evidence/sprint-5/D3/ci/`.
+Job logs: `evidence/sprint-5/D3/ci/`. Every size in this table is committed as raw data in [benchmarks/ci-run-43667702791.json](benchmarks/ci-run-43667702791.json), copied from the run's logs and artifact list (GitHub keeps both for a limited time,
+and the three artifacts expire on 22 Nov 2026), and `tests/scripts/benchmarks-raw.sh` checks that this table and the file agree.
 
 | Job (job id) | Built | File and size | Smoke call, builder-path gate | Workflow artifact (size) |
 |---|---|---|---|---|
@@ -156,7 +157,7 @@ What it did not prove:
 - **S1-103.** The sdist was built (82,081 bytes), and the step then ran `git diff --exit-code -- Cargo.lock`, which only shows that the repository's lock did not change. Nothing built from the sdist.
   On 18 Nov 2026 the same `maturin sdist` unpacked and built `--locked` fails ("cannot update the lock file"): see the Sprint 5 table above for the fix.
 - Nothing about a clean machine. Each wheel was installed on the runner that built it, into a fresh venv, and never anywhere else or from a registry.
-- Nothing about reproducibility across machines. The same sources gave a macOS wheel of 247,045 bytes on the runner and 247,060 on this Mac (Sprint 4), and an npm tarball of 112,296 bytes on the runner and 112,744 locally. The
+- Nothing about reproducibility across machines. The same sources gave a macOS wheel of 247,045 bytes on the runner and 247,060 on this Mac (Sprint 4), and an npm tarball of 112,296 bytes on the runner and 112,744 locally (the runner's sizes are in the raw file above; the local ones, 247,060 and 112,744: raw data not kept). The
   cause was not investigated. Publish and sign the files from the one pipeline, never a local rebuild.
 - Nothing about the contents of the Linux and Windows wheels: only the `packaging` job's own native wheel went through `tests/python/check_wheel.py`. The `wheels` job now runs it on every platform's wheel (Sprint 5, unrun).
 - Nothing about 0.1.1. These are 0.1.0 artifacts at the Sprint 4 head. **Nothing is published**: the workflow artifacts are not releases, there was no registry, release, signing or Pages step, and no secret.
@@ -174,11 +175,11 @@ the source's: the Rust code and the Python files are identical. Only CI-built wh
 owner signs the manifest of what the `wheels` job built (row 4), and a wheel built on a developer Mac, this one included, is
 evidence that the package installs and runs, never a release artifact. No build change was made: removing the UUID
 (`-Wl,-no_uuid`) and re-signing deterministically would change what a macOS user's crash reports and symbolication can
-match, for no gain while nothing is published from a Mac. The Linux and Windows wheels have no such fields.
+match, for no gain while nothing is published from a Mac. The Linux and Windows wheels have no such fields. (The byte counts in this paragraph, 254,146, 254,149 and 254,147, are from local builds: raw data not kept; they are build facts, not benchmarks.)
 
 **The sdist is a source release and deliberately includes `crates/*/tests`** (TD-56; T3-S5-05). The sdist
-carries seven test files, 111,928 bytes before compression in the 0.1.1 sdist (the Rust test sources and the 35,270-byte synthetic case
-table `crates/glyphsift-core/tests/cases/devanagari.toml`), and it ships four repository-root files its tests read, at the same relative paths:
+carries seven test files, 111,928 bytes before compression in the 0.1.1 sdist (a size read from that build: raw data not kept; it is a build fact, not a benchmark; the Rust test sources and the 35,270-byte synthetic case
+table `crates/glyphsift-core/tests/cases/devanagari.toml`, which `wc -c` reproduces), and it ships four repository-root files its tests read, at the same relative paths:
 `bench/corpus/clean.txt`, `docs/gate.md`, `docs/score-vs-noise.csv` and `docs/corruption-generator.md` (BUG-T2-S5-12 and, for the last, S1-118; all four are
 synthetic and own-authored; maturin cannot include a path outside the Python project, so `scripts/add-sdist-files.py` appends them). A person who
 receives the sdist can therefore run `cargo test --locked --features corrupt` and see the 154-case table, the gate tests and the corruption-generator tests pass
@@ -284,7 +285,7 @@ Chrome) and write down what the commands print. Invent nothing. The throughput s
 1. Record the machine: Windows version (`winver`), CPU model, RAM, whether a GPU is present
    (`Get-CimInstance Win32_VideoController`), Chrome version, and that Wi-Fi is off for the browser run.
 2. Build the CLI and make the 1 MiB text (the corpus repeated line by line up to 1,048,576 bytes, as in
-   `evidence/sprint-3/D3/throughput.log`), then time it five times:
+   [benchmarks/throughput-m5pro-48gb.json](benchmarks/throughput-m5pro-48gb.json), whose `data.input` records its size and SHA-256), then time it five times:
 
    ```sh
    cargo build --release -p glyphsift-cli
@@ -292,19 +293,19 @@ Chrome) and write down what the commands print. Invent nothing. The throughput s
    ```
 
    Then, in PowerShell, five timings: `1..5 | ForEach-Object { (Measure-Command { .\target\release\glyphsift.exe check corpus-1mib.txt | Out-Null }).TotalMilliseconds }`.
-   (The Node line was run on the Mac and gives the 12,888 lines and 1,048,569 bytes of `throughput.log`; the PowerShell line
+   (The Node line was run on the Mac and gives the 12,888 lines and 1,048,569 bytes of `throughput-m5pro-48gb.json`; the PowerShell line
    was not run, there is no PowerShell here.)
 3. WebAssembly: `scripts/install-wasm-tools.sh`, `scripts/build-wasm.sh` (Git Bash), then in Node
    `node tests/determinism/run_wasm.mjs` for correctness and your own `performance.now()` loop around
    `validate()` and `score_ppm()` from `dist/wasm/nodejs`, best of five; `node scripts/throughput.mjs corpus-1mib.txt` does exactly that
-   and also times the native CLI.
+   and also times the native CLI. Add `--json docs/benchmarks/throughput-8gb.json` to write the raw file (date, commit, machine and all five runs), and `node tests/wasm/run_wasm_safety.mjs --bench-json docs/benchmarks/wasm-linearity-8gb.json` for the linearity ratio.
 4. Browser: `scripts/build-demo.sh`, serve `demo/dist` under `/glyphsift/` (this does it and prints the 1 MiB time:
    `npm ci --prefix tools/playwright --ignore-scripts`, then
-   `PLAYWRIGHT_DIR=$PWD/tools/playwright node tests/demo/check_demo.mjs --cli target/release/glyphsift`), turn Wi-Fi off, open it in Chrome, load a synthetic `.txt` file and note the time.
+   `PLAYWRIGHT_DIR=$PWD/tools/playwright node tests/demo/check_demo.mjs --cli target/release/glyphsift --bench-json docs/benchmarks/demo-1mib-8gb.json`), turn Wi-Fi off, open it in Chrome, load a synthetic `.txt` file and note the time.
 5. Peak memory: Task Manager, Details tab, "Peak working set (memory)" for the Chrome tab process, and for
    `glyphsift.exe` during the timing run. Write the figure and where it came from.
-6. Put the results in the README Benchmarks table (the "8 GB Windows no-GPU laptop" column), cite where the raw
-   output is kept, and change row 2 to Done here.
+6. Commit the raw files under `docs/benchmarks/` (the three files named above; [benchmarks/README.md](benchmarks/README.md) says how to list them), put the results in the README Benchmarks table (the "8 GB Windows no-GPU laptop"
+   column) from those files, and change row 2 to Done here.
 
 **Rows 4 to 7.** [RELEASING.md](RELEASING.md), steps 2 to 16: reserve the names, create and commit the real key, configure the `release` environment, its variable and secrets, tag, dispatch `publish.yml`, check the candidate, sign it offline, attach
 the signed manifest to the GitHub release, arm and approve, disarm and revoke, install from a clean machine, finish the write-up. The README Install section moves its "After the owner publishes" commands into the main text in step 16.
