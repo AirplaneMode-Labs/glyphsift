@@ -202,7 +202,7 @@ if (ready) {
     check(build.sha === head, "a local build's id is this checkout's HEAD", head.slice(0, 12));
   }
   // T1-S4-R1-05: a static #sprint-status line equal to the status-line text recorded in site/data/demos.json.
-  const SPRINT_STATUS = "Sprint 6 (19 Nov 2026): Working: everything from Sprint 5, plus a short page on what glyphsift measures, linked from the demo and built only from the committed benchmark: the score falls as synthetic noise rises (0 of 60 series rise), the gate threshold is 975000 ppm, and native, Python and WebAssembly give the same bytes on 13 samples and 200 gate cases; the shipped source package now runs its corrupt-feature tests; 0 requests after the page loads. Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only, Bengali later), a published package or wheel, 8 GB figures (not measured on 8 GB).";
+  const SPRINT_STATUS = "Sprint 7 (20 Nov 2026): Working: everything from Sprint 6, plus the release path rehearsed in code: version 0.1.3 builds its npm tarball, wheel, source package and two packaged crates the way a release would, a new CI job (first run after the push) installs each built file into a fresh project and checks a clean and a corrupted Devanagari sample against the committed reports, a test-signed rehearsal manifest verifies only with an explicit flag, and a two-minute quick start for the command line, Python and Node is run by a test; the score, the gate and the benchmark did not change (0 of 60 series rise). Not yet: scripts other than Devanagari (Tamil is planned for v0.2 as a design note only), a published package or wheel, a signing key or a tag, 8 GB figures (not measured on 8 GB).";
   const sprintStatus = (await text("#sprint-status")).trim();
   check(sprintStatus === SPRINT_STATUS, "the #sprint-status line is exactly the agreed text", sprintStatus.slice(0, 80));
   check((await page.locator("#sprint-status script, script:not([src])").count()) === 0, "the page has no inline script");
@@ -214,6 +214,10 @@ if (ready) {
   for (const word of ["tamil planned for v0.2", "bengali later", "not scored", "not measured on 8 gb", "run 43667702791"]) check(notYet.includes(word), `the not-yet box says "${word}"`);
   // Sprint 6 (D3-04): the measures page is linked and its limits are in the box; the Tamil line stays a design note (TD-80).
   for (const word of ["what glyphsift measures", "synthetic", "no claim"]) check(notYet.includes(word), `the not-yet box says "${word}" (Sprint 6)`);
+  // Sprint 7 (D3-05): the release path is rehearsed, not performed: no signing key, no tag, no registry release, and the box says so; it never claims a signed or published package.
+  for (const word of ["no signing key", "no tag", "rehearsed in ci", "test key only"]) check(notYet.includes(word), `the not-yet box says "${word}" (Sprint 7)`);
+  check(!/\b(is|are) (signed|audited|certified|compliant)\b/.test(notYet), "the not-yet box makes no signed, audited or compliant claim");
+  check(!notYet.includes("sprint 6"), "the not-yet box does not describe itself as Sprint 6");
   check(!notYet.includes("sprint 5"), "the not-yet box does not describe itself as Sprint 5");
   check(!notYet.includes("built only by ci after the owner's push"), "the not-yet box no longer says the Linux and Windows wheels are built only after the owner's push");
   for (const word of ["heatmap", "drag", "drop"]) check(!notYet.includes(word), `the not-yet box no longer lists "${word}" (the demo does it now)`);

@@ -150,7 +150,7 @@ fn version_prints_the_workspace_version_and_exits_0() {
         r.out(),
         format!("glyphsift {}\n", env!("CARGO_PKG_VERSION"))
     );
-    assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.2");
+    assert_eq!(env!("CARGO_PKG_VERSION"), "0.1.3");
 }
 
 #[test]
@@ -361,7 +361,8 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
     // Every evidence path in the README names sprint 3 or the earlier sprint 2 run it supersedes.
     for line in readme.lines().filter(|l| l.contains("evidence/")) {
         assert!(
-            line.contains("evidence/sprint-6/D3/")
+            line.contains("evidence/sprint-7/D3/")
+                || line.contains("evidence/sprint-6/D3/")
                 || line.contains("evidence/sprint-5/D3/")
                 || line.contains("evidence/sprint-4/D3/")
                 || line.contains("evidence/sprint-3/D3/")
@@ -371,14 +372,14 @@ fn readmes_cite_no_scratch_paths_have_limitations_and_the_8_gb_column_reads_not_
     }
 }
 
-/// Sprint 6 wording rules for the README (D3-04): the Status names Sprint 6 and version 0.1.2, the benchmark
+/// Sprint 7 wording rules for the README (D3-04, after the Sprint 6 rules it keeps): the Status names Sprint 7 and version 0.1.3, the benchmark
 /// machine is named "Apple M5 Pro, 48 GB", the prose says "not measured on 8 GB", Tamil is the planned second
 /// script, the gate is documented (docs/gate.md) and the first CI run of the wheels job is cited (run
 /// 43667702791 at 5ff0c47, read on 18 Nov 2026) with nothing published. The demo's not-yet box and the wheel
 /// README carry the same facts, so the three cannot drift (the demo box is checked in tests/demo/check_demo.mjs,
 /// the wheel README in tests/python/check_wheel.py).
 #[test]
-fn readme_states_the_sprint_6_position_in_the_required_words() {
+fn readme_states_the_sprint_7_position_in_the_required_words() {
     let root = repo_root();
     let readme = std::fs::read_to_string(root.join("README.md")).unwrap();
     let status = readme
@@ -387,16 +388,16 @@ fn readme_states_the_sprint_6_position_in_the_required_words() {
         .and_then(|t| t.split("\n## ").next())
         .expect("README has a Status section");
     assert!(
-        status.contains("Sprint 6"),
-        "the Status section names Sprint 6"
+        status.contains("Sprint 7"),
+        "the Status section names Sprint 7"
     );
     assert!(
-        status.contains("0.1.2"),
-        "the Status section names version 0.1.2"
+        status.contains("0.1.3"),
+        "the Status section names version 0.1.3"
     );
     assert!(
         status.contains("release candidate, not tagged"),
-        "the Status section says 0.1.2 is a release candidate, not tagged"
+        "the Status section says 0.1.3 is a release candidate, not tagged"
     );
     for needle in [
         "Apple M5 Pro, 48 GB",

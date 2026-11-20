@@ -6,7 +6,7 @@
 #  A. BUG-T1-S5-05 / T3-S5-04: the first line of the README's "## Status" section is the Sprint status line, verbatim
 #     and on one line: the same text the demo renders in #sprint-status, that tests/demo/check_demo.mjs pins and that
 #     site/data/demos.json carries. The longer narrative may follow it. If STATUS_LINE_FILE names a file (the
-#     lane's status-line.txt, which is what D5 copies into site/data/demos.json), or ../evidence/sprint-6/D3/status-line.txt
+#     lane's status-line.txt, which is what D5 copies into site/data/demos.json), or ../evidence/sprint-7/D3/status-line.txt
 #     exists beside the repository, the README must equal that file's line too; on a CI checkout there is no such file
 #     and the output says so.
 #  B. T3-S5-15: in the Benchmarks section every cell of an 8 GB column reads exactly "not measured on 8 GB", and no
@@ -50,20 +50,27 @@ expect_eq "the README has a '## Status' heading" true "$HEADING"
 expect_eq "the demo has a #sprint-status line without markup or entities" 0 "$(printf '%s' "$DEMO_LINE" | grep -c '[&<>]' | tr -d ' ')"
 if [ -n "$DEMO_LINE" ] && [ "$README_FIRST" = "$DEMO_LINE" ]; then ok "the first line of the README Status section is exactly the demo's status line"
 else fail "the first line of the README Status section is exactly the demo's status line (README: '$(printf '%s' "$README_FIRST" | cut -c1-90)...')"; fi
-case "$README_FIRST" in "Sprint 6 (19 Nov 2026): Working: "*) ok "the README status line has the form 'Sprint 6 (19 Nov 2026): Working: <...>. Not yet: <...>.'" ;; *) fail "the README status line has the form 'Sprint 6 (19 Nov 2026): Working: <...>. Not yet: <...>.'" ;; esac
+case "$README_FIRST" in "Sprint 7 (20 Nov 2026): Working: "*) ok "the README status line has the form 'Sprint 7 (20 Nov 2026): Working: <...>. Not yet: <...>.'" ;; *) fail "the README status line has the form 'Sprint 7 (20 Nov 2026): Working: <...>. Not yet: <...>.'" ;; esac
 case "$README_FIRST" in *". Not yet: "*) ok "the README status line has a 'Not yet:' part" ;; *) fail "the README status line has a 'Not yet:' part" ;; esac
 case "$README_FIRST" in *"not measured on 8 GB"*) ok "the README status line says 'not measured on 8 GB'" ;; *) fail "the README status line says 'not measured on 8 GB'" ;; esac
 expect_eq "the README status line is one line (no hard wrap) ending with a full stop" 1 "$(printf '%s' "$README_FIRST" | grep -c '\.$' | tr -d ' ')"
 expect_eq "tests/demo/check_demo.mjs pins the same line" 1 "$(grep -cF -- "$README_FIRST" "$CHECK" | tr -d ' ' | awk '{print ($1 >= 1) ? 1 : 0}')"
 SLF=${STATUS_LINE_FILE:-}
-[ -z "$SLF" ] && [ -f "$REPO/../evidence/sprint-6/D3/status-line.txt" ] && SLF=$REPO/../evidence/sprint-6/D3/status-line.txt
+[ -z "$SLF" ] && [ -f "$REPO/../evidence/sprint-7/D3/status-line.txt" ] && SLF=$REPO/../evidence/sprint-7/D3/status-line.txt
 if [ -n "$SLF" ] && [ -f "$SLF" ]; then
   FILE_LINE=$(head -1 "$SLF")
   expect_eq "status-line.txt ($SLF) equals the README's first Status line" "$FILE_LINE" "$README_FIRST"
   expect_eq "status-line.txt equals the demo's status line" "$FILE_LINE" "$DEMO_LINE"
 else
-  echo "na   - status-line.txt: not applicable here (no STATUS_LINE_FILE and no ../evidence/sprint-6/D3/status-line.txt; the demo's line, which check_demo.mjs pins, is the in-repo source)"
+  echo "na   - status-line.txt: not applicable here (no STATUS_LINE_FILE and no ../evidence/sprint-7/D3/status-line.txt; the demo's line, which check_demo.mjs pins, is the in-repo source)"
 fi
+
+echo "== D. TD-116: the live demo is in the first screen, and the quick start follows the Status"
+LD_LINE=$(head -12 "$README" | grep -nxF 'Live demo: https://airplanemode-labs.github.io/glyphsift/' | head -1 | cut -d: -f1)
+if [ -n "$LD_LINE" ]; then ok "the README has the exact line 'Live demo: https://airplanemode-labs.github.io/glyphsift/' (line $LD_LINE, within the first 12)"; else fail "the README has the exact line 'Live demo: https://airplanemode-labs.github.io/glyphsift/' within its first 12 lines"; fi
+expect_eq "the README's first line is the title '# glyphsift'" "# glyphsift" "$(head -1 "$README")"
+expect_eq "the placeholder-name note is within the first 14 lines" 1 "$(head -14 "$README" | grep -c 'placeholder scope' | awk '{print ($1 >= 1) ? 1 : 0}')"
+expect_eq "the README sections of the Sprint 7 convention are in order" "Status|Try it in two minutes|Install|Quick start|How it works|Contracts|Demo|Benchmarks|Limitations|Security and privacy|Develop|Licence" "$(grep -E '^## ' "$README" | sed 's/^## //' | tr '\n' '|' | sed 's/|$//')"
 
 echo "== B. every 8 GB cell in the Benchmarks section reads 'not measured on 8 GB'"
 BENCH=$(awk '/^## Benchmarks/{on=1; next} on && /^## /{exit} on{print}' "$README")

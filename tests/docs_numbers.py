@@ -123,6 +123,18 @@ def main():
     for k in ("pass", "hold", "not_scored", "rejected"):
         cited(f"{tally[k]} {k}", f"the number of {k} cases")
 
+    # --- Sprint 7: the page is in step with the version it describes and with the committed benchmark it quotes ---
+    with open(os.path.join(ROOT, "Cargo.toml"), encoding="utf-8") as f:
+        ws = re.search(r'^\[workspace\.package\][^\[]*?^version = "([^"]+)"', f.read(), flags=re.M | re.S)
+    check(ws is not None, "Cargo.toml has a [workspace.package] version")
+    status_line = next((l for l in page.splitlines() if l.startswith("Status:")), "")
+    check(ws is not None and f"glyphsift {ws.group(1)}," in status_line, f"the page's Status line names glyphsift {ws.group(1) if ws else '?'} (the workspace version)")
+    check("untagged and unpublished" in status_line, "the page's Status line says untagged and unpublished")
+    check("Sprint 7" in status_line, "the page's Status line says it was re-read against the committed files in Sprint 7")
+    with open(os.path.join(ROOT, "docs", "score-vs-noise.csv"), "rb") as f:
+        csv_bytes = f.read()
+    check(b"\r" not in csv_bytes, "the committed benchmark CSV is LF only (so its bytes, and the figures read from it, are the same on every checkout)")
+
     # --- the commands the page must name so a reader can regenerate every figure ---
     for cmd in (
         "glyphsift bench --verify docs/score-vs-noise.csv",
