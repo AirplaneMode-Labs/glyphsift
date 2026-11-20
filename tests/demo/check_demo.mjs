@@ -3,7 +3,7 @@
 //
 //   scripts/build-demo.sh
 //   PLAYWRIGHT_DIR=/path/to/dir-with-node_modules-playwright \
-//     node tests/demo/check_demo.mjs [--cli target/release/glyphsift] [--evidence out.json] [--shots dir]
+//     node tests/demo/check_demo.mjs [--cli target/release/glyphsift] [--evidence out.json] [--shots dir] [--bench-json out.json [--machine "<model>, <N> GB"]]
 //
 // Sprint 3 (D3-07) adds: the per-line strip and per-cluster heatmap (highlighted clusters equal the
 // distinct cluster indices of report.issues for all five samples, per-line buckets match, class names
@@ -16,12 +16,17 @@
 // 1.65.0 from the committed lockfile (every package pinned by integrity hash); point PLAYWRIGHT_DIR at
 // tools/playwright (any directory with playwright installed also works). Chrome is used through
 // `channel: "chrome"`, so no browser is downloaded. Exit 0 when every check passes.
+//
+// Owner decision, 20 Nov 2026: the footer links the raw benchmark files (docs/benchmarks/), and `--bench-json` also writes the
+// time the page takes to validate and render exactly 1 MiB as a raw benchmark file with its date, commit, machine and method
+// (scripts/lib/bench-provenance.mjs; docs/benchmarks/README.md), when every check has passed. It is one run, not a best of five.
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, normalize, resolve, sep } from "node:path";
+import { dirname, extname, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeRaw } from "../../scripts/lib/bench-provenance.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const arg = (name, fallback) => {
@@ -33,6 +38,8 @@ const dist = resolve(root, arg("--dist", "demo/dist"));
 const cli = resolve(root, arg("--cli", join(process.env.CARGO_TARGET_DIR || "target", "release", `glyphsift${process.platform === "win32" ? ".exe" : ""}`)));
 const evidencePath = arg("--evidence", "");
 const shotsDir = arg("--shots", "");
+const benchJson = arg("--bench-json", "");
+let paste1MiB = null;
 const pwDir = process.env.PLAYWRIGHT_DIR;
 if (!pwDir) {
   console.error("set PLAYWRIGHT_DIR to a directory whose node_modules contains playwright");
@@ -164,6 +171,10 @@ if (ready) {
   check(noticeRes.status === 200 && noticeType.startsWith("text/plain"), "NOTICE.txt is served with a text/plain content type", noticeType);
   // Sprint 6 (D3-03/-04): the measures page is served as text/plain (a bare .md would be a download) and the footer links it.
   check((await page.locator('footer a[href="what-glyphsift-measures.txt"]').count()) === 1, "the footer links what-glyphsift-measures.txt");
+  // Owner decision, 20 Nov 2026: the raw results behind every figure are committed under docs/benchmarks/ and the demo links that folder (a plain link, no request).
+  const benchLinks = await page.locator("footer a").evaluateAll((as) => as.map((a) => ({ href: a.getAttribute("href"), rel: a.getAttribute("rel"), text: a.textContent.trim() })));
+  const benchLink = benchLinks.filter((a) => a.href === "https://github.com/AirplaneMode-Labs/glyphsift/tree/main/docs/benchmarks");
+  check(benchLink.length === 1 && benchLink[0].text === "Benchmark raw data" && benchLink[0].rel === "noopener", "the footer links the raw benchmark files, https://github.com/AirplaneMode-Labs/glyphsift/tree/main/docs/benchmarks, as a plain noopener link");
   const measRes = await fetch(`${origin}${BASE}what-glyphsift-measures.txt`);
   const measType = measRes.headers.get("content-type") ?? "";
   const measText = await measRes.text();
@@ -559,7 +570,8 @@ if (ready) {
     area.dispatchEvent(new Event("input", { bubbles: true }));
   }, padded);
   await page.waitForFunction(() => document.querySelector("#score-value")?.textContent.trim() !== "—", null, { timeout: 60000 });
-  console.log(`     1 MiB validated and rendered in ${Date.now() - t0} ms`);
+  paste1MiB = Date.now() - t0;
+  console.log(`     1 MiB validated and rendered in ${paste1MiB} ms`);
   check(!/refused/i.test(await text("#input-note")) && Number((await text("#call-count")).trim()) === before + 1, "exactly 1 MiB is accepted and validated once");
   check((await page.locator("#line-rows tr").count()) <= 500, "a huge input renders at most 500 line rows");
   check((await text("#json-note")).toLowerCase().includes("truncated") || (await text("#json-out")).length > 0, "a huge report shows a truncated JSON block with a note");
@@ -595,8 +607,25 @@ if (ready) {
   if (evidencePath) writeFileSync(evidencePath, JSON.stringify({ ...evidence, results }, null, 2));
 }
 
+const chromeVersion = browser.version();
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r.ok).length;
+if (benchJson && failed === 0 && paste1MiB !== null) {
+  const doc = writeRaw(
+    resolve(benchJson),
+    {
+      benchmark: "demo-1mib",
+      method:
+        "The built demo (scripts/build-demo.sh) served under /glyphsift/ and driven in installed Google Chrome, headless, through Playwright. The text area's value is set directly to exactly 1,048,576 bytes " +
+        "(the synthetic sentence 'नमस्ते दुनिया।' repeated, padded with spaces) and an input event is dispatched; the time is wall clock (Date.now) from that event until the score is shown, which includes the " +
+        "validate() call in WebAssembly and rendering the report with its heatmap capped at 20,000 clusters. One run, not a best of five, in a tab that has already scored the demo's samples.",
+      command: `PLAYWRIGHT_DIR=$PWD/tools/playwright node tests/demo/check_demo.mjs --cli target/release/glyphsift --bench-json ${relative(root, resolve(benchJson)).split("\\").join("/")}`,
+      data: { input_bytes: LIMIT, paste_validate_render_ms: paste1MiB, runs: 1, heatmap_cluster_cap: 20000, browser: `Google Chrome ${chromeVersion}`, headless: true },
+    },
+    { machine: arg("--machine", undefined), extraEnvironment: { chrome: chromeVersion } },
+  );
+  console.log(`wrote the 1 MiB measurement (machine: ${doc.machine}, commit ${doc.commit.slice(0, 7)}, ${paste1MiB} ms)`);
+}
 console.log(failed === 0 ? `demo: all ${results.length} checks passed` : `demo: ${failed} of ${results.length} checks FAILED`);
 process.exit(failed === 0 ? 0 : 1);

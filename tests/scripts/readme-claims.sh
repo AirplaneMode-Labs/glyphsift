@@ -11,10 +11,11 @@
 #     and the output says so.
 #  B. T3-S5-15: in the Benchmarks section every cell of an 8 GB column reads exactly "not measured on 8 GB", and no
 #     cell anywhere in that section reads a bare "not measured".
-#  C. T3-S5-03: the throughput figures in the README and the CHANGELOG are the figures of the log they cite,
-#     evidence/sprint-5/D3/green/throughput.log. The log lives in the sprint scratch folder until the architect
-#     copies it: THROUGHPUT_LOG names it, or ../evidence/sprint-5/D3/green/throughput.log exists beside the
-#     repository. Without a log, the README and the CHANGELOG must still agree with each other.
+#  C. T3-S5-03, rewritten after the owner decision of 20 Nov 2026: the throughput table in the README (all five timings, the demo line, the
+#     header's input size, machine and operating system), the commit, date, Node and Chrome versions it names, and the benchmark time next to the
+#     reproduce command are the figures of the raw files committed under docs/benchmarks/ (throughput-m5pro-48gb.json,
+#     demo-1mib-m5pro-48gb.json, score-vs-noise.provenance.json). They no longer depend on a log outside the repository, so
+#     this section runs on every checkout, CI included. A README figure with no matching value in those files fails.
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 cd "$REPO" || exit 1
@@ -99,50 +100,74 @@ expect_eq "every 8 GB cell reads exactly 'not measured on 8 GB'" 0 "$BAD8"
 expect_eq "no table cell in the Benchmarks section is a bare 'not measured'" 0 "$BAREROW"
 expect_eq "the Benchmarks prose says 'not measured on 8 GB'" 1 "$(printf '%s\n' "$BENCH" | grep -c 'not measured on 8 GB' | awk '{print ($1 >= 1) ? 1 : 0}')"
 
-echo "== C. throughput figures equal the log they cite"
-THROUGHPUT_LOG_PATH=""
-for cand in "${THROUGHPUT_LOG:-}" "$REPO/../evidence/sprint-5/D3/green/throughput.log"; do
-  if [ -n "$cand" ] && [ -f "$cand" ]; then THROUGHPUT_LOG_PATH=$cand; break; fi
+echo "== C. the throughput table and the benchmark time equal the raw files in docs/benchmarks/"
+RAW_T=docs/benchmarks/throughput-m5pro-48gb.json
+RAW_D=docs/benchmarks/demo-1mib-m5pro-48gb.json
+RAW_S=docs/benchmarks/score-vs-noise.provenance.json
+for f in "$RAW_T" "$RAW_D" "$RAW_S"; do
+  if [ -f "$f" ]; then ok "$f is committed"; else fail "$f is committed"; fi
 done
-best() { grep -E "$1" "$THROUGHPUT_LOG_PATH" | sed -n 's/.*best \([0-9][0-9]*\) ms.*/\1/p' | head -1; }
-# README: table rows
-R_GATE=$(grep -E '^\| WASM `gate\(\)` in Node 22' "$README" | awk -F'|' '{print $3}' | grep -oE '[0-9][0-9,]*' | head -1)
-R_NGATE=$(grep -E '^\| native `glyphsift gate`' "$README" | awk -F'|' '{print $3}' | grep -oE '[0-9][0-9,]*' | head -1)
-# README: the sentence "the same run measured `validate()` at N ms, `score_ppm()` at N ms and the native `check` at N ms"
-SENT=$(tr '\n' ' ' < "$README" | grep -oE 'the same run measured `validate\(\)` at [0-9]+ ms, `score_ppm\(\)` at [0-9]+ ms and the native `check` at [0-9]+ ms' | head -1)
-R_VAL=$(printf '%s' "$SENT" | sed -n 's/.*`validate()` at \([0-9]*\) ms.*/\1/p')
-R_SCORE=$(printf '%s' "$SENT" | sed -n 's/.*`score_ppm()` at \([0-9]*\) ms.*/\1/p')
-R_CHECK=$(printf '%s' "$SENT" | sed -n 's/.*`check` at \([0-9]*\) ms.*/\1/p')
-# CHANGELOG: "WASM `gate()` takes N ms on the 1 MiB corpus against N ms for `validate()`"
-CSENT=$(tr '\n' ' ' < "$CHANGELOG" | grep -oE 'WASM `gate\(\)` takes [0-9]+ ms on the 1 MiB corpus against [0-9]+ ms for `validate\(\)`' | head -1)
-C_GATE=$(printf '%s' "$CSENT" | sed -n 's/.*takes \([0-9]*\) ms.*/\1/p')
-C_VAL=$(printf '%s' "$CSENT" | sed -n 's/.*against \([0-9]*\) ms.*/\1/p')
-for pair in "R_GATE:the README gate() row" "R_NGATE:the README native gate row" "R_VAL:the README validate() figure" "R_SCORE:the README score_ppm() figure" "R_CHECK:the README native check figure" "C_GATE:the CHANGELOG gate() figure" "C_VAL:the CHANGELOG validate() figure"; do
-  v=${pair%%:*}; d=${pair#*:}
-  if [ -n "${!v}" ]; then ok "$d is stated (${!v} ms)"; else fail "$d is stated"; fi
-done
-expect_eq "README and CHANGELOG give the same gate() figure" "$R_GATE" "$C_GATE"
-expect_eq "README and CHANGELOG give the same validate() figure" "$R_VAL" "$C_VAL"
-if [ -n "$THROUGHPUT_LOG_PATH" ]; then
-  echo "     log: $THROUGHPUT_LOG_PATH"
-  L_GATE=$(best 'WASM gate\(\)')
-  L_VAL=$(best 'WASM validate\(\)')
-  L_SCORE=$(best 'WASM score_ppm\(\)')
-  L_CHECK=$(best 'native glyphsift check')
-  L_NGATE=$(best 'native glyphsift gate')
-  for pair in "L_GATE" "L_VAL" "L_SCORE" "L_CHECK" "L_NGATE"; do
-    if [ -n "${!pair}" ]; then ok "the log has $pair (${!pair} ms)"; else fail "the log has $pair"; fi
-  done
-  expect_eq "README gate() row equals the log" "$L_GATE" "$R_GATE"
-  expect_eq "README native gate row equals the log" "$L_NGATE" "$R_NGATE"
-  expect_eq "README validate() figure equals the log" "$L_VAL" "$R_VAL"
-  expect_eq "README score_ppm() figure equals the log" "$L_SCORE" "$R_SCORE"
-  expect_eq "README native check figure equals the log" "$L_CHECK" "$R_CHECK"
-  expect_eq "CHANGELOG gate() figure equals the log" "$L_GATE" "$C_GATE"
-  expect_eq "CHANGELOG validate() figure equals the log" "$L_VAL" "$C_VAL"
+cat > "${TMPDIR:-/tmp}/readme-claims-c-$$.mjs" <<'JS'
+import { readFileSync } from "node:fs";
+const [, , readmePath, tPath, dPath, sPath] = process.argv;
+const R = readFileSync(readmePath, "utf8");
+const T = JSON.parse(readFileSync(tPath, "utf8"));
+const D = JSON.parse(readFileSync(dPath, "utf8"));
+const S = JSON.parse(readFileSync(sPath, "utf8"));
+const lines = R.split("\n");
+const cells = (l) => (l ? l.split("|").slice(1, -1).map((c) => c.trim()) : []);
+const rowStarting = (prefix) => lines.find((l) => l.startsWith(prefix));
+const best = (id) => T.data.results.find((r) => r.id === id)?.best_ms;
+const n = (v) => v.toLocaleString("en-US");
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const day = (iso) => { const d = new Date(iso); return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const out = [];
+const add = (name, want, got) => out.push([name, String(want), String(got ?? "")]);
+const header = cells(lines.find((l) => l.startsWith("| Throughput on about 1 MiB of the synthetic corpus")));
+const inp = T.data.input;
+add("the table header names the input of throughput-m5pro-48gb.json", `Throughput on about 1 MiB of the synthetic corpus (${n(inp.bytes)} bytes, ${n(inp.lines)} lines, ${n(inp.clusters)} clusters)`, header[0]);
+add("the table header names the machine and operating system of the raw file", `${T.machine} (${T.environment.os})`, header[1]);
+add("the table's 8 GB column is the unmeasured one", "8 GB Windows no-GPU laptop", header[2]);
+const rows = [
+  ["native `glyphsift check`", "native_check"],
+  ["WASM `validate()` in Node 22", "wasm_validate"],
+  ["WASM `score_ppm()` in Node 22", "wasm_score_ppm"],
+  ["WASM `gate()` in Node 22", "wasm_gate"],
+  ["native `glyphsift gate`", "native_gate"],
+];
+for (const [label, id] of rows) {
+  const c = cells(rowStarting(`| ${label}, `));
+  add(`README ${label} row equals the best of five in the raw file`, `${best(id)} ms`, c[1]);
+  add(`README ${label} row is best of 5 like the raw file`, String(T.data.runs_per_measurement), (/best of (\d+)/.exec(c[0]) ?? [])[1]);
+}
+const demo = cells(rowStarting("| demo in Chrome: 1 MiB pasted, validated and rendered"));
+add("README demo row equals the raw file's single run", `${n(D.data.paste_validate_render_ms)} ms (headless Chrome, one run, includes the ${n(D.data.heatmap_cluster_cap)}-cluster heatmap)`, demo[1]);
+add("the demo raw file is one run", 1, D.data.runs);
+const flat = R.split("\n").join(" ").replace(/\s+/g, " ");
+const has = (name, frag) => add(name, "present", flat.includes(frag) ? "present" : `missing: ${frag}`);
+has("README names the throughput raw file's commit, date, machine, system and Node", `(${day(T.date)}, commit ${T.commit.slice(0, 7)}, ${T.machine}, ${T.environment.os}, Node ${T.environment.node.replace(/^v/, "")})`);
+has("README names the Chrome of the demo raw file", `Google Chrome ${D.environment.chrome}`);
+has("README names the 1 MiB text's SHA-256 prefix", `SHA-256 \`${inp.sha256.slice(0, 8)}...\``);
+has("README gives the benchmark time of the reproduce command", `the release binary takes ${S.data.bench_wall_clock_ms_best} ms, best of three runs on the ${S.machine}`);
+for (const f of ["docs/benchmarks/throughput-m5pro-48gb.json", "docs/benchmarks/demo-1mib-m5pro-48gb.json", "docs/benchmarks/score-vs-noise.provenance.json", "docs/benchmarks/wasm-linearity-m5pro-48gb.json", "docs/benchmarks/README.md"]) has(`README names ${f}`, f);
+add("the throughput raw file measured the commit's own build inputs", false, T.build_inputs_modified);
+add("the demo raw file measured the commit's own build inputs", false, D.build_inputs_modified);
+process.stdout.write(JSON.stringify(out));
+JS
+CJ=$(node "${TMPDIR:-/tmp}/readme-claims-c-$$.mjs" "$README" "$RAW_T" "$RAW_D" "$RAW_S" 2>&1)
+CSTATUS=$?
+rm -f "${TMPDIR:-/tmp}/readme-claims-c-$$.mjs"
+if [ "$CSTATUS" -ne 0 ]; then
+  fail "the README table and the raw files could be compared (node said: $(printf '%s' "$CJ" | head -3 | tr '\n' ' '))"
 else
-  echo "na   - throughput log: not applicable here (no THROUGHPUT_LOG and no ../evidence/sprint-5/D3/green/throughput.log); README and CHANGELOG were compared with each other only"
+  NC=$(printf '%s' "$CJ" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).length)))')
+  for i in $(seq 0 $((NC - 1))); do
+    PAIR=$(printf '%s' "$CJ" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const [a,b,c]=JSON.parse(s)[Number(process.argv[1])];process.stdout.write([a,b,c].join("\u001f"))})' "$i")
+    IFS=$'\037' read -r NAME WANT GOT <<< "$PAIR"
+    # the separator is U+001F, not U+0001 (bash uses that one inside its own expansions); a pair that did not split must fail, never pass as two empty strings
+    if [ -z "$WANT" ]; then fail "$i: the pair was read as name, wanted value and README value (got '$NAME')"; else expect_eq "$NAME" "$WANT" "$GOT"; fi
+  done
+  if [ "$NC" -ge 20 ]; then ok "compared $NC README claims with the raw files"; else fail "compared at least 20 README claims with the raw files (compared $NC)"; fi
 fi
-expect_eq "the README names the log it cites" 1 "$(grep -c 'evidence/sprint-5/D3/green/throughput.log' "$README" | awk '{print ($1 >= 1) ? 1 : 0}')"
 
 finish

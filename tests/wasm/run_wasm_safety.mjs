@@ -17,14 +17,25 @@
 //      (linear is 2, quadratic is 4).
 //
 // The nodejs-target build is CommonJS; this script loads it with createRequire.
+//
+// `--bench-json <path>` (owner decision, 20 Nov 2026) also writes the measurement of check 4 as a raw benchmark file with its date, commit,
+// machine and method (scripts/lib/bench-provenance.mjs; docs/benchmarks/README.md), when every check has passed:
+//   node tests/wasm/run_wasm_safety.mjs --bench-json docs/benchmarks/wasm-linearity-m5pro-48gb.json [--machine "<model>, <N> GB"]
 
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeRaw } from "../../scripts/lib/bench-provenance.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
+const argOf = (name) => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const benchJson = argOf("--bench-json");
+let linearity = null;
 const require = createRequire(import.meta.url);
 const pkgDir = process.env.GLYPHSIFT_WASM_DIR ?? join(root, "dist", "wasm", "nodejs");
 
@@ -292,10 +303,27 @@ stage("linear in the number of marks", () => {
   const t5000 = best(big);
   const ratio = t5000 / t2500;
   console.log(`     2,500 marks: ${(t2500 / 20).toFixed(3)} ms per call; 5,000 marks: ${(t5000 / 20).toFixed(3)} ms per call; ratio ${ratio.toFixed(2)} (linear is 2.00, quadratic 4.00)`);
+  linearity = { marks_small: 2500, marks_large: 5000, calls_per_round: 20, rounds: 7, ms_per_call_small: Number((t2500 / 20).toFixed(3)), ms_per_call_large: Number((t5000 / 20).toFixed(3)), ratio: Number(ratio.toFixed(2)), linear_ratio: 2, quadratic_ratio: 4, limit: 3 };
   check(ratio < 3, `the 5,000-mark run takes less than 3x the 2,500-mark run (ratio ${ratio.toFixed(2)})`);
   const r = JSON.parse(g.validate(big));
   check(r.summary.issue_count === 4999 && r.summary.cluster_count === 1, "the 5,000-mark run reports 4,999 double_matra issues in one cluster");
 });
 
+if (benchJson !== undefined && failures === 0 && linearity !== null) {
+  const doc = writeRaw(
+    resolve(benchJson),
+    {
+      benchmark: "wasm-linearity",
+      method:
+        "validate() in Node on dist/wasm/nodejs, on a text that is one consonant followed by 2,500 and by 5,000 dependent vowel signs (one cluster, one double_matra issue per extra sign). " +
+        "Each size is timed over 7 rounds of 20 calls, and the fastest round is divided by 20 (ms_per_call_*); ratio is the large size over the small one, rounded to two decimals. " +
+        "A linear validator gives 2, a quadratic one 4; the check fails at 3 or more. Measured after one warm-up round.",
+      command: "node tests/wasm/run_wasm_safety.mjs --bench-json docs/benchmarks/wasm-linearity-m5pro-48gb.json",
+      data: linearity,
+    },
+    { machine: argOf("--machine") },
+  );
+  console.log(`wrote the linearity measurement (machine: ${doc.machine}, commit ${doc.commit.slice(0, 7)}, ratio ${linearity.ratio.toFixed(2)})`);
+}
 console.log(failures === 0 ? "wasm safety: all checks passed" : `wasm safety: ${failures} check(s) FAILED`);
 process.exit(failures === 0 ? 0 : 1);
